@@ -1330,7 +1330,7 @@ if (winsThisRound > 0) {
   if (req.session.bj.wins >= 25) unlock('w25',  'BJ 25 Wins',  BJ_W25_KIBL);
   if (req.session.bj.wins >= 50) unlock('w50',  'BJ 50 Wins',  BJ_W50_KIBL);
 }
-
+const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
 // natural blackjack (original two-card 21) — note: result === 'bj' already implies “natural only”
 if (results.some(x => x.result === 'bj' && !x.splitFrom)) {
   unlock('bj_natural', 'Natural Blackjack', BJ_NATURAL_KIBL);
