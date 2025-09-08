@@ -265,10 +265,10 @@ app.get('/api/profile', async (req, res) => {
         blackjack: {
   wins: bj?.wins || 0,
   achievements: {
-    firstWin:  !!bj?.bj_first_win,
-    w10:       !!bj?.bj_w10,
-    w25:       !!bj?.bj_w25,
-    w50:       !!bj?.bj_w50,
+    firstWin:  !!bj?.first_win,
+    w10:       !!bj?.w10,
+    w25:       !!bj?.w25,
+    w50:       !!bj?.w50,
     natural:   !!bj?.bj_natural,
     doubleWin: !!bj?.bj_double_win,
     splitWin:  !!bj?.bj_split_win
@@ -337,12 +337,25 @@ const RANKS = ['Ace','2','3','4','5','6','7','8','9','10','Jack','Queen','King']
 const SUITS = ['Clubs','Diamonds','Hearts','Spades'];
 const RANK_VALUE = { '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'Jack':11,'Queen':12,'King':13,'Ace':14 };
 
-async function getOrCreateUser(uid){
+async function getOrCreateUser(uid) {
   if (!hasDb) return;
   const p = await db();
-  await p.query('insert into user_stats(user_id) values($1) on conflict do nothing', [uid]);
-  await p.query('insert into user_stats_blackjack(user_id) values($1) on conflict do nothing', [uid]);
- }
+  await p.query('BEGIN');
+  try {
+    await p.query('INSERT INTO users(user_id) VALUES($1) ON CONFLICT DO NOTHING', [uid]);
+    await p.query('INSERT INTO user_stats(user_id) VALUES($1) ON CONFLICT DO NOTHING', [uid]);
+    await p.query('INSERT INTO user_stats_blackjack(user_id) VALUES($1) ON CONFLICT DO NOTHING', [uid]);
+    await p.query('COMMIT');
+  } catch (e) {
+    await p.query('ROLLBACK');
+    throw e;
+  }
+}
+app.use(async (req, _res, next) => {
+  try { await getOrCreateUser(req.uid); } catch {}
+  next();
+});
+
 async function loadStatsFor(uid, game) {
   if (!hasDb) return null;
   const { stats } = tablesByGame[game];
@@ -702,7 +715,45 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
     req.session.lastDrawAt   = now; // set last draw time once the draw succeeds
 
     // persist to DB
-    await getOrCreateUser(req.uid);
+    try {
+  await getOrCreateUser(req.uid);
+  const p = await db();
+  await p.query('begin');
+
+  // unify wallet mirror
+  await p.query(
+    'update users set bank_minor = least(bank_minor + $2, $3), last_seen_at=now() where user_id=$1',
+    [req.uid, credit, Number(process.env.BANK_CAP || 5_000_000)]
+  );
+
+  // per-game stats
+  const sets = ['lifetime_earned_minor = lifetime_earned_minor + $2'];
+  const vals = [req.uid, credit];
+  if (isWin)   sets.push('wins = wins + 1');
+  if (isRoyal) sets.push('royal_flushes = royal_flushes + 1');
+  for (const f of achFlags || []) sets.push(`${f} = true`);
+  await p.query(`update user_stats set ${sets.join(', ')}, last_seen_at=now() where user_id=$1`, vals);
+
+  // points (poker)
+  const sid = await getCurrentSeasonId();
+  if (sid && pointsEarned) {
+    await p.query('insert into season_points(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing', [sid, req.uid]);
+    await p.query('update season_points set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2',
+                  [sid, req.uid, pointsEarned]);
+  }
+
+  // reveal fairness if needed
+  if (fair && fair.serverSeed) {
+    await p.query('update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
+                  [fair.handId, fair.serverSeed]);
+  }
+
+  await p.query('commit');
+} catch (e) {
+  const p = await db(); try { await p.query('rollback'); } catch {}
+  throw e; // let the route 500 if DB is down; DB is authoritative
+}
+
     await saveAfterDraw(req.uid, {
       creditMinor: credit,
       isWin,
@@ -1327,10 +1378,10 @@ function unlock(flag, name, kibl){
 
 // first win, streaks
 if (winsThisRound > 0) {
-  unlock('bj_first_win',  'BJ First Win', BJ_FIRST_WIN_KIBL);
-  if (req.session.bj.wins >= 10) unlock('bj_w10',  'BJ 10 Wins',  BJ_W10_KIBL);
-  if (req.session.bj.wins >= 25) unlock('bj_w25',  'BJ 25 Wins',  BJ_W25_KIBL);
-  if (req.session.bj.wins >= 50) unlock('bj_w50',  'BJ 50 Wins',  BJ_W50_KIBL);
+  unlock('first_win',  'BJ First Win', BJ_FIRST_WIN_KIBL);
+  if (req.session.bj.wins >= 10) unlock('w10',  'BJ 10 Wins',  BJ_W10_KIBL);
+  if (req.session.bj.wins >= 25) unlock('w25',  'BJ 25 Wins',  BJ_W25_KIBL);
+  if (req.session.bj.wins >= 50) unlock('w50',  'BJ 50 Wins',  BJ_W50_KIBL);
 }
 
 // natural blackjack (original two-card 21) — note: result === 'bj' already implies “natural only”
@@ -1355,8 +1406,44 @@ if (extraMinor > 0) {
 }
 
 // === persist mirrors ===
-try{
+try {
   await getOrCreateUser(req.uid);
+  const p = await db();
+  await p.query('begin');
+
+  // wallet mirror (single)
+  await p.query(
+    'update users set bank_minor = least(bank_minor + $2, $3), last_seen_at=now() where user_id=$1',
+    [req.uid, creditMinor, Number(process.env.BANK_CAP || 5_000_000)]
+  );
+
+  // per-game stats
+  const bjSets = ['lifetime_earned_minor = lifetime_earned_minor + $2'];
+  const bjVals = [req.uid, creditMinor];
+  if (creditMinor > 0) bjSets.push('wins = wins + 1');
+  for (const f of (bjFlags || [])) bjSets.push(`${f} = true`);
+  await p.query(`update user_stats_blackjack set ${bjSets.join(', ')}, last_seen_at=now() where user_id=$1`, bjVals);
+
+  // points (blackjack)
+  const sid = await getCurrentSeasonId();
+  if (sid && points) {
+    await p.query('insert into season_points_blackjack(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing', [sid, req.uid]);
+    await p.query('update season_points_blackjack set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2',
+                  [sid, req.uid, points]);
+  }
+
+  // fairness reveal
+  if (fair && fair.serverSeed) {
+    await p.query('update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
+                  [fair.handId, fair.serverSeed]);
+  }
+
+  await p.query('commit');
+} catch (e) {
+  const p = await db(); try { await p.query('rollback'); } catch {}
+  throw e;
+}
+  
   // Save total credit for the round (base + achievement extras)
   const totalMinor = creditMinor + extraMinor;
   await saveStatsFor(req.uid, 'blackjack', {
@@ -1365,8 +1452,7 @@ try{
     isRoyal: false,
     flags: bjFlags
   });
-  await awardSeasonPointsFor(req.uid, 'blackjack', points);
-}catch(e){ logger.error('bj persist', { e:String(e) }); }
+  
 
 // response: include both base bonuses (if you choose to use them later) and bjBonuses
 return res.json({
@@ -1377,7 +1463,7 @@ return res.json({
   credit: creditMinor + extraMinor,
   sessionBalance: req.session.bank,
   points,
-  bonuses: [...resultBonuses, ...bjBonuses],
+  bonuses: [...bonuses, ...bjBonuses],
   fair
 });
   } catch(e){
