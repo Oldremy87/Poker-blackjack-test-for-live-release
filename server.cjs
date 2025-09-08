@@ -714,14 +714,7 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
     req.session.hasDrawn     = true;
     req.session.lastDrawAt   = now; // set last draw time once the draw succeeds
 
-  // points (poker)
-  const sid = await getCurrentSeasonId();
-  if (sid && pointsEarned) {
-    await p.query('insert into season_points(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing', [sid, req.uid]);
-    await p.query('update season_points set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2',
-                  [sid, req.uid, pointsEarned]);
-  }
-  + // persist to DB (only to existing tables/columns)
+ // persist to DB (only to existing tables/columns)
  await getOrCreateUser(req.uid);
  await saveAfterDraw(req.uid, { creditMinor: credit, isWin, isRoyal, flags: achFlags });
  if (typeof awardSeasonPoints === 'function') {
@@ -1379,13 +1372,25 @@ if (extraMinor > 0) {
    flags: bjFlags
  });
  await awardSeasonPointsFor(req.uid, 'blackjack', points);
-
-  // fairness reveal
-  if (fair && fair.serverSeed) {
-    await p.query('update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
-                  [fair.handId, fair.serverSeed]);
-    }
-  
+// also persist the natural blackjack counter
+ if (natBjCount > 0 && hasDb) {
+   try {
+     const p = await db();
+     await p.query(
+       'update user_stats_blackjack set blackjacks = blackjacks + $2, last_seen_at = now() where user_id = $1',
+       [req.uid, natBjCount]
+     );
+   } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
+ }
+ // fairness reveal (best-effort)
+  if (fair && fair.serverSeed && hasDb) {
+    try {
+      const p = await db();
+      await p.query(
+        'update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
+        [fair.handId, fair.serverSeed]
+      );    } catch (e) { logger.error('fair_rounds reveal (bj)', { e: String(e) }); }
+  }
 
 // response: include both base bonuses (if you choose to use them later) and bjBonuses
 return res.json({
