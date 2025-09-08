@@ -1303,17 +1303,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
     // fully settled → reward + reveal fairness
     const { points, creditMinor, bonuses, results } = settleAndRewardBJ(req, r);
 
-    // reveal (best effort)
-    let fair = null;
-    if (!r.revealed){
-      fair = { handId:r.handId, commit:r.commit, serverSeed:r.serverSeed, clientSeed:r.clientSeed||null,
-               algo:"FY+hashStream sha256(serverSeed:clientSeed:handId:bj)" };
-      r.revealed = true;
-      try{
-        const p = await db();
-        await p.query(`UPDATE fair_rounds SET server_seed=$2, revealed_at=now() WHERE hand_id=$1`, [r.handId, r.serverSeed]);
-      }catch(e){ logger.error('fair_rounds reveal (bj)', { e:String(e) }); }
-    }
+
 const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
 let extraMinor = 0;
 const bjBonuses = []; // [{ name, amount }]
@@ -1382,15 +1372,17 @@ if (extraMinor > 0) {
      );
    } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
  }
- // fairness reveal (best-effort)
-  if (fair && fair.serverSeed && hasDb) {
-    try {
-      const p = await db();
-      await p.query(
-        'update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
-        [fair.handId, fair.serverSeed]
-      );    } catch (e) { logger.error('fair_rounds reveal (bj)', { e: String(e) }); }
-  }
+    // reveal (best effort)
+    let fair = null;
+    if (!r.revealed){
+      fair = { handId:r.handId, commit:r.commit, serverSeed:r.serverSeed, clientSeed:r.clientSeed||null,
+               algo:"FY+hashStream sha256(serverSeed:clientSeed:handId:bj)" };
+      r.revealed = true;
+      try{
+        const p = await db();
+        await p.query(`UPDATE fair_rounds SET server_seed=$2, revealed_at=now() WHERE hand_id=$1`, [r.handId, r.serverSeed]);
+      }catch(e){ logger.error('fair_rounds reveal (bj)', { e:String(e) }); }
+    }
 
 // response: include both base bonuses (if you choose to use them later) and bjBonuses
 return res.json({
