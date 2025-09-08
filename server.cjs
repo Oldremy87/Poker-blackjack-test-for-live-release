@@ -714,26 +714,6 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
     req.session.hasDrawn     = true;
     req.session.lastDrawAt   = now; // set last draw time once the draw succeeds
 
-    // persist to DB
-    try {
-  await getOrCreateUser(req.uid);
-  const p = await db();
-  await p.query('begin');
-
-  // unify wallet mirror
-  await p.query(
-    'update users set bank_minor = least(bank_minor + $2, $3), last_seen_at=now() where user_id=$1',
-    [req.uid, credit, Number(process.env.BANK_CAP || 5_000_000)]
-  );
-
-  // per-game stats
-  const sets = ['lifetime_earned_minor = lifetime_earned_minor + $2'];
-  const vals = [req.uid, credit];
-  if (isWin)   sets.push('wins = wins + 1');
-  if (isRoyal) sets.push('royal_flushes = royal_flushes + 1');
-  for (const f of achFlags || []) sets.push(`${f} = true`);
-  await p.query(`update user_stats set ${sets.join(', ')}, last_seen_at=now() where user_id=$1`, vals);
-
   // points (poker)
   const sid = await getCurrentSeasonId();
   if (sid && pointsEarned) {
@@ -741,28 +721,12 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
     await p.query('update season_points set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2',
                   [sid, req.uid, pointsEarned]);
   }
-
-  // reveal fairness if needed
-  if (fair && fair.serverSeed) {
-    await p.query('update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
-                  [fair.handId, fair.serverSeed]);
-  }
-
-  await p.query('commit');
-} catch (e) {
-  const p = await db(); try { await p.query('rollback'); } catch {}
-  throw e; // let the route 500 if DB is down; DB is authoritative
-}
-
-    await saveAfterDraw(req.uid, {
-      creditMinor: credit,
-      isWin,
-      isRoyal,
-      flags: achFlags
-    });
-     if (typeof awardSeasonPoints === 'function') {
-        await awardSeasonPoints(req.uid, pointsEarned);
-     }
+  + // persist to DB (only to existing tables/columns)
+ await getOrCreateUser(req.uid);
+ await saveAfterDraw(req.uid, { creditMinor: credit, isWin, isRoyal, flags: achFlags });
+ if (typeof awardSeasonPoints === 'function') {
+   await awardSeasonPoints(req.uid, pointsEarned);
+ }
 
     // persist session before replying
     await new Promise((resolve, reject) => {
@@ -1406,52 +1370,21 @@ if (extraMinor > 0) {
 }
 
 // === persist mirrors ===
-try {
   await getOrCreateUser(req.uid);
-  const p = await db();
-  await p.query('begin');
-
-  // wallet mirror (single)
-  await p.query(
-    'update users set bank_minor = least(bank_minor + $2, $3), last_seen_at=now() where user_id=$1',
-    [req.uid, creditMinor, Number(process.env.BANK_CAP || 5_000_000)]
-  );
-
-  // per-game stats
-  const bjSets = ['lifetime_earned_minor = lifetime_earned_minor + $2'];
-  const bjVals = [req.uid, creditMinor];
-  if (creditMinor > 0) bjSets.push('wins = wins + 1');
-  for (const f of (bjFlags || [])) bjSets.push(`${f} = true`);
-  await p.query(`update user_stats_blackjack set ${bjSets.join(', ')}, last_seen_at=now() where user_id=$1`, bjVals);
-
-  // points (blackjack)
-  const sid = await getCurrentSeasonId();
-  if (sid && points) {
-    await p.query('insert into season_points_blackjack(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing', [sid, req.uid]);
-    await p.query('update season_points_blackjack set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2',
-                  [sid, req.uid, points]);
-  }
+ const totalMinor = creditMinor + extraMinor;
+ await saveStatsFor(req.uid, 'blackjack', {
+   creditMinor: totalMinor,
+   isWin: totalMinor > 0,
+   isRoyal: false,
+   flags: bjFlags
+ });
+ await awardSeasonPointsFor(req.uid, 'blackjack', points);
 
   // fairness reveal
   if (fair && fair.serverSeed) {
     await p.query('update fair_rounds set server_seed=$2, revealed_at=now() where hand_id=$1 and server_seed is distinct from $2',
                   [fair.handId, fair.serverSeed]);
-  }
-
-  await p.query('commit');
-} catch (e) {
-  const p = await db(); try { await p.query('rollback'); } catch {}
-  throw e;
-}
-  
-  // Save total credit for the round (base + achievement extras)
-  const totalMinor = creditMinor + extraMinor;
-  await saveStatsFor(req.uid, 'blackjack', {
-    creditMinor: totalMinor,
-    isWin: totalMinor > 0,
-    isRoyal: false,
-    flags: bjFlags
-  });
+    }
   
 
 // response: include both base bonuses (if you choose to use them later) and bjBonuses
