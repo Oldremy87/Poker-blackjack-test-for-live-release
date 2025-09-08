@@ -242,6 +242,8 @@ app.get('/api/profile', async (req, res) => {
     const s = statsOk.status === 'fulfilled' ? statsOk.value : null;
    const displayId = await ensureDisplayId(req.uid);
      const bankMinor = Number(req.session.bank) || 0;
+     const balPoker  = Number(req.session.wallet?.poker || 0);
+      const balBJ     = Number(req.session.wallet?.blackjack || 0);
     let poker=null, bj=null;
     try {
       await getOrCreateUser(req.uid);
@@ -250,6 +252,7 @@ app.get('/api/profile', async (req, res) => {
     return res.json({
       ok: true,
       bank: bankMinor,
+      balances: { poker: balPoker, blackjack: balBJ, total: bankMinor },
       stats: {
         poker: {
           wins: poker?.wins || 0,
@@ -454,6 +457,8 @@ async function awardSeasonPoints(uid, points){
 // In server.js, extend ensureBank()
 function ensureBank(req) {
   if (!req.session.bank) req.session.bank = 0;
+  if (!req.session.bank && req.session.bank !== 0) req.session.bank = 0;
+  if (!req.session.wallet) req.session.wallet = { poker: 0, blackjack: 0 };
   if (!req.session.stats) req.session.stats = { wins: 0, royalFlushes: 0 };
   if (!req.session.achievements) req.session.achievements = {};
   if (!req.session.lastDailyRewardAt) req.session.lastDailyRewardAt = 0;
@@ -705,10 +710,12 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
     if (isRoyal && !A.royalFlush)                       { addBonus('royalFlush', 50000,'royal_win'); A.royalFlush = true; }
 
     // apply to session (minor units) + finalize round
-    const before = toInt(req.session.bank);
-    const cap    = BANK_LIMIT > 0 ? BANK_LIMIT : Number.MAX_SAFE_INTEGER;
-    const after  = Math.min(cap, before + credit);
-    req.session.bank         = after;
+    const cap = BANK_LIMIT > 0 ? BANK_LIMIT : Number.MAX_SAFE_INTEGER;
+ req.session.wallet.poker = Math.max(0, toInt(req.session.wallet.poker) + credit);
+ req.session.bank = Math.min(
+   cap,
+   toInt(req.session.wallet.poker) + toInt(req.session.wallet.blackjack)
+ );
     req.session.currentHand  = null;
     req.session.deck         = [];
     req.session.hasDrawn     = true;
@@ -1306,6 +1313,12 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
 
 const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
 let extraMinor = 0;
+const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
+ const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
+ req.session.wallet.blackjack = Math.max(0, Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor);
+ req.session.bank = Math.min(cap,
+   Math.floor(Number(req.session.wallet.poker || 0)) + Math.floor(Number(req.session.wallet.blackjack || 0))
+ );
 const bjBonuses = []; // [{ name, amount }]
 const bjFlags   = []; // ['bj_first_win', 'bj_natural', ...]
 
@@ -1330,7 +1343,7 @@ if (winsThisRound > 0) {
   if (req.session.bj.wins >= 25) unlock('w25',  'BJ 25 Wins',  BJ_W25_KIBL);
   if (req.session.bj.wins >= 50) unlock('w50',  'BJ 50 Wins',  BJ_W50_KIBL);
 }
-const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
+const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length; 
 // natural blackjack (original two-card 21) — note: result === 'bj' already implies “natural only”
 if (results.some(x => x.result === 'bj' && !x.splitFrom)) {
   unlock('bj_natural', 'Natural Blackjack', BJ_NATURAL_KIBL);
