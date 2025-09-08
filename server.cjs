@@ -129,6 +129,7 @@ const tablesByGame = {
 };
 
 
+
 if (!HCAPTCHA_SECRET) console.error('⚠️ HCAPTCHA_SECRET is not set');
 
 function getClientIp(req){
@@ -214,8 +215,11 @@ app.get('/api/version', (_req,res)=> {
 const HANDS_WINDOW_MS  = SIX_HOURS_MS;
 const TOKENS_PER_CREDIT = Number(process.env.TOKENS_PER_CREDIT || 1); // tokens per 1 credit
 const HANDS_LIMIT = Math.max(1, Number(process.env.IP_HANDS_PER_6H)) || 40;
+const HANDS_LIMIT_POKER = Number(process.env.IP_HANDS_PER_6H_POKER || HANDS_LIMIT);
+const HANDS_LIMIT_BJ    = Number(process.env.IP_HANDS_PER_6H_BJ    || HANDS_LIMIT);
 const WINDOW_MS   = 6 * 60 * 60 * 1000;
 const handsByIp   = new Map();
+
 
 setInterval(() => {
   const now = Date.now();
@@ -473,22 +477,27 @@ function evalHand(hand) {
   }
   return { payout, isWin: payout>0, isRoyal: royal };
 }
-function gateStartHand(req){
-  const ip  = getClientIp(req);
+function gateStartHand(req, game = 'poker'){
+  const ip = getClientIp(req);
   const now = Date.now();
 
   let rec = handsByIp.get(ip);
   if (!rec || (now - rec.windowStart) >= WINDOW_MS) {
-    rec = { windowStart: now, count: 0 };
-    handsByIp.set(ip, rec);
+    rec = { windowStart: now, counts: { poker:0, blackjack:0 } };
   }
-  if (rec.count >= HANDS_LIMIT) {
+
+  const limit = (game === 'blackjack') ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
+  const used  = rec.counts[game] || 0;
+
+  if (used >= limit) {
     const retryMs = Math.max(0, WINDOW_MS - (now - rec.windowStart));
-    return { ok:false, error:'ip_limit', retryMs, limit:HANDS_LIMIT };
+    return { ok:false, error:'ip_limit', retryMs, limit };
   }
-  rec.count += 1;
+
+  rec.counts[game] = used + 1;
   handsByIp.set(ip, rec);
-  return { ok:true, remaining: Math.max(0, HANDS_LIMIT - rec.count), windowMs: HANDS_WINDOW_MS };
+
+  return { ok:true, remaining: Math.max(0, limit - rec.counts[game]), windowMs: WINDOW_MS };
 }
 
 const drawLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
@@ -496,7 +505,7 @@ const dealLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: t
 
 app.post('/api/start-hand', async (req, res) => {
   try {
-    const g = gateStartHand(req);
+    const g = gateStartHand(req, 'poker');
     if (!g.ok) return res.status(403).json(g);
 
     ensureBank(req);
@@ -1180,7 +1189,7 @@ const bjActionLimiter = rateLimit({ windowMs: 60_000, max: 80, standardHeaders:t
 // ---- /api/bj/start
 app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
   try{
-    const g = gateStartHand(req);                  // reuse IP gate
+    const g = gateStartHand(req, "blackjack");                  // reuse IP gate
     if (!g.ok) return res.status(403).json(g);
 
     bjEnsure(req);
