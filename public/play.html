@@ -527,24 +527,7 @@
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
   
 <script>
-    let __csrf = null;
-    async function fetchCsrf(){
-      const r = await fetch('/api/csrf', { credentials:'include' });
-      if (!r.ok) throw new Error('CSRF bootstrap failed');
-      const { csrfToken } = await r.json();
-      __csrf = csrfToken;
-    }
-    function postWithCsrf(input, init = {}){
-      const baseHeaders = init.headers ? {...init.headers} : {};
-      if (init.body && !baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
-      const makeReq = async () => fetch(input, {
-        ...init, method: init.method || 'POST', credentials:'include', headers:{ 'x-csrf-token': __csrf, ...baseHeaders }
-      });
-      return (async ()=>{ let resp = await makeReq();
-        if (resp.status===403){ const data = await resp.clone().json().catch(()=> ({}));
-          if (data?.error === 'bad_csrf'){ await fetchCsrf(); resp = await makeReq(); }
-        } return resp; })();
-    }
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await fetchCsrf();
@@ -592,6 +575,15 @@ const payoutEl       = document.getElementById(IDS.payout);
 const achievementsEl = document.getElementById(IDS.achievements);
 const handContainer  = document.getElementById(IDS.hand);
 const feedSound = document.getElementById('feedSound');
+
+    let __csrf = null;
+    async function fetchCsrf(){
+      const r = await fetch('/api/csrf', { credentials:'include' });
+      if (!r.ok) throw new Error('CSRF bootstrap failed');
+      const { csrfToken } = await r.json();
+      __csrf = csrfToken;
+    }
+
 function postWithCsrf(input, init = {}) {
   const baseHeaders = init.headers ? {...init.headers} : {};
   if (init.body && !baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
