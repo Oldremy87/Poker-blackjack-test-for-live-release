@@ -766,23 +766,6 @@ async function loadLeaderboard(){
   }catch{}
 }
 
-  function setPokerUI(state) {
-    switch (state) {
-      case 'idle':   // before any hand
-        drawBtn.classList.add('hidden');
-        dealBtn.disabled = false;
-        break;
-      case 'dealt':  // after /api/deal
-        drawBtn.classList.remove('hidden');
-        dealBtn.disabled = true;   // (optional) block re-deal until draw
-        break;
-      case 'drawn':  // after /api/draw
-        drawBtn.classList.add('hidden');
-        dealBtn.disabled = false;  // allow next deal
-        break;
-    }
-  }
-
  function formatWait(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return 'a bit';
   const m = Math.ceil(ms / 60000);
@@ -838,7 +821,6 @@ async function startGame() {
     held = [false, false, false, false, false];
     renderHand();
     drawBtn.disabled = false;
-    setPokerUI('dealt');
   } catch (e) {
     console.error(e);
     alert('Deal failed.');
@@ -943,7 +925,7 @@ async function draw() {
     // (non-blocking for snappier UX)
     loadProfile();
     loadLeaderboard();
-    setPokerUI('drawn');
+    
   } catch (e) {
     console.error(e);
     alert('Draw failed.');
