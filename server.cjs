@@ -1201,6 +1201,66 @@ function settleAndRewardBJ(req, r){
 // ---- Rate limits for BJ actions
 const bjStartLimiter  = rateLimit({ windowMs: 60_000, max: 40, standardHeaders:true, legacyHeaders:false });
 const bjActionLimiter = rateLimit({ windowMs: 60_000, max: 80, standardHeaders:true, legacyHeaders:false });
+function setBJButtons({ deal, hit, stand } = {}) {
+  const dealBtn  = document.getElementById('bjDealBtn');
+  const hitBtn   = document.getElementById('bjHitBtn');
+  const standBtn = document.getElementById('bjStandBtn');
+  if (dealBtn  != null && deal  !== undefined) dealBtn.disabled  = !deal;
+  if (hitBtn   != null && hit   !== undefined) hitBtn.disabled   = !hit;
+  if (standBtn != null && stand !== undefined) standBtn.disabled = !stand;
+}
+
+async function postBJ(path, payload = {}) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'CSRF-Token': window.csrfToken || '' },
+    body: JSON.stringify(payload)
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) {
+    const code = json?.error || `HTTP ${res.status}`;
+    throw new Error(code);
+  }
+  return json;
+}
+
+async function hit() {
+  try {
+    setBJButtons({ hit:false, stand:false });
+    const data = await postBJ('/api/bj/hit');            // <-- define `data` here
+    afterActionSnapshot(data);
+  } catch (err) {
+    // Treat already-settled as “ready to deal”
+    if (err.message === 'hand_settled' || err.message === 'no_round') {
+      setBJButtons({ deal:true, hit:false, stand:false });
+    }
+    toast(`Hit failed: ${err.message}`, { type: 'error' });
+  }
+}
+
+async function stand() {
+  try {
+    setBJButtons({ hit:false, stand:false });
+    const data = await postBJ('/api/bj/stand');          // <-- define `data` here
+    afterActionSnapshot(data);
+  } catch (err) {
+    if (err.message === 'hand_settled' || err.message === 'no_round') {
+      setBJButtons({ deal:true, hit:false, stand:false });
+    }
+    toast(`Stand failed: ${err.message}`, { type: 'error' });
+  }
+}
+
+function afterActionSnapshot(data) {
+  // ... update cards/totals ...
+  if (data.settled) {
+    setBJButtons({ deal:true, hit:false, stand:false });
+    // optionally show a toast for winnings/bonuses here
+  } else {
+    setBJButtons({ deal:false, hit:true, stand:true });
+  }
+}
+
 
 // ---- /api/bj/start
 app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
@@ -1246,10 +1306,16 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
     round.dealer.push(drawCard(round));
 
     req.session.bj.round = round;
-
+    const player = round.players[0];
+if (isBlackjack(player.cards)) {
+  player.result = 'bj';
+  player.settled = true;
+  advanceOrSettle(round); // will finish dealer if needed and set round.settled
+}
     return res.json({
       ok:true,
       fair:{ handId, commit:commitHash },
+      settled: round.settled,
       dealer:{ up: round.dealer[0], holeHidden:true },
       player: round.players[0].cards,
       can:{ hit:true, stand:true, double:true, split: canSplit(round.players[0].cards) }
@@ -1264,9 +1330,17 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
 app.post('/api/bj/hit', bjActionLimiter, (req, res) => {
   try{
     bjEnsure(req);
-    const r = req.session?.bj?.round;
-    if (!r || r.settled) return res.status(400).json({ ok:false, error:'no_round' });
-
+     const r = req.session?.bj?.round;
+    if (!r)            return res.status(400).json({ ok:false, error:'no_round' });
+    if (r.settled) {
+  return res.json({
+    ok: true,
+    dealer:{ up:r.dealer[0], hole:r.dealer[1], full:r.dealer },
+    players: snapshotPlayers(r),
+    activeIndex: r.activeIndex,
+    settled: true
+  });
+}
     const h = r.players[r.activeIndex];
     if (!h || h.settled) return res.status(400).json({ ok:false, error:'hand_settled' });
      if (h.lockedAfterOne) return res.status(400).json({ ok:false, error:'cant_hit_split_aces' });
@@ -1292,7 +1366,16 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
   try{
     bjEnsure(req);
     const r = req.session?.bj?.round;
-    if (!r || r.settled) return res.status(400).json({ ok:false, error:'no_round' });
+    if (!r)        return res.status(400).json({ ok:false, error:'no_round' });
+    if (r.settled) {
+  return res.json({
+    ok: true,
+    dealer:{ up:r.dealer[0], hole:r.dealer[1], full:r.dealer },
+    players: snapshotPlayers(r),
+    activeIndex: r.activeIndex,
+    settled: true
+  });
+}
 
     // finish this hand
     r.players[r.activeIndex].settled = true;
