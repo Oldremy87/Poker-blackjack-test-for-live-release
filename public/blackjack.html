@@ -408,17 +408,28 @@
       const { csrfToken } = await r.json();
       __csrf = csrfToken;
     }
-    function postWithCsrf(input, init = {}){
-      const baseHeaders = init.headers ? {...init.headers} : {};
-      if (init.body && !baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
-      const makeReq = async () => fetch(input, {
-        ...init, method: init.method || 'POST', credentials:'include', headers:{ 'x-csrf-token': __csrf, ...baseHeaders }
-      });
-      return (async ()=>{ let resp = await makeReq();
-        if (resp.status===403){ const data = await resp.clone().json().catch(()=> ({}));
-          if (data?.error === 'bad_csrf'){ await fetchCsrf(); resp = await makeReq(); }
-        } return resp; })();
-    }
+    async function postWithCsrf(input, init = {}) {
+  const baseHeaders = init.headers ? { ...init.headers } : {};
+  if (init.body && !baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
+
+  // NEW: make sure we have a token before first attempt
+  if (!__csrf) { try { await fetchCsrf(); } catch {} }
+
+  const makeReq = () => fetch(input, {
+    ...init,
+    method: init.method || 'POST',
+    credentials: 'include',
+    headers: { 'x-csrf-token': __csrf || '', ...baseHeaders }
+  });
+
+  let resp = await makeReq();
+  if (resp.status === 403) {
+    const data = await resp.clone().json().catch(() => ({}));
+    if (data?.error === 'bad_csrf') { await fetchCsrf(); resp = await makeReq(); }
+  }
+  return resp;
+}
+
    const API = Object.freeze({
   profile:'/api/profile',
   leaderboard:'/api/leaderboard?game=blackjack',
@@ -455,6 +466,23 @@
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const REVEAL_EXTRA_MS = 600 ; 
+const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
+
+  function afterActionSnapshot(d){
+    const dealer = d.dealer.full ? d.dealer : d.dealer;
+    renderHands({ dealer, player:d.players });
+
+    if (d.settled){
+      setDisabled(btnStart, false);
+      setDisabled(btnHit,   true);
+      setDisabled(btnStand, true);
+      setDisabled(btnDouble,true);
+      setDisabled(btnSplit, true);
+    } else {
+      setDisabled(btnHit,   false);
+      setDisabled(btnStand, false);
+    }
+  }
 
   async function loadProfile(){
   try{
@@ -549,9 +577,8 @@ const REVEAL_EXTRA_MS = 600 ;
       if (d.fair?.serverSeed){
         bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
       }
-      await nextPaint();
-      await waitForImagesDecoded(handContainer);
-       await sleep(REVEAL_EXTRA_MS);
+      
+       await sleep(600);
       if (d.settled !== false){
           if (Array.isArray(d.bonuses) && d.bonuses.length){
   alert('Bonuses unlocked:\n' + d.bonuses.map(b => `• ${Math.floor((b.amount||0)/100)} KIBL — ${b.name}`).join('\n'));
