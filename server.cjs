@@ -901,56 +901,43 @@ app.post('/api/payout', async (req, res) => {
   try {
     ensureBank(req);
 
-    const game = (req.body?.game === 'blackjack') ? 'blackjack' : 'poker';
-    const gameWallet = Number(req.session.wallet?.[game] || 0);
-    const payoutMinor = gameWallet;
+    // ----- which wallet(s) to pay from? default = both -----
+    const game = (req.body?.game || 'all').toString().toLowerCase(); // 'poker' | 'blackjack' | 'all'
+    const pokerMinor = Math.max(0, Number(req.session.wallet?.poker || 0));
+    const bjMinor    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
+    const availableMinor =
+      game === 'poker'     ? pokerMinor :
+      game === 'blackjack' ? bjMinor    :
+      (pokerMinor + bjMinor);
 
     const {
       playerAddress,
-      'h-captcha-response': hcapFromStd,
-      hcaptchaToken: hcapFromCustom,
+      'h-captcha-response': hcapStd,
+      hcaptchaToken: hcapCustom,
     } = req.body || {};
 
-    const captchaToken = hcapFromCustom || hcapFromStd;
-    if (!captchaToken) {
-      logger.warn('Missing hCaptcha token');
-      return res.status(400).json({ error: 'Please complete the hCaptcha challenge!' });
-    }
-    if (usedCaptchaTokens.has(captchaToken)) {
-    return res.status(400).json({ error: 'captcha_replay' });
- }
-      usedCaptchaTokens.add(captchaToken);
+    const captchaToken = hcapCustom || hcapStd;
+    if (!captchaToken) return res.status(400).json({ error: 'Please complete the hCaptcha challenge!' });
+    if (usedCaptchaTokens.has(captchaToken)) return res.status(400).json({ error: 'captcha_replay' });
+    usedCaptchaTokens.add(captchaToken);
 
-    // hCaptcha verify (with retries)
+    // verify hCaptcha (with retries)
     let captchaResponse;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         captchaResponse = await hcaptcha.verify(process.env.HCAPTCHA_SECRET, captchaToken, req.ip);
-        logger.info(`hCaptcha verify attempt ${attempt}`, {
-          success: captchaResponse.success,
-          errorCodes: captchaResponse['error-codes'],
-        });
         break;
       } catch (err) {
-        logger.error(`hCaptcha verify error attempt ${attempt}`, { err: String(err) });
         if (attempt === 3) throw err;
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
     if (!captchaResponse?.success) {
-      return res.status(400).json({
-        error: 'hCaptcha verification failed',
-        detail: captchaResponse?.['error-codes'] || null,
-      });
+      return res.status(400).json({ error: 'hCaptcha verification failed', detail: captchaResponse?.['error-codes'] || null });
     }
 
-    if (!payoutMinor || payoutMinor <= 0) {
-      return res.status(400).json({ error: 'No balance to withdraw' });
-    }
-    if (!looksLikeNexaAddress(playerAddress)) {
-      logger.warn('Invalid address', { ip: req.ip, playerAddress });
-      return res.status(400).json({ error: 'Invalid Nexa address' });
-    }
+    if (!availableMinor) return res.status(400).json({ error: 'No balance to withdraw' });
+    if (!looksLikeNexaAddress(playerAddress)) return res.status(400).json({ error: 'Invalid Nexa address' });
 
     // per-address cooldown
     const lastAt = lastPayoutByAddress.get(playerAddress) || 0;
@@ -959,122 +946,109 @@ app.post('/api/payout', async (req, res) => {
       return res.status(429).json({ error: 'address_cooldown', retryInMs: wait });
     }
 
-    // compute send amount
-    const sendMinor = Math.min(payoutMinor, MAX_PAYOUT);
+    // compute send amount (minor units)
+    const sendMinor = Math.min(availableMinor, MAX_PAYOUT);
     const sendWholeKibl = Math.floor(sendMinor / 100);
+
+    // breakdown deduction by wallet
+    let deductPoker = 0, deductBJ = 0;
+    if (game === 'poker') {
+      deductPoker = sendMinor;
+    } else if (game === 'blackjack') {
+      deductBJ = sendMinor;
+    } else {
+      // take from poker first, then blackjack
+      deductPoker = Math.min(pokerMinor, sendMinor);
+      deductBJ = sendMinor - deductPoker;
+    }
 
     // RPC config
     const rpcUrl = process.env.RPC_URL || `http://localhost:${process.env.RPC_PORT || 7227}`;
     if (!process.env.RPC_USER || !process.env.RPC_PASSWORD || !process.env.KIBL_GROUP_ID) {
-      logger.error('RPC or token env not configured');
       return res.status(500).json({ error: 'Server configuration error' });
     }
     const auth = Buffer.from(`${process.env.RPC_USER}:${process.env.RPC_PASSWORD}`).toString('base64');
-
     const rpcBody = JSON.stringify({
       jsonrpc: '1.0',
       id: 'kibl',
       method: 'token',
-      params: ['send', process.env.KIBL_GROUP_ID, playerAddress, String(sendMinor)],
+      params: ['send', process.env.KIBL_GROUP_ID, playerAddress, String(sendMinor)]
     });
 
-    // --- RPC send with retry ---
+    // RPC send with retry
     let txId = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const response = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${auth}`,
-          },
-          body: rpcBody,
-        });
-        logger.info('Fetch response status:', { status: response.status });
-
-        let data;
-        try {
-          data = await response.json();
-        } catch {
-          throw new Error(`RPC ${response.status} ${await response.text()}`);
-        }
+        const response = await fetch(rpcUrl, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':`Basic ${auth}` }, body: rpcBody });
+        const data = await response.json().catch(async () => { throw new Error(`RPC ${response.status} ${await response.text()}`); });
         if (data.error) throw new Error(`RPC error: ${JSON.stringify(data.error)}`);
-        txId = data.result;   // <— correct field from JSON-RPC
-        break;                // success
+        txId = data.result;
+        break;
       } catch (err) {
-        logger.error(`RPC attempt ${attempt} failed`, { err: String(err) });
         if (attempt === 3) throw err;
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
 
-    // --- POST-SEND BOOKKEEPING ---
-    // decrease only the selected game's wallet, then recompute total
-    req.session.wallet[game] = Math.max(0, gameWallet - sendMinor);
-    req.session.bank =
-     Math.max(0, Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0));
+    // post-send bookkeeping
+    req.session.wallet.poker     = Math.max(0, pokerMinor - deductPoker);
+    req.session.wallet.blackjack = Math.max(0, bjMinor    - deductBJ);
+    req.session.bank = Math.max(0, Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0));
 
-
-    // 2) set cooldown
     lastPayoutByAddress.set(playerAddress, Date.now());
 
-    // 3) persist session if the store needs it
+    // persist session
     await new Promise((resolve, reject) => {
-      if (typeof req.session.save === 'function') {
-        req.session.save(err => (err ? reject(err) : resolve()));
-      } else resolve();
+      if (typeof req.session.save === 'function') req.session.save(err => (err ? reject(err) : resolve()));
+      else resolve();
     });
 
-     try {
-         const p = await db();
-        await p.query(
-            `INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status)
-             VALUES ($1,$2,$3,$4,$5,'success')`,
-            [playerAddress, sendWholeKibl, txId, req.sessionID, req.ip]  // <-- use txId
-          );
-        } catch (e) {
-          logger.error('payouts insert failed', { e: String(e), txId, playerAddress });          // optional: don’t throw here during alpha; coins already sent
-      }
-
-     try {
-      await getOrCreateUser(req.uid);
+    // DB audit (best-effort)
+    try {
       const p = await db();
-      const table = (game === 'blackjack') ? 'user_stats_blackjack' : 'user_stats';
-      await p.query(`UPDATE ${table}
-                       SET bank_minor = GREATEST(bank_minor - $2, 0),
-                           last_seen_at = now()
-                     WHERE user_id = $1`,
-                    [req.uid, sendMinor]);
+      await p.query(
+        `INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status)
+         VALUES ($1,$2,$3,$4,$5,'success')`,
+        [playerAddress, sendWholeKibl, txId, req.sessionID, req.ip]
+      );
+      // decrement both game balances to mirror session
+      if (deductPoker > 0) {
+        await p.query(
+          'UPDATE user_stats SET bank_minor = GREATEST(bank_minor - $2, 0), last_seen_at = now() WHERE user_id = $1',
+          [req.uid, deductPoker]
+        );
+      }
+      if (deductBJ > 0) {
+        await p.query(
+          'UPDATE user_stats_blackjack SET bank_minor = GREATEST(bank_minor - $2, 0), last_seen_at = now() WHERE user_id = $1',
+          [req.uid, deductBJ]
+        );
+      }
     } catch (e) {
-      logger.error('db bank decrement failed after payout', { e: String(e) });
+      logger.error('payout bookkeeping failed', { e: String(e) });
+      // don’t fail the request; tokens are already sent
     }
 
-    logger.info('Payout success', {
-      ip: req.ip,
+    const remainingKibl = Math.floor((req.session.bank || 0) / 100);
+    return res.json({
+      success: true,
       txId,
-      playerAddress,
-      amountMinor: sendMinor,
-      amountWhole: sendWholeKibl,
+      sentKIBL: sendWholeKibl,
+      remainingKIBL: remainingKibl,
+      remainingByGame: {
+        poker:     Math.floor((req.session.wallet?.poker || 0) / 100),
+        blackjack: Math.floor((req.session.wallet?.blackjack || 0) / 100),
+        total:     remainingKibl
+      },
+      message: `Sent ${sendWholeKibl} KIBL to ${playerAddress}`
     });
-      const successResponse = {
-           success: true,
-           txId: txId,
-           sentKIBL: sendWholeKibl,
-           remainingKIBL: Math.floor((req.session.wallet?.[game] || 0) / 100),
-           remainingByGame: {
-           poker: Math.floor((req.session.wallet?.poker || 0) / 100),
-           blackjack: Math.floor((req.session.wallet?.blackjack || 0) / 100),
-           total: Math.floor((req.session.bank || 0) / 100)
-       },
-           message: `Sent ${sendWholeKibl} KIBL to ${playerAddress}`
-         };
-         return res.json(successResponse);  
 
   } catch (error) {
     logger.error('Token send failed', { error: String(error) });
     return res.status(500).json({ error: 'Failed to send tokens due to a server issue. Please try again later.' });
   }
 });
+
 // =================== BLACKJACK ENGINE (non-wagering, points-driven) ===================
 // ---- Blackjack achievements (KIBL amounts) ----
 const BJ_FIRST_WIN_KIBL   = Number(process.env.BJ_FIRST_WIN_KIBL   || 100);
@@ -1329,24 +1303,8 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
     // fully settled → reward + reveal fairness
     const { points, creditMinor, bonuses, results } = settleAndRewardBJ(req, r);
 
-
-const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
-let extraMinor = 0;
-// after all unlock(...) calls finished and extraMinor is final
-const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
-const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
-
-// credit the blackjack wallet (includes bonuses), then recompute total
-req.session.wallet.blackjack = Math.max(
-  0,
-  Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor
-);
-
-req.session.bank = Math.min(
-  cap,
-  Math.floor(Number(req.session.wallet.poker || 0)) +
-  Math.floor(Number(req.session.wallet.blackjack || 0))
-);
+      const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
+      let extraMinor = 0;
 const bjBonuses = []; // [{ name, amount }]
 const bjFlags   = []; // ['bj_first_win', 'bj_natural', ...]
 
@@ -1386,10 +1344,21 @@ if (results.some(x => (x.result === 'win' || x.result === 'bj') && x.doubled)) {
 if (results.some(x => (x.result === 'win' || x.result === 'bj') && x.splitFrom)) {
   unlock('bj_split_win', 'Split Win', BJ_SPLIT_WIN_KIBL);
 }
+  // Now that extraMinor is final, deposit the whole round (base + bonuses)
+  {
+    const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
+    const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
+    req.session.wallet.blackjack = Math.max(
+      0,
+      Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor
+    );
+    req.session.bank = Math.min(
+      cap,
+      Math.floor(Number(req.session.wallet.poker || 0)) +
+      Math.floor(Number(req.session.wallet.blackjack || 0))
+    );
+  }
 
-// apply extra credit to session bank (cap-respecting)
-
-// === persist mirrors ===
   await getOrCreateUser(req.uid);
  const totalMinor = creditMinor + extraMinor;
  await saveStatsFor(req.uid, 'blackjack', {
