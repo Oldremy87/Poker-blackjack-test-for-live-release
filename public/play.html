@@ -447,7 +447,7 @@
     @NexaKennelKlub
   </a>
       <a class="btn btn-ghost" href="/"              class="kk-home" aria-label="Go to Home">🏠 Home</a>
-     
+     <a class = "btn btn-primary" href="blackjack.html">Play BlackJack</a>
       
 
 
@@ -524,7 +524,27 @@
     </div>
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
+  <style>
+  .hidden { display: none !important; }
+</style>
 <script>
+  function setPokerUI(state) {
+    switch (state) {
+      case 'idle':   // before any hand
+        drawBtn.classList.add('hidden');
+        dealBtn.disabled = false;
+        break;
+      case 'dealt':  // after /api/deal
+        drawBtn.classList.remove('hidden');
+        dealBtn.disabled = true;   // (optional) block re-deal until draw
+        break;
+      case 'drawn':  // after /api/draw
+        drawBtn.classList.add('hidden');
+        dealBtn.disabled = false;  // allow next deal
+        break;
+    }
+  }
+
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -536,6 +556,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     alert('Could not initialize security token. Refresh to try again.');
   }
 });
+setPokerUI('idle');
   // ---- constants so we don't typo ids/paths ----
 const IDS = Object.freeze({
   payout: 'payoutTotal',
@@ -808,6 +829,7 @@ async function startGame() {
     held = [false, false, false, false, false];
     renderHand();
     drawBtn.disabled = false;
+    setPokerUI('dealt');
   } catch (e) {
     console.error(e);
     alert('Deal failed.');
@@ -912,7 +934,7 @@ async function draw() {
     // (non-blocking for snappier UX)
     loadProfile();
     loadLeaderboard();
-    
+    setPokerUI('drawn');
   } catch (e) {
     console.error(e);
     alert('Draw failed.');

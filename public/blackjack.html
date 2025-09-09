@@ -447,6 +447,13 @@
     const leaderboardList = document.getElementById('leaderboardList');
 
     let totalPayout = 0;
+     function formatWait(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return 'a bit';
+  const m = Math.ceil(ms / 60000);
+  return `${m} minute${m !== 1 ? 's' : ''}`;
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const REVEAL_EXTRA_MS = 600 ; 
 
   async function loadProfile(){
   try{
@@ -545,6 +552,9 @@
       if (d.fair?.serverSeed){
         bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
       }
+      await nextPaint();
+      await waitForImagesDecoded(handContainer);
+       await sleep(REVEAL_EXTRA_MS);
       if (d.settled !== false){
           if (Array.isArray(d.bonuses) && d.bonuses.length){
   alert('Bonuses unlocked:\n' + d.bonuses.map(b => `• ${Math.floor((b.amount||0)/100)} KIBL — ${b.name}`).join('\n'));
