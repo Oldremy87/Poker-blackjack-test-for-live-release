@@ -453,9 +453,8 @@
     const btnStart = document.getElementById('bjStart');
     const btnHit   = document.getElementById('bjHit');
     const btnStand = document.getElementById('bjStand');
-    const btnDouble= document.getElementById('bjDouble');
-    const btnSplit = document.getElementById('bjSplit');
-
+    const btnDouble = document.getElementById('bjDoubleBtn'); // optional (hidden in alpha)
+    const btnSplit  = document.getElementById('bjSplitBtn');  // optional (hidden in alpha)
     const leaderboardList = document.getElementById('leaderboardList');
 
     let totalPayout = 0;
@@ -552,18 +551,7 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
         bjMsg.textContent = 'Your move.';
       }catch(e){ alert('Start failed.'); }
     }
-    function afterActionSnapshot(d){
-      const dealer = d.dealer.full ? d.dealer : d.dealer;
-      // players array from server (snapshotPlayers)
-      renderHands({ dealer, player:d.players });
-      if (d.settled){
-        // final rewards are returned only by /stand -> when settled
-        btnStart.disabled=false; btnHit.disabled=btnStand.disabled=btnDouble.disabled=btnSplit.disabled=true;
-      } else {
-        // keep buttons for next hand or next activeIndex
-        btnHit.disabled=false; btnStand.disabled=false;
-      }
-    }
+  
     async function hit(){ 
       const r = await postWithCsrf(API.bj.hit, { method:'POST' });
       const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Hit failed'); return; }
