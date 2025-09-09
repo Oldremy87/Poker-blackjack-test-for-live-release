@@ -892,7 +892,9 @@ app.post('/api/payout', async (req, res) => {
   try {
     ensureBank(req);
 
-    const payoutMinor = Number(req.session.bank) || 0;
+    const game = (req.body?.game === 'blackjack') ? 'blackjack' : 'poker';
+    const gameWallet = Number(req.session.wallet?.[game] || 0);
+    const payoutMinor = gameWallet;
 
     const {
       playerAddress,
@@ -998,8 +1000,11 @@ app.post('/api/payout', async (req, res) => {
     }
 
     // --- POST-SEND BOOKKEEPING ---
-    // 1) session bank decrease
-    req.session.bank = Math.max(0, payoutMinor - sendMinor);
+    // decrease only the selected game's wallet, then recompute total
+    req.session.wallet[game] = Math.max(0, gameWallet - sendMinor);
+    req.session.bank =
+     Math.max(0, Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0));
+
 
     // 2) set cooldown
     lastPayoutByAddress.set(playerAddress, Date.now());
@@ -1022,11 +1027,15 @@ app.post('/api/payout', async (req, res) => {
           logger.error('payouts insert failed', { e: String(e), txId, playerAddress });          // optional: don’t throw here during alpha; coins already sent
       }
 
-    try {
+     try {
       await getOrCreateUser(req.uid);
       const p = await db();
-      await p.query('UPDATE user_stats SET bank_minor = GREATEST(bank_minor - $2, 0), last_seen_at = now() WHERE user_id = $1', [req.uid, sendMinor]);
-       await p.query('UPDATE user_stats_blackjack SET bank_minor = GREATEST(bank_minor - $2, 0), last_seen_at = now() WHERE user_id = $1', [req.uid, sendMinor]);
+      const table = (game === 'blackjack') ? 'user_stats_blackjack' : 'user_stats';
+      await p.query(`UPDATE ${table}
+                       SET bank_minor = GREATEST(bank_minor - $2, 0),
+                           last_seen_at = now()
+                     WHERE user_id = $1`,
+                    [req.uid, sendMinor]);
     } catch (e) {
       logger.error('db bank decrement failed after payout', { e: String(e) });
     }
@@ -1042,7 +1051,12 @@ app.post('/api/payout', async (req, res) => {
            success: true,
            txId: txId,
            sentKIBL: sendWholeKibl,
-           remainingKIBL: Math.floor(req.session.bank / 100),
+           remainingKIBL: Math.floor((req.session.wallet?.[game] || 0) / 100),
+           remainingByGame: {
+           poker: Math.floor((req.session.wallet?.poker || 0) / 100),
+           blackjack: Math.floor((req.session.wallet?.blackjack || 0) / 100),
+           total: Math.floor((req.session.bank || 0) / 100)
+       },
            message: `Sent ${sendWholeKibl} KIBL to ${playerAddress}`
          };
          return res.json(successResponse);  
@@ -1313,12 +1327,21 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
 
 const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
 let extraMinor = 0;
+// after all unlock(...) calls finished and extraMinor is final
 const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
- const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
- req.session.wallet.blackjack = Math.max(0, Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor);
- req.session.bank = Math.min(cap,
-   Math.floor(Number(req.session.wallet.poker || 0)) + Math.floor(Number(req.session.wallet.blackjack || 0))
- );
+const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
+
+// credit the blackjack wallet (includes bonuses), then recompute total
+req.session.wallet.blackjack = Math.max(
+  0,
+  Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor
+);
+
+req.session.bank = Math.min(
+  cap,
+  Math.floor(Number(req.session.wallet.poker || 0)) +
+  Math.floor(Number(req.session.wallet.blackjack || 0))
+);
 const bjBonuses = []; // [{ name, amount }]
 const bjFlags   = []; // ['bj_first_win', 'bj_natural', ...]
 
@@ -1385,6 +1408,7 @@ if (extraMinor > 0) {
      );
    } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
  }
+  
     // reveal (best effort)
     let fair = null;
     if (!r.revealed){
