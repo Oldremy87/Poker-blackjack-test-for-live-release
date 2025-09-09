@@ -241,9 +241,11 @@ app.get('/api/profile', async (req, res) => {
     ]);
     const s = statsOk.status === 'fulfilled' ? statsOk.value : null;
    const displayId = await ensureDisplayId(req.uid);
-     const bankMinor = Number(req.session.bank) || 0;
-     const balPoker  = Number(req.session.wallet?.poker || 0);
-      const balBJ     = Number(req.session.wallet?.blackjack || 0);
+    const balPoker = Math.max(0, Number(req.session.wallet?.poker || 0));
+    const balBJ    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
+    const total    = Math.min(BANK_CAP, balPoker + balBJ);
+      req.session.bank = total; // keep session total canonical
+
     let poker=null, bj=null;
     try {
       await getOrCreateUser(req.uid);
@@ -251,8 +253,8 @@ app.get('/api/profile', async (req, res) => {
     } catch {}
     return res.json({
       ok: true,
-      bank: bankMinor,
-      balances: { poker: balPoker, blackjack: balBJ, total: bankMinor },
+      bank: total,
+      balances: { poker: balPoker, blackjack: balBJ, total },
       stats: {
         poker: {
           wins: poker?.wins || 0,
@@ -827,9 +829,16 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
     // award in MINOR units; front-end divides by 100 when displaying KIBL
     const DAILY_REWARD = 100 * 100; // 100 KIBL → minor units
 
-    // Update session
-    req.session.bank = (Number(req.session.bank) || 0) + DAILY_REWARD;
-    req.session.lastDailyRewardAt = now;
+    req.session.wallet ||= { poker: 0, blackjack: 0 };
+    req.session.wallet.poker = Math.max(0, Number(req.session.wallet.poker || 0) + DAILY_REWARD);
+
+    const cap = Number(process.env.BANK_CAP ?? BANK_CAP ?? 5_000_000);
+    req.session.bank = Math.min(
+    cap,
+     Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0)
+      );
+
+req.session.lastDailyRewardAt = now;
 
     // Mirror to DB (cap-safe); do NOT fail the request if DB write has an issue
     try {
@@ -1202,10 +1211,6 @@ function settleAndRewardBJ(req, r){
     }
   const creditMinor = toInt(credits * TOKENS_PER_CREDIT * 100);
 
-  // Apply to session bank with cap
-  const cap = toInt(process.env.BANK_CAP ?? 5_000_000);
-  req.session.bank = Math.min(cap, toInt(req.session.bank) + creditMinor);
-
   // Achievements/bonuses (reuse your poker flags if you want; none by default)
   const bonuses = [];
   return { points, creditMinor, bonuses, results };
@@ -1383,10 +1388,6 @@ if (results.some(x => (x.result === 'win' || x.result === 'bj') && x.splitFrom))
 }
 
 // apply extra credit to session bank (cap-respecting)
-if (extraMinor > 0) {
-  const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
-  req.session.bank = Math.min(cap, Math.floor(Number(req.session.bank || 0)) + extraMinor);
-}
 
 // === persist mirrors ===
   await getOrCreateUser(req.uid);
