@@ -283,6 +283,7 @@
   .hud { grid-template-columns: 1fr; }
   .panel-table, .panel-claim { grid-column: 1 / -1; }  /* <— ensures stacking */
 }
+.hidden { display: none !important; }
 
 
     </style>
@@ -524,26 +525,9 @@
     </div>
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
-  <style>
-  .hidden { display: none !important; }
-</style>
-<script>
-  function setPokerUI(state) {
-    switch (state) {
-      case 'idle':   // before any hand
-        drawBtn.classList.add('hidden');
-        dealBtn.disabled = false;
-        break;
-      case 'dealt':  // after /api/deal
-        drawBtn.classList.remove('hidden');
-        dealBtn.disabled = true;   // (optional) block re-deal until draw
-        break;
-      case 'drawn':  // after /api/draw
-        drawBtn.classList.add('hidden');
-        dealBtn.disabled = false;  // allow next deal
-        break;
-    }
-  }
+  
+ <script> 
+  
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -773,6 +757,23 @@ async function loadLeaderboard(){
     });
   }catch{}
 }
+
+  function setPokerUI(state) {
+    switch (state) {
+      case 'idle':   // before any hand
+        drawBtn.classList.add('hidden');
+        dealBtn.disabled = false;
+        break;
+      case 'dealt':  // after /api/deal
+        drawBtn.classList.remove('hidden');
+        dealBtn.disabled = true;   // (optional) block re-deal until draw
+        break;
+      case 'drawn':  // after /api/draw
+        drawBtn.classList.add('hidden');
+        dealBtn.disabled = false;  // allow next deal
+        break;
+    }
+  }
 
  function formatWait(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return 'a bit';
