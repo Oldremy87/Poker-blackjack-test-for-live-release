@@ -466,6 +466,7 @@
       <div class="panel panel-table" id="game">
     <h1>Table</h1>
     <div class="controls">
+      <p id="userTag" class="readout"></p>
       <p id="fairInfo" class="readout"></p>
       
       <button id="deal" class="btn btn-primary" disabled>Feed the dealer</button>
@@ -728,11 +729,15 @@ async function loadProfile(){
     totalPayout = bankUnits;
     if (payoutEl) payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
     if (payoutBtn) payoutBtn.disabled = (totalPayout === 0);
+    // NEW: show player tag
+  const tagEl = document.getElementById('userTag');
+  if (tagEl && d.displayId) tagEl.textContent = `Your tag: ${d.displayId}`;
 
     // show ONLY Poker achievements on the poker page
     const ach = d.stats?.poker?.achievements || {};
     const list = Object.entries(ach).filter(([,v]) => v).map(([k]) => k.replace(/([A-Z])/g, ' $1').trim());
     achievementsEl.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
+  
   }catch{}
 }
 async function loadLeaderboard(){

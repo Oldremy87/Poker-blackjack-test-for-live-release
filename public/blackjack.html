@@ -343,6 +343,8 @@
     <div class="hud">
       <div class="panel" id="bjPanel">
         <h1>Blackjack</h1>
+         <p id="userTag" class="readout"></p>
+
         <p id="bjFair" class="readout"></p>
 
         <div class="readout">Dealer</div>
@@ -492,7 +494,9 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
     totalPayout = bankUnits;
     payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
     payoutBtn.disabled = (totalPayout === 0);
-
+      // NEW: show player tag
+  const tagEl = document.getElementById('userTag');
+  if (tagEl && d.displayId) tagEl.textContent = `Your tag: ${d.displayId}`;
     const ach = d.stats?.blackjack?.achievements || {};
     const list = Object.entries(ach).filter(([,v])=>v).map(([k])=>k.replace(/([A-Z])/g,' $1').trim());
     const el = document.getElementById('bjAchievements');

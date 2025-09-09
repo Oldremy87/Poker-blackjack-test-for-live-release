@@ -253,6 +253,7 @@ app.get('/api/profile', async (req, res) => {
     } catch {}
     return res.json({
       ok: true,
+      displayId,
       bank: total,
       balances: { poker: balPoker, blackjack: balBJ, total },
       stats: {
@@ -309,33 +310,40 @@ function shuffleDeterministic(deck, rng) {
   }
   return a;
 }
-
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const game = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
+    const game  = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
     const table = tablesByGame[game].points;
-    const p = await db();
+
+    const p   = await db();
     const sid = await getCurrentSeasonId();
-    if (!sid) return res.json({ ok:true, game, entries: [] });
+    if (!sid) return res.json({ ok: true, game, entries: [] });
+
     const { rows } = await p.query(
-      `select user_id, points_total
-         from ${table}
-         where season_id=$1
-         order by points_total desc, last_update asc
-         limit 20`, [sid]);
-    const entries = rows.map((r,i)=>({
-      rank: i+1,
-      user: String(r.user_id).slice(0,4)+'…'+String(r.user_id).slice(-4),
-      points: Number(r.points_total)
+      `select sp.user_id,
+              sp.points_total,
+              coalesce(u.display_id,
+                       'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
+         from ${table} sp
+         left join users u on u.user_id = sp.user_id
+        where sp.season_id = $1
+        order by sp.points_total desc, sp.last_update asc
+        limit 20`,
+      [sid]
+    );
+
+    const entries = rows.map((r, i) => ({
+      rank: i + 1,
+      user: r.tag,
+      points: Number(r.points_total || 0)
     }));
-    res.json({ ok:true, game, entries });
-  } catch(e){
-    res.status(500).json({ ok:false, error:'leaderboard_error' });
+
+    return res.json({ ok: true, game, entries });
+  } catch (e) {
+    logger.error('leaderboard error', { e: String(e) });
+    return res.status(500).json({ ok: false, error: 'leaderboard_error' });
   }
 });
- 
-
-
 
 // =================== Draw + Daily reward (server-authoritative) ===================
 const RANKS = ['Ace','2','3','4','5','6','7','8','9','10','Jack','Queen','King'];
