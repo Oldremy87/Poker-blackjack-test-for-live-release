@@ -521,8 +521,6 @@ const REVEAL_EXTRA_MS = 600 ;
         renderHands({ dealer:d.dealer, player:[{ cards:d.player }] });
         btnStart.disabled = true;
         btnHit.disabled = btnStand.disabled = false;
-        btnDouble.disabled = !(d.can?.double);
-        btnSplit.disabled  = !(d.can?.split);
         bjMsg.textContent = 'Your move.';
       }catch(e){ alert('Start failed.'); }
     }
@@ -536,8 +534,6 @@ const REVEAL_EXTRA_MS = 600 ;
       } else {
         // keep buttons for next hand or next activeIndex
         btnHit.disabled=false; btnStand.disabled=false;
-        btnDouble.disabled=true; // only first decision allowed
-        btnSplit.disabled=true;  // one split v1
       }
     }
     async function hit(){ 
@@ -619,8 +615,6 @@ const REVEAL_EXTRA_MS = 600 ;
     btnStart.addEventListener('click', startRound);
     btnHit.addEventListener('click',   hit);
     btnStand.addEventListener('click', stand);
-    btnDouble.addEventListener('click',doubleDown);
-    btnSplit.addEventListener('click', split);
     dailyBtn.addEventListener('click', onDaily);
     payoutBtn.addEventListener('click', onPayout);
 
