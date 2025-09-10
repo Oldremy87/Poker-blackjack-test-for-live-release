@@ -1476,21 +1476,6 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
           fair
         });
       }
-
-      // Already rewarded — return the cached award snapshot
-      const a = r._lastAward || { points:0, creditMinor:0, bonuses:[], results:[], fair:null };
-      return res.json({
-        ok: true,
-        settled: true,
-        dealer:  { up: r.dealer[0], hole: r.dealer[1], full: r.dealer },
-        players: snapshotPlayers(r),
-        results: a.results,
-        credit: a.creditMinor,
-        sessionBalance: req.session.bank || 0,
-        points: a.points,
-        bonuses: a.bonuses,
-        fair: a.fair
-      });
     }
 
     // Not yet settled: finish and award once
