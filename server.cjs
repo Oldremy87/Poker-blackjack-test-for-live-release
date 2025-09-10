@@ -299,7 +299,28 @@ function* hashStream(seedHex) {
     yield u32 / 0xffffffff;
   }
 }
+function announceAndRefresh(d){
+  const creditUnits  = Math.floor((d.credit || 0) / 100);
+  const balanceUnits = Math.floor((d.sessionBalance || 0) / 100);
 
+  if (d.bonuses?.length) {
+    const lines = d.bonuses
+      .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
+      .join('<br>');
+    toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 1500 });
+  }
+  if (creditUnits > 0) {
+    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 1500 });
+  }
+
+  payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
+  totalPayout = balanceUnits;
+  payoutBtn.disabled = (totalPayout === 0);
+
+  // Always refresh profile + leaderboard so numbers are current
+  loadProfile();
+  loadLeaderboard();
+}
 // Fisher–Yates with a provided random stream
 function shuffleDeterministic(deck, rng) {
   const a = deck.slice();
@@ -312,9 +333,10 @@ function shuffleDeterministic(deck, rng) {
 }
 app.get('/api/leaderboard', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const game  = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
     const table = tablesByGame[game].points;
-
+     
     const p   = await db();
     const sid = await getCurrentSeasonId();
     if (!sid) return res.json({ ok: true, game, entries: [] });

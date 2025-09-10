@@ -508,6 +508,7 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
       setDisabled(btnStand, true);
       setDisabled(btnDouble,true);
       setDisabled(btnSplit, true);
+      announceAndRefresh(d);
     } else {
       setDisabled(btnHit,   false);
       setDisabled(btnStand, false);
@@ -547,6 +548,29 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     // light haptic on mobile (best-effort)
     if (navigator.vibrate) { navigator.vibrate(20); }
   }
+
+  function announceAndRefresh(d){
+  const creditUnits  = Math.floor((d.credit || 0) / 100);
+  const balanceUnits = Math.floor((d.sessionBalance || 0) / 100);
+
+  if (d.bonuses?.length) {
+    const lines = d.bonuses
+      .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
+      .join('<br>');
+    toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 1500 });
+  }
+  if (creditUnits > 0) {
+    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 1500 });
+  }
+
+  payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
+  totalPayout = balanceUnits;
+  payoutBtn.disabled = (totalPayout === 0);
+
+  // Always refresh profile + leaderboard so numbers are current
+  loadProfile();
+  loadLeaderboard();
+}
   async function loadProfile(){
   try{
     const r = await fetch(API.profile, { credentials:'include' });
@@ -607,6 +631,14 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       try{
         const r = await postWithCsrf(API.bj.start, { method:'POST' });
         const d = await r.json();
+        if (d.settled) {
+          const r2 = await postWithCsrf(API.bj.stand,{ method:'POST' });
+        const d2 = await r2.json();
+        afterActionSnapshot(d2);
+        announceAndRefresh(d2);
+          btnStart.disabled = false;
+        return;
+      }
         if (!r.ok || !d.ok) { alert(d.error||'Start failed'); return; }
         if (d.fair?.commit && d.fair?.handId){
           bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}… (hand ${d.fair.handId.slice(0,8)})`;
@@ -627,29 +659,19 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     async function stand(){
       const r = await postWithCsrf(API.bj.stand, { method:'POST' });
       const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Stand failed'); return; }
+       if (!r.settled) {
+      r.players[r.activeIndex].settled = true;
+      advanceOrSettle(r);
+    }
       afterActionSnapshot(d);
       if (d.fair?.serverSeed){
         bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
       }
       
        await sleep(600);
-      if (d.settled !== false){
-         const creditUnits = Math.floor((d.credit||0)/100);
-        const balanceUnits = Math.floor((d.sessionBalance||0)/100);
-       if (data.bonuses?.length) {
-  const lines = data.bonuses
-    .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
-    .join('<br>');
-  toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 500 });
-}
-
-if (creditUnits > 0) {
-  toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 500 });
-}
-        payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
-        totalPayout = balanceUnits; payoutBtn.disabled = (totalPayout===0);
-        loadProfile(); loadLeaderboard();
-        btnStart.disabled=false
+      if (d.settled !== false) {
+      announceAndRefresh(d);
+      btnStart.disabled = false;
       }
     
     }
