@@ -1553,8 +1553,6 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
       } catch {}
     }
 
-    r._rewarded = true;
-    r._lastAward = { points, creditMinor: roundMinor, bonuses: [...bonuses, ...bjBonuses], results, fair };
 
     return res.json({
       ok:true,
