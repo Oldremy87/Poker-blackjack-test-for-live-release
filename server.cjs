@@ -1080,14 +1080,7 @@ app.post('/api/payout', async (req, res) => {
 });
 
 // =================== BLACKJACK ENGINE (non-wagering, points-driven) ===================
-// ---- Blackjack achievements (KIBL amounts) ----
-const BJ_FIRST_WIN_KIBL   = Number(process.env.BJ_FIRST_WIN_KIBL   || 100);
-const BJ_W10_KIBL         = Number(process.env.BJ_W10_KIBL         || 1000);
-const BJ_W25_KIBL         = Number(process.env.BJ_W25_KIBL         || 2500);
-const BJ_W50_KIBL         = Number(process.env.BJ_W50_KIBL         || 5000);
-const BJ_NATURAL_KIBL     = Number(process.env.BJ_NATURAL_KIBL     || 1000);
-const BJ_DOUBLE_WIN_KIBL  = Number(process.env.BJ_DOUBLE_WIN_KIBL  || 300);
-const BJ_SPLIT_WIN_KIBL   = Number(process.env.BJ_SPLIT_WIN_KIBL   || 300);
+
 
 function bjEnsure(req){
   ensureBank(req);
@@ -1223,66 +1216,6 @@ function settleAndRewardBJ(req, r){
 // ---- Rate limits for BJ actions
 const bjStartLimiter  = rateLimit({ windowMs: 60_000, max: 40, standardHeaders:true, legacyHeaders:false });
 const bjActionLimiter = rateLimit({ windowMs: 60_000, max: 80, standardHeaders:true, legacyHeaders:false });
-function setBJButtons({ deal, hit, stand } = {}) {
-  const dealBtn  = document.getElementById('bjDealBtn');
-  const hitBtn   = document.getElementById('bjHitBtn');
-  const standBtn = document.getElementById('bjStandBtn');
-  if (dealBtn  != null && deal  !== undefined) dealBtn.disabled  = !deal;
-  if (hitBtn   != null && hit   !== undefined) hitBtn.disabled   = !hit;
-  if (standBtn != null && stand !== undefined) standBtn.disabled = !stand;
-}
-
-async function postBJ(path, payload = {}) {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'CSRF-Token': window.csrfToken || '' },
-    body: JSON.stringify(payload)
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok || !json?.ok) {
-    const code = json?.error || `HTTP ${res.status}`;
-    throw new Error(code);
-  }
-  return json;
-}
-
-async function hit() {
-  try {
-    setBJButtons({ hit:false, stand:false });
-    const data = await postBJ('/api/bj/hit');            // <-- define `data` here
-    afterActionSnapshot(data);
-  } catch (err) {
-    // Treat already-settled as “ready to deal”
-    if (err.message === 'hand_settled' || err.message === 'no_round') {
-      setBJButtons({ deal:true, hit:false, stand:false });
-    }
-    toast(`Hit failed: ${err.message}`, { type: 'error' });
-  }
-}
-
-async function stand() {
-  try {
-    setBJButtons({ hit:false, stand:false });
-    const data = await postBJ('/api/bj/stand');          // <-- define `data` here
-    afterActionSnapshot(data);
-  } catch (err) {
-    if (err.message === 'hand_settled' || err.message === 'no_round') {
-      setBJButtons({ deal:true, hit:false, stand:false });
-    }
-    toast(`Stand failed: ${err.message}`, { type: 'error' });
-  }
-}
-
-function afterActionSnapshot(data) {
-  // ... update cards/totals ...
-  if (data.settled) {
-    setBJButtons({ deal:true, hit:false, stand:false });
-    // optionally show a toast for winnings/bonuses here
-  } else {
-    setBJButtons({ deal:false, hit:true, stand:true });
-  }
-}
-
 
 // ---- /api/bj/start
 app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
@@ -1384,124 +1317,228 @@ app.post('/api/bj/hit', bjActionLimiter, (req, res) => {
 });
 
 // ---- /api/bj/stand
-// ---- /api/bj/stand (simple, single-settle, no undefineds)
 app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
   try {
     bjEnsure(req);
     const r = req.session?.bj?.round;
     if (!r) return res.status(400).json({ ok:false, error:'no_round' });
 
-    // If already settled, just return a stable snapshot; don't reference undefineds.
+    // If it's already settled (e.g., natural BJ on the deal) we may still need to award.
     if (r.settled) {
+      // If not rewarded yet, do ONE award pass now.
+      if (!r._rewarded) {
+        const { points, creditMinor, bonuses, results } = settleAndRewardBJ(req, r);
+
+        // ---- Achievements (only the ones you want right now) ----
+        const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
+        let extraMinor = 0;
+        const bjBonuses = [];   // [{ name, amount }]
+        const bjFlags   = [];   // ['first_win','bj_natural', ...]
+        const A = (req.session.bj.achievements ||= {});
+        const winsThisRound = results.filter(x => x.result === 'win' || x.result === 'bj').length;
+
+        function unlock(flag, name, kibl){
+          if (!A[flag]) {
+            A[flag] = true;
+            const amt = toMinor(kibl);
+            if (amt > 0) { extraMinor += amt; bjBonuses.push({ name, amount: amt }); }
+            bjFlags.push(flag);
+          }
+        }
+
+        // First win (per session) + natural BJ
+        if (winsThisRound > 0) {
+          req.session.bj.wins = (req.session.bj.wins || 0) + winsThisRound;
+          unlock('first_win',  'BJ First Win', Number(process.env.BJ_FIRST_WIN_KIBL || 100));
+        }
+        const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
+        if (natBjCount > 0) {
+          unlock('bj_natural', 'Natural Blackjack', Number(process.env.BJ_NATURAL_KIBL || 1000));
+        }
+
+        // ---- Deposit to blackjack wallet (base + bonus) ----
+        const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
+        const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
+        req.session.wallet.blackjack = Math.max(
+          0,
+          Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor
+        );
+        req.session.bank = Math.min(
+          cap,
+          Math.floor(Number(req.session.wallet.poker || 0)) +
+          Math.floor(Number(req.session.wallet.blackjack || 0))
+        );
+
+        // ---- Persist (best-effort) ----
+        await getOrCreateUser(req.uid);
+        await saveStatsFor(req.uid, 'blackjack', {
+          creditMinor: roundMinor,
+          isWin: roundMinor > 0,
+          isRoyal: false,
+          flags: bjFlags
+        });
+        await awardSeasonPointsFor(req.uid, 'blackjack', points);
+        if (natBjCount > 0 && hasDb) {
+          try {
+            const p = await db();
+            await p.query(
+              'update user_stats_blackjack set blackjacks = blackjacks + $2, last_seen_at = now() where user_id = $1',
+              [req.uid, natBjCount]
+            );
+          } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
+        }
+
+        // Reveal fairness (best-effort)
+        let fair = null;
+        if (!r.revealed) {
+          fair = {
+            handId: r.handId,
+            commit: r.commit,
+            serverSeed: r.serverSeed,
+            clientSeed: r.clientSeed || null,
+            algo: "FY+hashStream sha256(serverSeed:clientSeed:handId:bj)"
+          };
+          r.revealed = true;
+          try {
+            const p = await db();
+            await p.query(
+              `UPDATE fair_rounds SET server_seed=$2, revealed_at=now() WHERE hand_id=$1`,
+              [r.handId, r.serverSeed]
+            );
+          } catch {}
+        }
+
+        // Cache to prevent double-award if client calls again
+        r._rewarded = true;
+        r._lastAward = {
+          points,
+          creditMinor: roundMinor,
+          bonuses: [...bonuses, ...bjBonuses],
+          results,
+          fair
+        };
+
+        return res.json({
+          ok: true,
+          settled: true,
+          dealer:  { up: r.dealer[0], hole: r.dealer[1], full: r.dealer },
+          players: snapshotPlayers(r),
+          results,
+          credit: roundMinor,
+          sessionBalance: req.session.bank,
+          points,
+          bonuses: [...bonuses, ...bjBonuses],
+          fair
+        });
+      }
+
+      // Already rewarded — return the cached award snapshot
+      const a = r._lastAward || { points:0, creditMinor:0, bonuses:[], results:[], fair:null };
       return res.json({
         ok: true,
         settled: true,
         dealer:  { up: r.dealer[0], hole: r.dealer[1], full: r.dealer },
         players: snapshotPlayers(r),
-        activeIndex: r.activeIndex,
-        // keep these neutral so UI doesn't regress to 0
-        credit: 0,
-        points: 0,
-        bonuses: [],
-        sessionBalance: req.session.bank || 0
+        results: a.results,
+        credit: a.creditMinor,
+        sessionBalance: req.session.bank || 0,
+        points: a.points,
+        bonuses: a.bonuses,
+        fair: a.fair
       });
     }
 
-    // Finish this hand
+    // Not yet settled: finish and award once
     r.players[r.activeIndex].settled = true;
     advanceOrSettle(r);
 
-    // Not settled yet? Return live snapshot.
     if (!r.settled) {
       return res.json({
-        ok: true,
-        settled: false,
-        dealer:  { up: r.dealer[0], holeHidden: true },
+        ok:true,
+        settled:false,
+        dealer:{ up:r.dealer[0], holeHidden:true },
         players: snapshotPlayers(r),
         activeIndex: r.activeIndex
       });
     }
 
-    // Settled now → compute and apply rewards ONCE
-    if (!r._rewarded) {
-      const { points, creditMinor, bonuses, results } = settleAndRewardBJ(req, r);
+    // Now settled -> normal award path
+    const { points, creditMinor, bonuses, results } = settleAndRewardBJ(req, r);
 
-      // deposit to blackjack wallet + recompute total bank
-      const roundMinor = Math.max(0, creditMinor);
-      const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
-      req.session.wallet.blackjack = Math.max(
-        0,
-        Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor
-      );
-      req.session.bank = Math.min(
-        cap,
-        Math.floor(Number(req.session.wallet.poker || 0)) +
-        Math.floor(Number(req.session.wallet.blackjack || 0))
-      );
-
-      // persist (best-effort)
-      await getOrCreateUser(req.uid);
-      await saveStatsFor(req.uid, 'blackjack', {
-        creditMinor: roundMinor,
-        isWin: roundMinor > 0,
-        isRoyal: false,
-        flags: [] // keep simple; add flags later if you want
-      });
-      await awardSeasonPointsFor(req.uid, 'blackjack', points);
-
-      // reveal fairness (best-effort)
-      let fair = null;
-      if (!r.revealed) {
-        fair = {
-          handId: r.handId,
-          commit: r.commit,
-          serverSeed: r.serverSeed,
-          clientSeed: r.clientSeed || null,
-          algo: "FY+hashStream sha256(serverSeed:clientSeed:handId:bj)"
-        };
-        r.revealed = true;
-        try {
-          const p = await db();
-          await p.query(
-            `UPDATE fair_rounds
-             SET server_seed=$2, revealed_at=now()
-             WHERE hand_id=$1`,
-            [r.handId, r.serverSeed]
-          );
-        } catch {}
-      }
-
-      r._rewarded = true;                 // guard against double-award
-      r._lastAward = { points, creditMinor, bonuses, results, fair }; // optional cache
-
-      return res.json({
-        ok: true,
-        settled: true,
-        dealer:  { up: r.dealer[0], hole: r.dealer[1], full: r.dealer },
-        players: snapshotPlayers(r),
-        results,
-        credit: creditMinor,
-        sessionBalance: req.session.bank,
-        points,
-        bonuses,
-        fair
-      });
+    const toMinor = kibl => Math.max(0, Math.floor(Number(kibl || 0) * 100));
+    let extraMinor = 0;
+    const bjBonuses = [];
+    const bjFlags   = [];
+    const A = (req.session.bj.achievements ||= {});
+    const winsThisRound = results.filter(x => x.result === 'win' || x.result === 'bj').length;
+    if (winsThisRound > 0) {
+      req.session.bj.wins = (req.session.bj.wins || 0) + winsThisRound;
+      if (!A.first_win) { A.first_win = true; const amt = toMinor(Number(process.env.BJ_FIRST_WIN_KIBL || 100)); if (amt) { extraMinor += amt; bjBonuses.push({ name:'BJ First Win', amount:amt }); } bjFlags.push('first_win'); }
+    }
+    const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
+    if (natBjCount > 0 && !A.bj_natural) {
+      A.bj_natural = true;
+      const amt = toMinor(Number(process.env.BJ_NATURAL_KIBL || 1000));
+      if (amt) { extraMinor += amt; bjBonuses.push({ name:'Natural Blackjack', amount:amt }); }
+      bjFlags.push('bj_natural');
     }
 
-    // Safety: if called again immediately after, return cached details without re-crediting.
-    const a = r._lastAward || { points: 0, creditMinor: 0, bonuses: [], results: [], fair: null };
-    return res.json({
-      ok: true,
-      settled: true,
-      dealer:  { up: r.dealer[0], hole: r.dealer[1], full: r.dealer },
-      players: snapshotPlayers(r),
-      results: a.results,
-      credit: a.creditMinor,
-      sessionBalance: req.session.bank,
-      points: a.points,
-      bonuses: a.bonuses,
-      fair: a.fair
+    const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
+    const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
+    req.session.wallet.blackjack = Math.max(0, Math.floor(Number(req.session.wallet.blackjack || 0)) + roundMinor);
+    req.session.bank = Math.min(cap,
+      Math.floor(Number(req.session.wallet.poker || 0)) +
+      Math.floor(Number(req.session.wallet.blackjack || 0))
+    );
+
+    await getOrCreateUser(req.uid);
+    await saveStatsFor(req.uid, 'blackjack', {
+      creditMinor: roundMinor,
+      isWin: roundMinor > 0,
+      isRoyal: false,
+      flags: bjFlags
     });
+    await awardSeasonPointsFor(req.uid, 'blackjack', points);
+    if (natBjCount > 0 && hasDb) {
+      try {
+        const p = await db();
+        await p.query(
+          'update user_stats_blackjack set blackjacks = blackjacks + $2, last_seen_at = now() where user_id = $1',
+          [req.uid, natBjCount]
+        );
+      } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
+    }
+
+    let fair = null;
+    if (!r.revealed) {
+      fair = {
+        handId: r.handId, commit: r.commit,
+        serverSeed: r.serverSeed, clientSeed: r.clientSeed || null,
+        algo: "FY+hashStream sha256(serverSeed:clientSeed:handId:bj)"
+      };
+      r.revealed = true;
+      try {
+        const p = await db();
+        await p.query(`UPDATE fair_rounds SET server_seed=$2, revealed_at=now() WHERE hand_id=$1`, [r.handId, r.serverSeed]);
+      } catch {}
+    }
+
+    r._rewarded = true;
+    r._lastAward = { points, creditMinor: roundMinor, bonuses: [...bonuses, ...bjBonuses], results, fair };
+
+    return res.json({
+      ok:true,
+      settled:true,
+      dealer:{ up:r.dealer[0], hole:r.dealer[1], full:r.dealer },
+      players: snapshotPlayers(r),
+      results,
+      credit: roundMinor,
+      sessionBalance: req.session.bank,
+      points,
+      bonuses: [...bonuses, ...bjBonuses],
+      fair
+    });
+
   } catch (e) {
     logger.error('bj/stand', { e: String(e) });
     return res.status(500).json({ ok:false, error:'bj_stand_error' });
