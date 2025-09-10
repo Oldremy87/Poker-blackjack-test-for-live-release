@@ -1390,13 +1390,19 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
     const r = req.session?.bj?.round;
     if (!r)        return res.status(400).json({ ok:false, error:'no_round' });
     if (r.settled) {
-  return res.json({
-    ok: true,
-    dealer:{ up:r.dealer[0], hole:r.dealer[1], full:r.dealer },
-    players: snapshotPlayers(r),
-    activeIndex: r.activeIndex,
-    settled: true
-  });
+return res.json({
+  ok: true,
+  settled: true,                        // << add this
+  dealer: { up: r.dealer[0], hole: r.dealer[1], full: r.dealer },
+  players: snapshotPlayers(r),
+  activeIndex: r.activeIndex,           // (optional, but consistent)
+  results,
+  credit: creditMinor + extraMinor,
+  sessionBalance: req.session.bank,
+  points,
+  bonuses: [...bonuses, ...bjBonuses],
+  fair
+});
 }
 
     // finish this hand

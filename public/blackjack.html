@@ -565,10 +565,10 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     const lines = d.bonuses
       .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
       .join('<br>');
-    toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 1500 });
+    toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 2500 });
   }
   if (creditUnits > 0) {
-    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 1500 });
+    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 2500 });
   }
 
   payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
