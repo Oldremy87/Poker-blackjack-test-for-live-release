@@ -656,25 +656,40 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       afterActionSnapshot(d);
       if (d.settled) bjMsg.textContent='Round settled. Press Feed the dealer for a new round.';
     }
-    async function stand(){
-      const r = await postWithCsrf(API.bj.stand, { method:'POST' });
-      const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Stand failed'); return; }
-       if (!r.settled) {
-      r.players[r.activeIndex].settled = true;
-      advanceOrSettle(r);
+    async function stand() {
+  try {
+    // (optional) disable buttons while we wait
+    setBJButtons?.({ hit:false, stand:false });
+
+    const r = await postWithCsrf(API.bj.stand, { method:'POST' });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'Stand failed');
+
+    // update UI from server snapshot
+    afterActionSnapshot(d);
+
+    if (d.fair?.serverSeed) {
+      bjFair.textContent =
+        `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
     }
-      afterActionSnapshot(d);
-      if (d.fair?.serverSeed){
-        bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
-      }
-      
-       await sleep(600);
-      if (d.settled !== false) {
+
+    await sleep(600);
+
+    if (d.settled) {
       announceAndRefresh(d);
-      btnStart.disabled = false;
-      }
-    
+      // re-enable Deal; prefer the same helper you use elsewhere
+      setBJButtons?.({ deal:true, hit:false, stand:false });
+      // if you still use a raw element, make sure it's defined:
+      // const btnStart = document.getElementById('bjDealBtn');
+      // if (btnStart) btnStart.disabled = false;
+    } else {
+      setBJButtons?.({ deal:false, hit:true, stand:true });
     }
+  } catch (err) {
+    toast?.(`Stand failed: ${err.message}`, { type:'error' });
+    setBJButtons?.({ deal:true, hit:false, stand:false }); // safe fallback
+  }
+}
     async function doubleDown(){
       const r = await postWithCsrf(API.bj.double, { method:'POST' });
       const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Double failed'); return; }

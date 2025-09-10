@@ -1005,11 +1005,11 @@ async function draw() {
       const lines = data.bonuses
     .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
     .join('<br>');
-      toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 500 });
+      toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 1200 });
       }
 
     if (creditUnits > 0) {
-      toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 500 });
+      toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 1200 });
     }
     // Fetch profile/leaderboard AFTER the user sees cards + alerts
     // (non-blocking for snappier UX)
