@@ -1331,12 +1331,6 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
     round.dealer.push(drawCard(round));
 
     req.session.bj.round = round;
-    const player = round.players[0];
-if (isBlackjack(player.cards)) {
-  player.result = 'bj';
-  player.settled = true;
-  advanceOrSettle(round); // will finish dealer if needed and set round.settled
-}
     return res.json({
       ok:true,
       fair:{ handId, commit:commitHash },
@@ -1357,18 +1351,9 @@ app.post('/api/bj/hit', bjActionLimiter, (req, res) => {
     bjEnsure(req);
      const r = req.session?.bj?.round;
     if (!r)            return res.status(400).json({ ok:false, error:'no_round' });
-    if (r.settled) {
-  return res.json({
-    ok: true,
-    dealer:{ up:r.dealer[0], hole:r.dealer[1], full:r.dealer },
-    players: snapshotPlayers(r),
-    activeIndex: r.activeIndex,
-    settled: true
-  });
-}
     const h = r.players[r.activeIndex];
     if (!h || h.settled) return res.status(400).json({ ok:false, error:'hand_settled' });
-     if (h.lockedAfterOne) return res.status(400).json({ ok:false, error:'cant_hit_split_aces' });
+     
     h.cards.push(drawCard(r));
     if (scoreHand(h.cards).total > 21){ h.result='bust'; h.settled=true; }
     advanceOrSettle(r);
@@ -1477,16 +1462,6 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             );
           } catch {}
         }
-
-        // Cache to prevent double-award if client calls again
-        r._rewarded = true;
-        r._lastAward = {
-          points,
-          creditMinor: roundMinor,
-          bonuses: [...bonuses, ...bjBonuses],
-          results,
-          fair
-        };
 
         return res.json({
           ok: true,
