@@ -54,19 +54,22 @@ if (hasDb) {
 app.use(cookieParser());
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static('public', {
-    maxAge: isProd ? '1h' : 0,
-    etag: true,
-    lastModified: true,
-    setHeaders: (res, filePath) => {
-     // explicit content-types you had
-     if (filePath.endsWith('.js'))  res.setHeader('Content-Type', 'application/javascript');
-     if (filePath.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml');
-     if (filePath.endsWith('.ico')) res.setHeader('Content-Type', 'image/x-icon');
-      if (/\.(png|jpg|jpeg|gif|svg)$/i.test(filePath)) {
-        res.setHeader('Cache-Control', isProd ? 'public, max-age=86400, immutable' : 'no-store');
-      }
+  maxAge: isProd ? '1h' : 0,
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      // always fetch a fresh HTML shell
+      res.setHeader('Cache-Control', 'no-store');
+    } else if (/\.(js|css)$/i.test(filePath)) {
+      // long cache for versioned assets
+      res.setHeader('Cache-Control', isProd ? 'public, max-age=31536000, immutable' : 'no-store');
+    } else if (/\.(png|jpg|jpeg|gif|svg|ico)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', isProd ? 'public, max-age=86400, immutable' : 'no-store');
     }
-  }));
+  }
+}));
+
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // ----- SESSION STORE -----
