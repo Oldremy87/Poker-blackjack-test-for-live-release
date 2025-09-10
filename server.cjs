@@ -1080,7 +1080,14 @@ app.post('/api/payout', async (req, res) => {
 });
 
 // =================== BLACKJACK ENGINE (non-wagering, points-driven) ===================
-
+// ---- Blackjack achievements (KIBL amounts) ----
+const BJ_FIRST_WIN_KIBL   = Number(process.env.BJ_FIRST_WIN_KIBL   || 100);
+const BJ_W10_KIBL         = Number(process.env.BJ_W10_KIBL         || 1000);
+const BJ_W25_KIBL         = Number(process.env.BJ_W25_KIBL         || 2500);
+const BJ_W50_KIBL         = Number(process.env.BJ_W50_KIBL         || 5000);
+const BJ_NATURAL_KIBL     = Number(process.env.BJ_NATURAL_KIBL     || 1000);
+const BJ_DOUBLE_WIN_KIBL  = Number(process.env.BJ_DOUBLE_WIN_KIBL  || 300);
+const BJ_SPLIT_WIN_KIBL   = Number(process.env.BJ_SPLIT_WIN_KIBL   || 300);
 
 function bjEnsure(req){
   ensureBank(req);
@@ -1216,6 +1223,66 @@ function settleAndRewardBJ(req, r){
 // ---- Rate limits for BJ actions
 const bjStartLimiter  = rateLimit({ windowMs: 60_000, max: 40, standardHeaders:true, legacyHeaders:false });
 const bjActionLimiter = rateLimit({ windowMs: 60_000, max: 80, standardHeaders:true, legacyHeaders:false });
+function setBJButtons({ deal, hit, stand } = {}) {
+  const dealBtn  = document.getElementById('bjDealBtn');
+  const hitBtn   = document.getElementById('bjHitBtn');
+  const standBtn = document.getElementById('bjStandBtn');
+  if (dealBtn  != null && deal  !== undefined) dealBtn.disabled  = !deal;
+  if (hitBtn   != null && hit   !== undefined) hitBtn.disabled   = !hit;
+  if (standBtn != null && stand !== undefined) standBtn.disabled = !stand;
+}
+
+async function postBJ(path, payload = {}) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'CSRF-Token': window.csrfToken || '' },
+    body: JSON.stringify(payload)
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) {
+    const code = json?.error || `HTTP ${res.status}`;
+    throw new Error(code);
+  }
+  return json;
+}
+
+async function hit() {
+  try {
+    setBJButtons({ hit:false, stand:false });
+    const data = await postBJ('/api/bj/hit');            // <-- define `data` here
+    afterActionSnapshot(data);
+  } catch (err) {
+    // Treat already-settled as “ready to deal”
+    if (err.message === 'hand_settled' || err.message === 'no_round') {
+      setBJButtons({ deal:true, hit:false, stand:false });
+    }
+    toast(`Hit failed: ${err.message}`, { type: 'error' });
+  }
+}
+
+async function stand() {
+  try {
+    setBJButtons({ hit:false, stand:false });
+    const data = await postBJ('/api/bj/stand');          // <-- define `data` here
+    afterActionSnapshot(data);
+  } catch (err) {
+    if (err.message === 'hand_settled' || err.message === 'no_round') {
+      setBJButtons({ deal:true, hit:false, stand:false });
+    }
+    toast(`Stand failed: ${err.message}`, { type: 'error' });
+  }
+}
+
+function afterActionSnapshot(data) {
+  // ... update cards/totals ...
+  if (data.settled) {
+    setBJButtons({ deal:true, hit:false, stand:false });
+    // optionally show a toast for winnings/bonuses here
+  } else {
+    setBJButtons({ deal:false, hit:true, stand:true });
+  }
+}
+
 
 // ---- /api/bj/start
 app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
@@ -1544,7 +1611,6 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
     return res.status(500).json({ ok:false, error:'bj_stand_error' });
   }
 });
-
 
 // ---- /api/bj/double (first decision only; draw 1, then hand settles)
 app.post('/api/bj/double', bjActionLimiter, (req, res) => {
