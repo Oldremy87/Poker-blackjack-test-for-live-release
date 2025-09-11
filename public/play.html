@@ -497,7 +497,7 @@
     <div class="controls">
       <p id="userTag" class="readout"></p>
       <p id="fairInfo" class="readout"></p>
-      
+      <p id="achievements" class="readout"></p>
       <button id="deal" class="btn btn-primary" disabled>Feed the dealer</button>
       <button id="draw" class="btn" disabled>Draw</button>
     </div>
@@ -825,9 +825,12 @@ async function loadProfile(){
     // show ONLY Poker achievements on the poker page
     const ach = d.stats?.poker?.achievements || {};
     const list = Object.entries(ach).filter(([,v]) => v).map(([k]) => k.replace(/([A-Z])/g, ' $1').trim());
-    achievementsEl.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
-  
-  }catch{}
+    if (achievementsEl) {
+  achievementsEl.textContent = list.length
+    ? `Achievements: ${list.join(', ')}`
+    : 'Achievements: —';
+    }
+  } catch {}
 }
 async function loadLeaderboard(){
   try{
