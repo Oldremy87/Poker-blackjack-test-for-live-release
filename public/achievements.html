@@ -283,6 +283,42 @@
   .hud { grid-template-columns: 1fr; }
   .panel-table, .panel-claim { grid-column: 1 / -1; }  /* <— ensures stacking */
 }
+.grid { display: grid; gap: 12px; }
+
+.ach {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+  border: 1px solid rgba(58,245,217,.20);
+}
+
+.ach .icon {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(58,245,217,.40);
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-size: 0;                 /* hide any unicode in the HTML */
+}
+
+/* Checked state */
+.ach.done .icon {
+  border-color: rgba(69,255,153,.85);
+  background: rgba(69,255,153,.12);
+}
+.ach.done .icon::after {
+  content: "✓";
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--ok);
+  transform: translateY(-1px);  /* tiny optical tweak */
+}
 </style>
 </head>
 <body>
@@ -390,7 +426,7 @@
       el.classList.toggle('done', earned);
       el.classList.toggle('todo', !earned);
       const ico = el.querySelector('.icon');
-      if (ico) ico.textContent = earned ? '✓' : '☐';
+     
     }
   }catch(e){ /* swallow for static page */ }
 })();
