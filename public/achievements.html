@@ -285,39 +285,29 @@
 }
 .grid { display: grid; gap: 12px; }
 
-.ach {
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  align-items: start;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
-  border: 1px solid rgba(58,245,217,.20);
-}
-
-.ach .icon {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(58,245,217,.40);
-  border-radius: 5px;
-  display: grid;
+/* checkbox on each achievement row */
+.ach .icon{
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
   place-items: center;
+  border: 2px solid rgba(58,245,217,0.35);
+  border-radius: 4px;
+  margin-right: 10px;
+  vertical-align: middle;
+  /* IMPORTANT: no font-size:0 here */
+}
+.ach.done .icon{
+  background: rgba(34,197,94,.15);
+  border-color: #22c55e;
+}
+.ach.done .icon::after{
+  content: '✓';
+  font-weight: 800;
   line-height: 1;
-  font-size: 0;                 /* hide any unicode in the HTML */
 }
-
-/* Checked state */
-.ach.done .icon {
-  border-color: rgba(69,255,153,.85);
-  background: rgba(69,255,153,.12);
-}
-.ach.done .icon::after {
-  content: "✓";
-  font-size: 16px;
-  font-weight: 900;
-  color: var(--ok);
-  transform: translateY(-1px);  /* tiny optical tweak */
+.ach.todo .icon::after{
+  content: ''; /* empty box */
 }
 </style>
 </head>
@@ -402,34 +392,39 @@
 
 <script>
 // Fetch achievements from /api/profile and mark them
-(async () => {
-  try{
-    const r = await fetch('/api/profile', { credentials:'include' });
-    const d = await r.json();
-    if (!d?.ok) return;
+(async function () {
+  const r = await fetch('/api/profile', { credentials: 'include' });
+  const d = await r.json();
+  if (!d?.ok) return;
 
-    // Wins line
-    const winsLine = document.getElementById('winsLine');
-    if (typeof d.wins === 'number') winsLine.textContent = `Wins: ${d.wins}`;
+  // Choose which game’s achievements to show (default poker).
+  // You can pass ?game=blackjack to show BJ achievements.
+  const game = new URLSearchParams(location.search).get('game') || 'poker';
+  const stats = d.stats?.[game] || {};
+  const ach   = stats.achievements || {};
+  const wins  = Number.isFinite(stats.wins) ? stats.wins : '—';
 
-    const map = {
-      firstWin: 'ach-firstWin',
-      w10: 'ach-w10',
-      w25: 'ach-w25',
-      w50: 'ach-w50',
-      royalFlush: 'ach-royal'
-    };
-    for (const [flag, id] of Object.entries(map)){
-      const el = document.getElementById(id);
-      if (!el) continue;
-      const earned = !!d.achievements?.[flag];
-      el.classList.toggle('done', earned);
-      el.classList.toggle('todo', !earned);
-      const ico = el.querySelector('.icon');
-      if (ico) ico.textContent = earned ? '✓' : '☐';
-    }
-  }catch(e){ /* swallow for static page */ }
+  const winsLine = document.getElementById('winsLine');
+  if (winsLine) winsLine.textContent = `Wins: ${wins}`;
+
+  const map = {
+    firstWin:  'ach-firstWin',
+    w10:       'ach-w10',
+    w25:       'ach-w25',
+    w50:       'ach-w50',
+    royalFlush:'ach-royal' // only shows for poker
+  };
+
+  Object.entries(map).forEach(([flag, id]) => {
+    const row = document.getElementById(id);
+    if (!row) return;
+    const earned = !!ach[flag];
+    row.classList.toggle('done', earned);
+    row.classList.toggle('todo', !earned);
+    // no innerText changes — the CSS ::after handles the glyph
+  });
 })();
+
 </script>
 </body>
 </html>
