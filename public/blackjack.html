@@ -639,14 +639,6 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       try{
         const r = await postWithCsrf(API.bj.start, { method:'POST' });
         const d = await r.json();
-        if (d.settled) {
-          const r2 = await postWithCsrf(API.bj.stand,{ method:'POST' });
-        const d2 = await r2.json();
-        afterActionSnapshot(d2);
-        announceAndRefresh(d2);
-          btnStart.disabled = false;
-        return;
-      }
         if (!r.ok || !d.ok) { alert(d.error||'Start failed'); return; }
         if (d.fair?.commit && d.fair?.handId){
           bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}… (hand ${d.fair.handId.slice(0,8)})`;
@@ -681,13 +673,6 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       }
 
       await sleep(600);
-
-      if (d.settled) {
-        announceAndRefresh(d);
-        setButtons({ deal:true, hit:false, stand:false });
-      } else {
-        setButtons({ deal:false, hit:true, stand:true });
-      }
     } catch (err) {
       toast(`Stand failed: ${err.message}`, { type: 'error' });
       setButtons({ deal:true, hit:false, stand:false });
