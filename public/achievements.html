@@ -426,7 +426,7 @@
       el.classList.toggle('done', earned);
       el.classList.toggle('todo', !earned);
       const ico = el.querySelector('.icon');
-     
+      if (ico) ico.textContent = earned ? '✓' : '☐';
     }
   }catch(e){ /* swallow for static page */ }
 })();
