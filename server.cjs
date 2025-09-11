@@ -736,7 +736,7 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
     // update stats
     if (isWin)   req.session.stats.wins++;
     if (isRoyal) req.session.stats.royalFlushes++;
-
+    if (isWin) achFlags.push('first_win');
     // achievements (values below are in KIBL; converted in addBonus)
     if (isWin && !A.firstWin)                           { addBonus('firstWin', 100,    'first_win'); A.firstWin = true; }
     if (req.session.stats.wins >= 10 && !A['10Wins'])   { addBonus('10Wins',  1000,    'w10');       A['10Wins'] = true; }
@@ -1401,7 +1401,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             bjFlags.push(flag);
           }
         }
-
+        if (winsThisRound > 0) bjFlags.push('first_win');
         // First win (per session) + natural BJ
         if (winsThisRound > 0) {
           req.session.bj.wins = (req.session.bj.wins || 0) + winsThisRound;
