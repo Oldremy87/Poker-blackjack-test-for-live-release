@@ -379,32 +379,40 @@
 <script>
 // Fetch achievements from /api/profile and mark them
 (async () => {
-  try{
-    const r = await fetch('/api/profile', { credentials:'include' });
+  try {
+    const r = await fetch('/api/profile', { credentials: 'include' });
     const d = await r.json();
     if (!d?.ok) return;
 
+    // *** POKER ONLY ***
+    const poker = d.stats?.poker || {};
+    const ach   = poker.achievements || {};
+    const wins  = Number(poker.wins || 0);
+
     // Wins line
     const winsLine = document.getElementById('winsLine');
-    if (typeof d.wins === 'number') winsLine.textContent = `Wins: ${d.wins}`;
+    if (winsLine) winsLine.textContent = `Wins: ${wins}`;
 
+    // Flags coming from server for poker
     const map = {
-      firstWin: 'ach-firstWin',
-      w10: 'ach-w10',
-      w25: 'ach-w25',
-      w50: 'ach-w50',
+      firstWin:   'ach-firstWin',
+      w10:        'ach-w10',
+      w25:        'ach-w25',
+      w50:        'ach-w50',
       royalFlush: 'ach-royal'
     };
-    for (const [flag, id] of Object.entries(map)){
+
+    // Mark earned
+    for (const [flag, id] of Object.entries(map)) {
       const el = document.getElementById(id);
       if (!el) continue;
-      const earned = !!d.achievements?.[flag];
+      const earned = !!ach[flag];
       el.classList.toggle('done', earned);
       el.classList.toggle('todo', !earned);
       const ico = el.querySelector('.icon');
       if (ico) ico.textContent = earned ? '✓' : '☐';
     }
-  }catch(e){ /* swallow for static page */ }
+  } catch {}
 })();
 </script>
 </body>
