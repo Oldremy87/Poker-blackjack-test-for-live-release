@@ -1331,7 +1331,7 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
     round.dealer.push(drawCard(round));
 
     req.session.bj.round = round;
-    if (scoreHand (players).total = 21) {result ='bj'; settled=true;}
+   
     return res.json({
       ok:true,
       fair:{ handId, commit:commitHash },
