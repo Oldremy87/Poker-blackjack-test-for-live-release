@@ -1417,7 +1417,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
           Math.floor(Number(req.session.wallet.poker || 0)) +
           Math.floor(Number(req.session.wallet.blackjack || 0))
         );
-
+isWin
         // ---- Persist (best-effort) ----
         await getOrCreateUser(req.uid);
         await saveStatsFor(req.uid, 'blackjack', {
@@ -1436,7 +1436,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             );
           } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
         }
-      
+        
         // Reveal fairness (best-effort)
         let fair = null;
         if (!r.revealed) {
@@ -1461,7 +1461,9 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
           req.session.bj.wins = (req.session.bj.wins || 0) + winsThisRound;
           unlock('first_win',  'BJ First Win', Number(process.env.BJ_FIRST_WIN_KIBL || 100));
         }
-       
+       // Always mark DB 'first_win' when this round has any win (idempotent)
+        if (winsThisRound > 0) bjFlags.push('first_win');
+
         return res.json({
           ok: true,
           settled: true,
