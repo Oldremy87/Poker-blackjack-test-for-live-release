@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PixelPup • Blackjack Achievements</title>
+  <style>
+    :root{
+      --bg:#0b0f19; --panel:#111827; --text:#00ffc6; --text-dim:#7fffe6;
+      --accent:#ffcc00; --accent-2:#ff3df7; --accent-3:#6ae3ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:
+      radial-gradient(1200px 800px at 50% -20%, #13203b 0%, #0b0f19 60%, #05070d 100%),
+      linear-gradient(180deg, #0b0f19 0%, #05070d 100%);
+      color:var(--text);padding:24px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;max-width:1100px;margin:0 auto 16px}
+    .brand{display:flex;align-items:center;gap:10px}
+    .brand-badge{width:36px;height:36px;border-radius:10px;border:2px solid #3af5d9;display:grid;place-items:center;font-weight:700;color:var(--accent)}
+    .btn{appearance:none;border:0;cursor:pointer;padding:10px 14px;border-radius:12px;font-weight:700;text-decoration:none;color:#120016;background:var(--accent-2)}
+    .btn-ghost{color:var(--text);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(58,245,217,.35)}
+    .wrap{max-width:1100px;margin:0 auto}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));border:1px solid rgba(58,245,217,.3);border-radius:16px;padding:16px}
+    .readout{color:var(--text-dim);font-size:12px;margin:4px 0}
+
+    /* ✓ alignment: icon in its own column */
+    .ach{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:12px;margin:14px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(58,245,217,.2)}
+    .ach .icon{font-size:18px;line-height:1}
+    .ach.done{border-color:rgba(69,255,153,.5);box-shadow:0 0 0 1px rgba(69,255,153,.15) inset}
+    h3{margin:0 0 4px}
+    .badge{font-size:.9em;color:#000;background:var(--accent);border-radius:8px;padding:2px 6px;margin-left:6px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-badge">KK</div>
+      <h1>Blackjack Achievements</h1>
+    </div>
+    <nav>
+      <a class="btn"       href="blackjack.html">Play Blackjack</a>
+      <a class="btn-ghost" href="achievements.html">Poker Achievements</a>
+      <a class="btn-ghost" href="index.html">Home</a>
+    </nav>
+  </header>
+
+  <div class="wrap">
+    <div class="panel" id="summary">
+      <p class="readout">Earn fun, cosmetic bonuses while testing. KIBL has no monetary value; 18+ only.</p>
+      <p class="readout" id="winsLine">Wins: —</p>
+    </div>
+
+    <section aria-label="Blackjack achievements">
+      <!-- Milestones (mirror poker counts) -->
+      <div class="ach" id="ach-firstWin"><div class="icon">☐</div><div>
+
+      <div class="ach" id="ach-w10"><div class="icon">☐</div><div>
+        <h3>Good Dog ×10 <span class="badge">+1,000 KIBL</span></h3>
+        <p>Win 10 hands total.</p></div></div>
+
+      <div class="ach" id="ach-w25"><div class="icon">☐</div><div>
+        <h3>Pack Leader ×25 <span class="badge">+2,500 KIBL</span></h3>
+        <p>Win 25 hands total.</p></div></div>
+
+      <div class="ach" id="ach-w50"><div class="icon">☐</div><div>
+        <h3>Top Dog ×50 <span class="badge">+5,000 KIBL</span></h3>
+        <p>Win 50 hands total.</p></div></div>
+
+
+  <footer class="readout" style="text-align:center;opacity:.9;padding:14px 0 6px;">
+    © 2025 KIBL / PixelPup • Stay shiny 🐶✨ •
+    <a href="tos.html">Terms</a> • <a href="privacy.html">Privacy</a> • <a href="disclaimer.html">Disclaimer</a>
+  </footer>
+
+  <script>
+    // Populate from /api/profile → stats.blackjack
+    (async () => {
+      try {
+        const r = await fetch('/api/profile', { credentials:'include' });
+        const d = await r.json();
+        if (!d?.ok) return;
+
+        const bj  = d.stats?.blackjack || {};
+        const ach = bj.achievements || {};
+        const wins = Number(bj.wins || 0);
+
+        const winsLine = document.getElementById('winsLine');
+        if (winsLine) winsLine.textContent = `Wins: ${wins}`;
+
+        // flag → element id map (matches /api/profile keys)
+        const map = {
+          w10:       'ach-w10',
+          w25:       'ach-w25',
+          w50:       'ach-w50',
+        };
+
+        for (const [flag, id] of Object.entries(map)) {
+          const el = document.getElementById(id);
+          if (!el) continue;
+          const earned = !!ach[flag];
+          el.classList.toggle('done', earned);
+          const ico = el.querySelector('.icon');
+          if (ico) ico.textContent = earned ? '✓' : '☐';
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>
