@@ -1331,10 +1331,8 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
     round.dealer.push(drawCard(round));
 
     req.session.bj.round = round;
-    const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
-        if (natBjCount > 0) {
-          unlock('bj_natural', 'Natural Blackjack', Number(process.env.BJ_NATURAL_KIBL || 1000));
-        }
+   
+        
     return res.json({
       ok:true,
       fair:{ handId, commit:commitHash },
@@ -1438,7 +1436,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             );
           } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
         }
-        if (isWin) bjFlags.push('first_win');
+      
         // Reveal fairness (best-effort)
         let fair = null;
         if (!r.revealed) {
