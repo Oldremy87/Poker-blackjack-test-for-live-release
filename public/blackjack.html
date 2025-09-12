@@ -413,7 +413,6 @@
   </a>
       <a class="btn btn-ghost" href="/"              class="kk-home" aria-label="Go to Home">🏠 Home</a>
   <a class="btn btn-ghost" href="/play.html" aria-current="page">Poker</a>
-  <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">BJ Leaderboard</a>
 
    <div class="brand">
       <div class="brand-badge">KK</div>
@@ -481,8 +480,11 @@
         </section>
 
         <div class="panel" style="margin-top:10px;">
-          <h2>Season Top 20 (Skill Points)</h2>
+          <h2>Season Points Window (Skill Points)</h2>
           <ol id="leaderboardList" class="leaderboard"></ol>
+          <div class="readout" style="margin-top:6px;">
+  <a href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
+</div>
         </div>
       </div>
     </div>
@@ -657,11 +659,11 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     if (el) el.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
   }catch{}
 }
- async function loadLeaderboard(){
+async function loadLeaderboard(){
   try{
-    const game = window.location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
-    const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
-    const d = await r.json(); if (!d.ok) return;
+    const game = location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
+    const res = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+    const d = await res.json(); if (!d.ok) return;
 
     const list = document.getElementById('leaderboardList');
     if (!list) return;
@@ -669,18 +671,24 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
 
     d.window.forEach(row => {
       const li = document.createElement('li');
-      li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
+      li.innerHTML = `
+        <span>${row.rank}. <span class="user">${row.user}${row.you ? ' (you)' : ''}</span></span>
+        <span class="pts">${row.points}</span>`;
       if (row.you) li.style.fontWeight = '700';
       list.appendChild(li);
     });
 
-    // Optional tiny hint: “X pts to next rank”
-    if (d.you && d.you.deltaAhead != null) {
-      const hint = document.createElement('li');
-      hint.style.opacity = .75;
-      hint.innerHTML = `<span class="user">You’re ${d.you.deltaAhead} pts from the next rank</span>`;
-      list.appendChild(hint);
+    // tiny hint under the list (distance to next rank)
+    let hint = document.getElementById('lbHint');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'lbHint';
+      hint.className = 'readout';
+      list.parentNode.appendChild(hint);
     }
+    hint.textContent = (d.you && d.you.deltaAhead != null)
+      ? `Only ${d.you.deltaAhead} pts to the next rank.`
+      : '';
   }catch{}
 }
     function renderHands({ dealer, player }){

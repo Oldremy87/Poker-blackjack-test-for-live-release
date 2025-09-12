@@ -537,8 +537,11 @@
       <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
       <p id="payoutTotal">Total Payout: 0 KIBL</p>
       <div class="panel" id="leaderboardPanel">
-  <h2>Season Top 20 (Skill Points)</h2>
+  <h2>Season Points Window (Skill Points)</h2>
   <ol id="leaderboardList" class="leaderboard"></ol>
+  <div class="readout" style="margin-top:6px;">
+  <a href="/leaderboard.html?game=poker">See full leaderboard →</a>
+</div>
 </div>
 
     </div>
@@ -858,9 +861,9 @@ async function loadProfile(){
 }
 async function loadLeaderboard(){
   try{
-    const game = window.location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
-    const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
-    const d = await r.json(); if (!d.ok) return;
+    const game = location.pathname.includes('poker') ? 'blackjack' : 'poker';
+    const res = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+    const d = await res.json(); if (!d.ok) return;
 
     const list = document.getElementById('leaderboardList');
     if (!list) return;
@@ -868,18 +871,24 @@ async function loadLeaderboard(){
 
     d.window.forEach(row => {
       const li = document.createElement('li');
-      li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
+      li.innerHTML = `
+        <span>${row.rank}. <span class="user">${row.user}${row.you ? ' (you)' : ''}</span></span>
+        <span class="pts">${row.points}</span>`;
       if (row.you) li.style.fontWeight = '700';
       list.appendChild(li);
     });
 
-    // Optional tiny hint: “X pts to next rank”
-    if (d.you && d.you.deltaAhead != null) {
-      const hint = document.createElement('li');
-      hint.style.opacity = .75;
-      hint.innerHTML = `<span class="user">You’re ${d.you.deltaAhead} pts from the next rank</span>`;
-      list.appendChild(hint);
+    // tiny hint under the list (distance to next rank)
+    let hint = document.getElementById('lbHint');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'lbHint';
+      hint.className = 'readout';
+      list.parentNode.appendChild(hint);
     }
+    hint.textContent = (d.you && d.you.deltaAhead != null)
+      ? `Only ${d.you.deltaAhead} pts to the next rank.`
+      : '';
   }catch{}
 }
 
