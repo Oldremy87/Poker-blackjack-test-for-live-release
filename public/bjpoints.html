@@ -301,74 +301,58 @@
   <header>
     <div class="brand">
       <div class="brand-badge">KK</div>
-      <h1>Blackjack Achievements</h1>
+      <h1 style="margin:0">Blackjack Points</h1>
     </div>
-    <nav class="cta">
-      <a class="btn btn-primary"       href="blackjack.html">Play Blackjack</a>
+    <nav>
+      <a class="btn btn-primary" href="blackjack.html">Play Blackjack</a>
+      <a class="btn btn-ghost" href="bj-achievements.html">BJ Achievements</a>
       <a class="btn btn-ghost" href="index.html">Home</a>
     </nav>
   </header>
 
   <div class="wrap">
-    <div class="panel" id="summary">
-      <p class="readout">Earn fun, cosmetic bonuses while testing. KIBL has no monetary value; 18+ only.</p>
-      <p class="readout" id="winsLine">Wins: —</p>
+    <div class="panel">
+      <p class="readout">
+        Season points for Blackjack (non-wagering mode). These points feed the leaderboard.
+        Base points are awarded per settled player hand; simple modifiers apply.
+      </p>
+
+      <!-- Base outcomes -->
+      <h3 style="margin:8px 0 4px">Base outcomes</h3>
+      <table aria-label="Blackjack Base Points">
+        <thead>
+          <tr><th>Outcome</th><th>Season Points</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Natural Blackjack (two-card 21)</td><td>2</td></tr>
+          <tr><td>Regular Win (beat dealer or dealer busts)</td><td>1</td></tr>
+          <tr><td>Push</td><td>0</td></tr>
+          <tr><td>Bust / Loss</td><td>0</td></tr>
+        </tbody>
+         <h3 style="margin:8px 0 4px">KIBL Rewards</h3>
+      <table aria-label="Blackjack KIBL Rewards">
+        <thead>
+          <tr><th>Outcome</th><th>KIBL Rewards</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Natural Blackjack (two-card 21)</td><td>600</td></tr>
+          <tr><td>Regular Win (beat dealer or dealer busts)</td><td>300</td></tr>
+          <tr><td>Push</td><td>0</td></tr>
+          <tr><td>Bust / Loss</td><td>0</td></tr>
+      </table>
+        </tbody>
+      </table>
+
+      <p class="readout" style="margin-top:10px">
+        Notes: “Natural Blackjack” only counts on the original two-card hand.
+        Dealer stands on soft 17 in the current ruleset. Round totals are floored at <span class="badge">0</span>.
+      </p>
     </div>
+  </div>
 
-    <section aria-label="Blackjack achievements">
-      <!-- Milestones (mirror poker counts) -->
-    
-
-      <div class="ach" id="ach-w10"><div class="icon">☐</div><div>
-        <h3>Good Dog ×10 <span class="badge">+1,000 KIBL</span></h3>
-        <p>Win 10 hands total.</p></div></div>
-
-      <div class="ach" id="ach-w25"><div class="icon">☐</div><div>
-        <h3>Pack Leader ×25 <span class="badge">+2,500 KIBL</span></h3>
-        <p>Win 25 hands total.</p></div></div>
-
-      <div class="ach" id="ach-w50"><div class="icon">☐</div><div>
-        <h3>Top Dog ×50 <span class="badge">+5,000 KIBL</span></h3>
-        <p>Win 50 hands total.</p></div></div>
-
-
-  <footer class="readout" style="text-align:center;opacity:.9;padding:14px 0 6px;">
+  <footer>
     © 2025 KIBL / PixelPup • Stay shiny 🐶✨ •
     <a href="tos.html">Terms</a> • <a href="privacy.html">Privacy</a> • <a href="disclaimer.html">Disclaimer</a>
   </footer>
-
-  <script>
-    // Populate from /api/profile → stats.blackjack
-    (async () => {
-      try {
-        const r = await fetch('/api/profile', { credentials:'include' });
-        const d = await r.json();
-        if (!d?.ok) return;
-
-        const bj  = d.stats?.blackjack || {};
-        const ach = bj.achievements || {};
-        const wins = Number(bj.wins || 0);
-
-        const winsLine = document.getElementById('winsLine');
-        if (winsLine) winsLine.textContent = `Wins: ${wins}`;
-
-        // flag → element id map (matches /api/profile keys)
-        const map = {
-          w10:       'ach-w10',
-          w25:       'ach-w25',
-          w50:       'ach-w50',
-        };
-
-        for (const [flag, id] of Object.entries(map)) {
-          const el = document.getElementById(id);
-          if (!el) continue;
-          const earned = !!ach[flag];
-          el.classList.toggle('done', earned);
-          const ico = el.querySelector('.icon');
-          if (ico) ico.textContent = earned ? '✓' : '☐';
-        }
-      } catch {}
-    })();
-  </script>
 </body>
 </html>
