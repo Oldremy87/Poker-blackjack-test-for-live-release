@@ -5,29 +5,79 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Leaderboard</title>
   <style>
-    :root{
-      --bg:#0b0f19; --panel:#111827; --text:#00ffc6; --dim:#7fffe6; --accent:#ffcc00;
+  :root{
+       --hand-gap: 10px;
+        --card-ratio: 1.6;   /* height = width * ratio; tweak if your art needs */
+      --cardW: 100px;    
+      --bg: #0b0f19;
+      --panel: #111827;
+      --text: #00ffc6;
+      --text-dim: #7fffe6;
+      --accent: #ffcc00;
+      --accent-2: #ff3df7;
+      --accent-3: #6ae3ff;
+      --card-bg: #222638;
+      --card-border: #3af5d9;
+      --danger: #ff5577;
+      --ok: #45ff99;
     }
-    body{ margin:0; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#0b0f19; color:var(--text); padding:16px;}
-    .wrap{ max-width:900px; margin:0 auto;}
-    .panel{
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
-      border:1px solid rgba(58,245,217,.3); border-radius:16px; padding:16px; margin:12px 0;
+    /* Always hide elements with [hidden], and loaders by default */
+[hidden] { display: none !important; }
+.loading { display: none !important; }     /* stays hidden until .show is added */
+.loading.show { display: block !important; }
+.hidden { display: none !important; }
+
+/* Visually hidden utility */
+.sr-only { 
+  position: absolute !important;
+  width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,1px,1px); white-space: nowrap; border: 0;
+}
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 800px at 50% -20%, #13203b 0%, #0b0f19 60%, #05070d 100%),
+        linear-gradient(180deg, #0b0f19 0%, #05070d 100%);
+      color: var(--text);
+      padding: 24px;
     }
-    h1,h2{ margin:0 0 10px; }
-    .tabs{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
-    .btn{ appearance:none; border:0; border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer;
-      background:var(--accent); color:#000; text-decoration:none; display:inline-block;}
-    .btn.ghost{ background:transparent; color:var(--text); border:1px solid rgba(58,245,217,.35);}
-    .leaderboard{ list-style:none; padding:0; margin:0;}
-    .leaderboard li{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06);}
-    .leaderboard li:last-child{ border-bottom:0;}
-    .leaderboard .user{ opacity:.9;}
-    .leaderboard .pts{ font-weight:700;}
-    .hint{ color:var(--dim); margin-top:6px; font-size:12px;}
-    .bar{ display:flex; gap:8px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; }
-    .you{ font-weight:700; }
-      .brand { display: flex; align-items: center; gap: 10px; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0,255,198,0.6); }
+  #toasts {
+    position: fixed; top: 12px; right: 12px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    background: rgba(20,20,20,.92);
+    color: #fff; border-radius: 12px; padding: 10px 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    font: 600 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    transform: translateY(-6px); opacity: 0;
+    transition: transform .18s ease-out, opacity .18s ease-out;
+    max-width: 320px; line-height: 1.25;
+    border-left: 4px solid #888;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.hide { transform: translateX(8px); opacity: 0; }
+  .toast.win   { border-left-color: #22c55e; }  /* green */
+  .toast.bonus { border-left-color: #06b6d4; }  /* cyan  */
+  .toast.error { border-left-color: #ef4444; }  /* red   */
+
+  .toast .close {
+    float: right; margin-left: 8px; font-weight: 700; cursor: pointer; opacity: .7;
+  }
+  .toast .close:hover { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast, .toast.show, .toast.hide { transition: none; }
+  }
+    /* Header / Nav */
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 auto 16px; max-width: 1100px; }
+    .brand { display: flex; align-items: center; gap: 10px; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0,255,198,0.6); }
     .brand-badge {
       width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--card-border);
       box-shadow: 0 0 14px rgba(0,255,198,0.2); display: grid; place-items: center;
@@ -64,6 +114,25 @@
       border: 1px solid rgba(58,245,217,0.35);
       box-shadow: 0 0 12px rgba(0,255,198,0.18) inset, 0 0 12px rgba(0,255,198,0.12);
     }
+
+    /* Layout panels */
+    .wrap { max-width: 1100px; margin: 0 auto; }
+
+/* Stack on tablets/phones */
+@media (max-width: 1024px) {
+  .hud { grid-template-columns: 1fr; }
+  .panel-table, .panel-claim { grid-column: 1; }
+}
+  .panel {
+  /* back to a normal card */
+  display: block;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  border: 1px solid rgba(58,245,217,0.3);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 24px rgba(0,255,198,0.06) inset, 0 0 24px rgba(0,255,198,0.08);
+}
   </style>
 </head>
 <body>
