@@ -133,6 +133,7 @@
   backdrop-filter: blur(4px);
   box-shadow: 0 0 24px rgba(0,255,198,0.06) inset, 0 0 24px rgba(0,255,198,0.08);
 }
+
   </style>
 </head>
 <body>
@@ -149,7 +150,7 @@
       </div>
       <div class="hint">This page shows the Top 25 and a personal window around your current rank.</div>
     </div>
-
+ 
     <div class="panel">
       <h2>Top 25</h2>
       <ol id="lbTopList" class="leaderboard"></ol>
@@ -162,73 +163,77 @@
       <div id="youHint" class="hint"></div>
     </div>
   </div>
-
+<ol id="lbTopList" class="leaderboard"></ol>
+<ol id="lbWindowList" class="leaderboard"></ol>
   <script>
-    function getGame(){
-      const p = new URLSearchParams(location.search);
-      const g = (p.get('game')||'poker').toLowerCase();
-      return (g==='blackjack')?'blackjack':'poker';
-    }
+ function getGame(){
+  const p = new URLSearchParams(location.search);
+  const g = (p.get('game')||'poker').toLowerCase();
+  return (g==='blackjack')?'blackjack':'poker';
+}
 
-    async function loadTop(game){
-      const list = document.getElementById('lbTopList');
-      list.innerHTML = '';
-      const r = await fetch(`/api/leaderboard/top?game=${game}&limit=25`, { credentials:'include' });
-      const d = await r.json(); if (!d.ok) return { entries:[], youInTop:false };
-      d.entries.forEach((e) => {
-        const li = document.createElement('li');
-        li.dataset.rank = e.rank;
-        li.innerHTML = `<span>${e.rank}. <span class="user">${e.user}</span></span><span class="pts">${e.points}</span>`;
-        list.appendChild(li);
-      });
-      return d;
-    }
+async function loadTop(game){
+  const list = document.getElementById('lbTopList');   // <ol id="lbTopList">
+  list.innerHTML = '';
 
-    async function loadWindow(game){
-      const list = document.getElementById('lbWindowList');
-      const youLine = document.getElementById('youLine');
-      const youHint = document.getElementById('youHint');
-      list.innerHTML = ''; youLine.textContent = ''; youHint.textContent = '';
+  const r = await fetch(`/api/leaderboard/top?game=${game}&limit=25`, { credentials:'include' });
+  const d = await r.json(); if (!d.ok) return { entries:[], youInTop:false };
 
-      const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
-      const d = await r.json(); if (!d.ok) return null;
+  // Start numbering at the true first rank
+  if (d.entries.length) list.start = Number(d.entries[0].rank) || 1;
 
-      // Build the window list
-      d.window.forEach((row) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
-        if (row.you) {
-          li.classList.add('you');
-          li.style.fontWeight = '700';
-        }
-        list.appendChild(li);
-      });
+  d.entries.forEach((e) => {
+    const li = document.createElement('li');
+    li.dataset.rank = e.rank;
+    li.value = Number(e.rank) || undefined;   // keeps numbering correct even with gaps
+    li.innerHTML = `<span class="user">${e.user}</span><span class="pts">${e.points}</span>`;
+    list.appendChild(li);
+  });
+  return d;
+}
 
-      if (d.you){
-        youLine.textContent = `You are #${d.you.rank} with ${d.you.points} pts`;
-        if (d.you.deltaAhead != null) {
-          youHint.textContent = `Only ${d.you.deltaAhead} pts to the next rank.`;
-        }
-      }
-      return d;
-    }
+async function loadWindow(game){
+  const list   = document.getElementById('lbWindowList'); // <ol id="lbWindowList">
+  const youLine= document.getElementById('youLine');
+  const youHint= document.getElementById('youHint');
+  list.innerHTML = ''; youLine.textContent = ''; youHint.textContent = '';
 
-    function highlightYouInTop(topData, winData){
-      if (!topData || !winData || !winData.you) return;
-      // If you appear in Top 25, bold that row
-      const youRank = winData.you.rank;
-      const li = document.querySelector(`#lbTopList li[data-rank="${youRank}"]`);
-      if (li) { li.style.fontWeight = '700'; li.classList.add('you'); }
-    }
+  const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+  const d = await r.json(); if (!d.ok) return null;
 
-    (async function init(){
-      const game = getGame();
-      document.getElementById('title').textContent = (game==='blackjack'?'Blackjack':'Poker') + ' Leaderboard';
-      try{
-        const [topData, winData] = await Promise.all([loadTop(game), loadWindow(game)]);
-        highlightYouInTop(topData, winData);
-      }catch{}
-    })();
+  if (d.window.length) list.start = Number(d.window[0].rank) || 1;
+
+  d.window.forEach((row) => {
+    const li = document.createElement('li');
+    li.value = Number(row.rank) || undefined;
+    li.innerHTML = `<span class="user">${row.user}</span><span class="pts">${row.points}</span>`;
+    if (row.you) { li.classList.add('you'); li.style.fontWeight = '700'; }
+    list.appendChild(li);
+  });
+
+  if (d.you){
+    youLine.textContent = `You are #${d.you.rank} with ${d.you.points} pts`;
+    if (d.you.deltaAhead != null) youHint.textContent = `Only ${d.you.deltaAhead} pts to the next rank.`;
+  }
+  return d;
+}
+
+function highlightYouInTop(topData, winData){
+  if (!topData || !winData || !winData.you) return;
+  const youRank = winData.you.rank;
+  const li = document.querySelector(`#lbTopList li[data-rank="${youRank}"]`);
+  if (li) { li.style.fontWeight = '700'; li.classList.add('you'); }
+}
+
+(async function init(){
+  const game = getGame();
+  document.getElementById('title').textContent =
+    (game==='blackjack'?'Blackjack':'Poker') + ' Leaderboard';
+  try{
+    const [topData, winData] = await Promise.all([loadTop(game), loadWindow(game)]);
+    highlightYouInTop(topData, winData);
+  }catch{}
+})();
   </script>
 </body>
 </html>
