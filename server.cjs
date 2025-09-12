@@ -1331,7 +1331,10 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
     round.dealer.push(drawCard(round));
 
     req.session.bj.round = round;
-   
+    const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
+        if (natBjCount > 0) {
+          unlock('bj_natural', 'Natural Blackjack', Number(process.env.BJ_NATURAL_KIBL || 1000));
+        }
     return res.json({
       ok:true,
       fair:{ handId, commit:commitHash },
@@ -1392,7 +1395,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
         const bjFlags   = [];   // ['first_win','bj_natural', ...]
         const A = (req.session.bj.achievements ||= {});
         const winsThisRound = results.filter(x => x.result === 'win' || x.result === 'bj').length;
-
+        if (winsThisRound > 0) bjFlags.push('first_win');
         function unlock(flag, name, kibl){
           if (!A[flag]) {
             A[flag] = true;
@@ -1401,16 +1404,8 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             bjFlags.push(flag);
           }
         }
-        if (winsThisRound > 0) bjFlags.push('first_win');
-        // First win (per session) + natural BJ
-        if (winsThisRound > 0) {
-          req.session.bj.wins = (req.session.bj.wins || 0) + winsThisRound;
-          unlock('first_win',  'BJ First Win', Number(process.env.BJ_FIRST_WIN_KIBL || 100));
-        }
-        const natBjCount = results.filter(x => x.result === 'bj' && !x.splitFrom).length;
-        if (natBjCount > 0) {
-          unlock('bj_natural', 'Natural Blackjack', Number(process.env.BJ_NATURAL_KIBL || 1000));
-        }
+        
+      
 
         // ---- Deposit to blackjack wallet (base + bonus) ----
         const roundMinor = Math.max(0, (creditMinor || 0) + (extraMinor || 0));
@@ -1443,7 +1438,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             );
           } catch (e) { logger.error('bj blackjacks increment', { e: String(e) }); }
         }
-
+        if (isWin) bjFlags.push('first_win');
         // Reveal fairness (best-effort)
         let fair = null;
         if (!r.revealed) {
@@ -1463,7 +1458,12 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
             );
           } catch {}
         }
-
+          // First win (per session) + natural BJ
+        if (winsThisRound > 0) {
+          req.session.bj.wins = (req.session.bj.wins || 0) + winsThisRound;
+          unlock('first_win',  'BJ First Win', Number(process.env.BJ_FIRST_WIN_KIBL || 100));
+        }
+       
         return res.json({
           ok: true,
           settled: true,
