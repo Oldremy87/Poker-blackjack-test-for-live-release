@@ -313,6 +313,21 @@
   .hud { grid-template-columns: 1fr; }
   .panel-table, .panel-claim { grid-column: 1 / -1; }  /* <— ensures stacking */
 }
+.callout{
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border: 1px solid rgba(58,245,217,0.45);
+  box-shadow: 0 0 18px rgba(0,255,198,0.12) inset, 0 8px 22px rgba(0,0,0,0.25);
+  font-size: 13px; line-height: 1.25;
+}
+.callout strong{ color: var(--accent); margin-right: 6px; }
+.callout .close{
+  float: right; border: 0; background: transparent; color: var(--text);
+  font-weight: 800; cursor: pointer; opacity: .8;
+}
+.callout .close:hover{ opacity: 1; }
   </style>
 </head>
 <script>
@@ -372,9 +387,17 @@
     <div class="hud">
       <div class="panel" id="bjPanel">
         <h1>Blackjack</h1>
+        <div id="bjHow" class="callout" role="region" aria-label="How to play blackjack">
+  <strong>How to play:</strong>
+  Get closer to 21 than the dealer without busting. Aces count as 1 or 11. Dealer hits to 16 and stands on 17.
+  Press <em>Feed the dealer</em> to start, then <em>Hit</em> or <em>Stand</em>.
+  <a href="bjpoints.html" class="btn btn-ghost" style="margin-left:8px;">Payouts</a>
+  <button class="close" aria-label="Hide tips">×</button>
+</div>
          <p id="userTag" class="readout"></p>
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
          <a class="btn btn-ghost" href="bjpoints.html">Points</a>
+         <a class="btn btn-ghost" href="#bjHow">How to Play</a>
         <p id="bjFair" class="readout"></p>
 
         <div class="readout">Dealer</div>
@@ -735,6 +758,17 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       try{ await fetchCsrf(); await loadProfile(); await loadLeaderboard(); }
       catch{ alert('Could not initialize security token. Refresh to try again.'); }
     })();
+    // Dismissible "How to play" with memory
+(function(){
+  const KEY = 'kk_bj_help_hidden';
+  const el  = document.getElementById('bjHow');
+  if (!el) return;
+  if (localStorage.getItem(KEY) === '1') el.hidden = true;
+  el.querySelector('.close')?.addEventListener('click', () => {
+    el.hidden = true; localStorage.setItem(KEY, '1');
+  });
+})();
+
   </script>
 
   <footer class="readout" style="text-align:center; opacity:.9; padding:14px 0 6px;">
