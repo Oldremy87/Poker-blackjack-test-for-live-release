@@ -27,6 +27,43 @@
     .hint{ color:var(--dim); margin-top:6px; font-size:12px;}
     .bar{ display:flex; gap:8px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; }
     .you{ font-weight:700; }
+      .brand { display: flex; align-items: center; gap: 10px; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0,255,198,0.6); }
+    .brand-badge {
+      width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--card-border);
+      box-shadow: 0 0 14px rgba(0,255,198,0.2); display: grid; place-items: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      font-weight: 700; color: var(--accent);
+    }
+    nav { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .btn {
+      appearance: none; border: 0; cursor: pointer; padding: 10px 14px; border-radius: 12px;
+      color: #000; background: var(--accent); text-decoration: none;
+      box-shadow: 0 3px 0 #b59000, 0 0 12px rgba(255,204,0,0.35);
+      font-weight: 700; letter-spacing: .2px; display: inline-flex; align-items: center; gap: 8px;
+      transition: transform .06s ease, filter .12s ease, box-shadow .12s ease;
+      font-size: 12px;
+    }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { background: #555; color: #111; box-shadow: none; cursor: not-allowed; }
+    .btn:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; }
+    .btn-telegram{
+      background: var(--accent-3);
+      box-shadow: 0 3px 0 #2aa7bf, 0 0 14px rgba(106,227,255,0.35);
+      color: #021018;
+    }
+    .btn-primary{
+      background: var(--accent-2);
+      color: #120016;
+      box-shadow: 0 3px 0 #a2259c, 0 0 14px rgba(255,61,247,0.35);
+    }
+    .btn-ghost{
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      color: var(--text);
+      border: 1px solid rgba(58,245,217,0.35);
+      box-shadow: 0 0 12px rgba(0,255,198,0.18) inset, 0 0 12px rgba(0,255,198,0.12);
+    }
   </style>
 </head>
 <body>
