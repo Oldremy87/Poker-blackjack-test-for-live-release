@@ -334,41 +334,125 @@ function shuffleDeterministic(deck, rng) {
   }
   return a;
 }
-app.get('/api/leaderboard', async (req, res) => {
+app.get('/api/leaderboard/top', async (req, res) => {
   try {
-    res.set('Cache-Control', 'no-store');
-    const game  = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
+    const game = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
     const table = tablesByGame[game].points;
-     
-    const p   = await db();
+
+    const p = await db();
     const sid = await getCurrentSeasonId();
     if (!sid) return res.json({ ok: true, game, entries: [] });
 
     const { rows } = await p.query(
-      `select sp.user_id,
-              sp.points_total,
-              coalesce(u.display_id,
-                       'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
-         from ${table} sp
-         left join users u on u.user_id = sp.user_id
-        where sp.season_id = $1
-        order by sp.points_total desc, sp.last_update asc
-        limit 20`,
-      [sid]
+      `
+      select sp.user_id,
+             sp.points_total,
+             coalesce(u.display_id,
+                      'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
+      from ${table} sp
+      left join users u on u.user_id = sp.user_id
+      where sp.season_id = $1
+      order by sp.points_total desc, sp.last_update asc, sp.user_id
+      limit $2
+      `,
+      [sid, limit]
     );
 
     const entries = rows.map((r, i) => ({
       rank: i + 1,
       user: r.tag,
-      points: Number(r.points_total || 0)
+      points: Number(r.points_total),
+      userId: r.user_id
     }));
 
-    return res.json({ ok: true, game, entries });
+    res.json({ ok: true, game, limit, entries });
   } catch (e) {
-    logger.error('leaderboard error', { e: String(e) });
-    return res.status(500).json({ ok: false, error: 'leaderboard_error' });
+    res.status(500).json({ ok: false, error: 'leaderboard_top_error' });
   }
 });
+app.get('/api/leaderboard/window', async (req, res) => {
+  try {
+    const game = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
+    const k = Math.max(1, Math.min(10, Number(req.query.k) || 3)); // window radius
+    const table = tablesByGame[game].points;
+
+    const p = await db();
+    const sid = await getCurrentSeasonId();
+    if (!sid) return res.json({ ok: true, game, window: [], you: null });
+
+    // Base ranking, union “you” if missing so you always appear
+    const { rows } = await p.query(
+      `
+      with base as (
+        select sp.user_id, sp.points_total, sp.last_update
+        from ${table} sp
+        where sp.season_id = $1
+
+        union all
+        select $2::uuid as user_id, 0::bigint as points_total, now()
+        where not exists (
+          select 1 from ${table} x
+          where x.season_id = $1 and x.user_id = $2
+        )
+      ),
+      ranked as (
+        select
+          b.user_id,
+          b.points_total,
+          row_number() over (order by b.points_total desc, b.last_update asc, b.user_id) as rn
+        from base b
+      ),
+      me as (
+        select rn from ranked where user_id = $2
+      ),
+      bounds as (
+        select
+          (select rn from me) as my_rn,
+          (select max(rn) from ranked) as max_rn
+      )
+      select
+        r.rn as rank,
+        r.user_id,
+        r.points_total,
+        (r.user_id = $2) as is_you,
+        coalesce(u.display_id,
+                 'PUP-'||upper(left(r.user_id::text,4))||'…'||upper(right(r.user_id::text,4))) as tag
+      from ranked r
+      left join users u on u.user_id = r.user_id
+      where r.rn between greatest(1, (select my_rn from bounds) - $3)
+                    and least((select max_rn from bounds), (select my_rn from bounds) + $3)
+      order by r.rn
+      `,
+      [sid, req.uid, k]
+    );
+
+    const window = rows.map(r => ({
+      rank: Number(r.rank),
+      user: r.tag,
+      points: Number(r.points_total),
+      you: r.is_you
+    }));
+
+    // Give handy deltas to the next/prev ranks (for UI “you’re 8 pts behind”)
+    let you = window.find(x => x.you) || null;
+    if (you) {
+      const idx = window.findIndex(x => x.you);
+      const ahead = window[idx - 1];
+      const behind = window[idx + 1];
+      you = {
+        ...you,
+        deltaAhead: ahead ? Math.max(0, ahead.points - you.points) : null,
+        deltaBehind: behind ? Math.max(0, you.points - behind.points) : null
+      };
+    }
+
+    res.json({ ok: true, game, k, window, you });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'leaderboard_window_error' });
+  }
+});
+
 
 // =================== Draw + Daily reward (server-authoritative) ===================
 const RANKS = ['Ace','2','3','4','5','6','7','8','9','10','Jack','Queen','King'];

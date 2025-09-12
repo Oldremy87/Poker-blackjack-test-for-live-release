@@ -413,6 +413,8 @@
   </a>
       <a class="btn btn-ghost" href="/"              class="kk-home" aria-label="Go to Home">🏠 Home</a>
   <a class="btn btn-ghost" href="/play.html" aria-current="page">Poker</a>
+  <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">BJ Leaderboard</a>
+
    <div class="brand">
       <div class="brand-badge">KK</div>
       <h1>PixelPup BlackJack</h1>
@@ -655,26 +657,32 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     if (el) el.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
   }catch{}
 }
-    async function loadLeaderboard(){
-      try{
-        const r = await fetch(API.leaderboard, { credentials:'include' });
-        const d = await r.json(); if (!d.ok) return;
-        leaderboardList.innerHTML = '';
-        d.entries.forEach(e=>{
-          const li = document.createElement('li');
-          li.innerHTML = `<span>${e.rank}. <span class="user">${e.user}</span></span><span class="pts">${e.points}</span>`;
-          leaderboardList.appendChild(li);
-        });
-      }catch{}
+ async function loadLeaderboard(){
+  try{
+    const game = window.location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
+    const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+    const d = await r.json(); if (!d.ok) return;
+
+    const list = document.getElementById('leaderboardList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    d.window.forEach(row => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
+      if (row.you) li.style.fontWeight = '700';
+      list.appendChild(li);
+    });
+
+    // Optional tiny hint: “X pts to next rank”
+    if (d.you && d.you.deltaAhead != null) {
+      const hint = document.createElement('li');
+      hint.style.opacity = .75;
+      hint.innerHTML = `<span class="user">You’re ${d.you.deltaAhead} pts from the next rank</span>`;
+      list.appendChild(hint);
     }
-    function cardEl(card, faceDown=false){
-      const div = document.createElement('div'); div.className='card';
-      const img = document.createElement('img');
-      img.src = faceDown ? 'cards/card-back.png' : `cards/${card.filename}`;
-      img.alt = faceDown ? 'Hidden card' : card.displayText;
-      div.appendChild(img);
-      return div;
-    }
+  }catch{}
+}
     function renderHands({ dealer, player }){
       // dealer
       bjDealer.innerHTML = '';
