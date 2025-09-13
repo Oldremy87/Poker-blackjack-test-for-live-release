@@ -1501,7 +1501,7 @@ app.post('/api/bj/stand', bjActionLimiter, async (req, res) => {
           Math.floor(Number(req.session.wallet.poker || 0)) +
           Math.floor(Number(req.session.wallet.blackjack || 0))
         );
-isWin
+
         // ---- Persist (best-effort) ----
         await getOrCreateUser(req.uid);
         await saveStatsFor(req.uid, 'blackjack', {
