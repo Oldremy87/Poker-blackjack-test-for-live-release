@@ -162,15 +162,16 @@
       <div id="youHint" class="hint"></div>
     </div>
   </div>
-<ol id="lbTopList" class="leaderboard"></ol>
-<ol id="lbWindowList" class="leaderboard"></ol>
   <script>
- function getGame(){
-  const p = new URLSearchParams(location.search);
-  const g = (p.get('game')||'poker').toLowerCase();
-  return (g==='blackjack')?'blackjack':'poker';
-}
-
+ (async function init(){
+  const game = getGame();
+  document.getElementById('title').textContent =
+    (game==='blackjack'?'Blackjack':'Poker') + ' Leaderboard';
+  try{
+    const [topData, winData] = await Promise.all([loadTop(game), loadWindow(game)]);
+    highlightYouInTop(topData, winData);
+  }catch{}
+})();
 async function loadTop(game){
   const list = document.getElementById('lbTopList');   // <ol id="lbTopList">
   list.innerHTML = '';
