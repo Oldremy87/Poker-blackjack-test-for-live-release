@@ -186,7 +186,7 @@ async function loadTop(game){
     const li = document.createElement('li');
     li.dataset.rank = e.rank;
     li.value = Number(e.rank) || undefined;   // keeps numbering correct even with gaps
-    li.innerHTML = `<span class="user">${e.user}</span>    <span class="pts">pts: ${e.points}</span>`;
+    li.innerHTML = `<span class="user">${e.user}</span><span class="pts">${e.points}</span>`;
     list.appendChild(li);
   });
   return d;
@@ -206,7 +206,7 @@ async function loadWindow(game){
   d.window.forEach((row) => {
     const li = document.createElement('li');
     li.value = Number(row.rank) || undefined;
-    li.innerHTML = `<span class="user">${row.user}</span>     <span class="pts">pts: ${row.points}</span>`;
+    li.innerHTML = `<span class="user">${row.user}</span>     <span class="pts"> ${row.points}</span>`;
     if (row.you) { li.classList.add('you'); li.style.fontWeight = '700'; }
     list.appendChild(li);
   });
