@@ -362,16 +362,17 @@ app.get('/api/leaderboard/top', async (req, res) => {
     if (!sid) return res.json({ ok: true, game, entries: [] });
 
     const { rows } = await p.query(
-      `select sp.user_id, as user_id,
-         sp.points_total,
-         coalesce(u.display_id,
-                  'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
-    from
-       ${table} sp
-      left join users u on u.user_id = sp.user_id
-      where sp.season_id = $1
-      order by sp.points_total desc, sp.last_update asc, sp.user_id
-      limit $2
+      `select
+  sp.user_id,
+  sp.points_total,
+  coalesce(u.display_id,
+           'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
+from ${table} sp
+left join users u on u.user_id = sp.user_id
+where sp.season_id = $1
+order by sp.points_total desc, sp.last_update asc, sp.user_id
+limit $2
+
       `,
       [sid, limit]
     );
@@ -398,51 +399,52 @@ app.get('/api/leaderboard/window', async (req, res) => {
     const sid = await getCurrentSeasonId();
     if (!sid) return res.json({ ok: true, game, window: [], you: null });
 
-    // Base ranking, union “you” if missing so you always appear
-    const { rows } = await p.query(
-      ` with base as (
-    select sp.user_id, as user_id, sp.points_total, sp.last_update
-      from 
-      ${table} sp
-        where sp.season_id = $1
+  const { rows } = await p.query(`
+  with base as (
+    select sp.user_id, sp.points_total, sp.last_update
+    from ${table} sp
+    where sp.season_id = $1
 
-        union all
-        select $2::uuid as user_id, 0::bigint as points_total, now()
-        where not exists (
-          select 1 from ${table} x
-          where x.season_id = $1 and x.user_id = $2
-        )
-      ),
-      ranked as (
-        select
-          b.user_id,
-          b.points_total,
-          row_number() over (order by b.points_total desc, b.last_update asc, b.user_id) as rn
-        from base b
-      ),
-      me as (
-        select rn from ranked where user_id = $2
-      ),
-      bounds as (
-        select
-          (select rn from me) as my_rn,
-          (select max(rn) from ranked) as max_rn
-      )
-      select
-        r.rn as rank,
-        r.user_id,
-        r.points_total,
-        (r.user_id = $2) as is_you,
-        coalesce(u.display_id,
-                 'PUP-'||upper(left(r.user_id::text,4))||'…'||upper(right(r.user_id::text,4))) as tag
-      from ranked r
-      left join users u on u.user_id = r.user_id
-      where r.rn between greatest(1, (select my_rn from bounds) - $3)
-                    and least((select max_rn from bounds), (select my_rn from bounds) + $3)
-      order by r.rn
-      `,
-      [sid, req.uid, k]
-    );
+    union all
+    select $2::uuid as user_id, 0::bigint as points_total, now()
+    where not exists (
+      select 1 from ${table} x
+      where x.season_id = $1 and x.user_id = $2::uuid
+    )
+  ),
+  ranked as (
+    select
+      b.user_id,
+      b.points_total,
+      row_number() over (
+        order by b.points_total desc, b.last_update asc, b.user_id
+      ) as rn
+    from base b
+  ),
+  me as (
+    select rn from ranked where user_id = $2::uuid
+  ),
+  bounds as (
+    select
+      (select rn from me) as my_rn,
+      (select max(rn) from ranked) as max_rn
+  )
+  select
+    r.rn as rank,
+    r.user_id,
+    r.points_total,
+    (r.user_id = $2::uuid) as is_you,
+    coalesce(
+      u.display_id,
+      'PUP-'||upper(left(r.user_id::text,4))||'…'||upper(right(r.user_id::text,4))
+    ) as tag
+  from ranked r
+  left join users u on u.user_id = r.user_id
+  where r.rn between greatest(1, (select my_rn from bounds) - $3)
+                 and least((select max_rn from bounds), (select my_rn from bounds) + $3)
+  order by r.rn
+`, [sid, req.uid, k]);
+
 
     const window = rows.map(r => ({
       rank: Number(r.rank),
