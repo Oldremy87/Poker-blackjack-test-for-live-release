@@ -534,7 +534,6 @@ document.addEventListener('DOMContentLoaded', ensureCsrf);
 
    const API = Object.freeze({
   profile:'/api/profile',
-  leaderboard:'/api/leaderboard?game=blackjack',
   daily:'/api/daily-reward',
   payout:'/api/payout',
   bj: { start:'/api/bj/start', hit:'/api/bj/hit', stand:'/api/bj/stand', double:'/api/bj/double', split:'/api/bj/split' }
@@ -668,6 +667,29 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     if (el) el.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
   }catch{}
 }
+  function cardEl(card, hidden = false) {
+    const el = document.createElement('div');
+    el.className = 'card';
+
+    // Label
+    const label = document.createElement('p');
+    label.textContent = hidden
+      ? 'Face down'
+      : (card.displayText || `${card.rank} of ${card.suit}`);
+
+    // Try to show an image for face-up cards
+    if (!hidden && card.filename) {
+      const img = document.createElement('img');
+      img.alt = label.textContent;
+      img.src = `/cards/${card.filename}`;
+      // If the image can't be loaded, fall back to text-only
+      img.addEventListener('error', () => { img.remove(); });
+      el.appendChild(img);
+    }
+
+    el.appendChild(label);
+    return el;
+  }
 async function loadLeaderboard(){
   try{
     const res = await fetch('/api/leaderboard/window?game=blackjack&k=3', { credentials:'include' });
@@ -698,23 +720,27 @@ async function loadLeaderboard(){
       : '';
   } catch(e){ console.warn('blackjack window LB failed', e); }
 }
-    function renderHands({ dealer, player }){
-      // dealer
-      bjDealer.innerHTML = '';
-      if (dealer.full){
-        dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
-      } else {
-        bjDealer.appendChild(cardEl(dealer.up, false));
-        bjDealer.appendChild(cardEl(dealer.holeHidden ? dealer.up : dealer.up, dealer.holeHidden));
-      }
-      // player(s)
-      bjPlayer.innerHTML = '';
-      player.forEach((h,i)=>{
-        const handWrap = document.createElement('div'); handWrap.style.display='flex'; handWrap.style.gap='10px';
-        h.cards.forEach(c => handWrap.appendChild(cardEl(c, false)));
-        bjPlayer.appendChild(handWrap);
-      });
-    }
+   function renderHands({ dealer, player }) {
+  // dealer
+  bjDealer.innerHTML = '';
+  if (dealer.full) {
+    dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
+  } else {
+    bjDealer.appendChild(cardEl(dealer.up, false));
+    // show a face-down placeholder for the hole
+    bjDealer.appendChild(cardEl({ displayText: 'Face down' }, true));
+  }
+
+  // players
+  bjPlayer.innerHTML = '';
+  player.forEach(h => {
+    const handWrap = document.createElement('div');
+    handWrap.style.display = 'flex';
+    handWrap.style.gap = '10px';
+    h.cards.forEach(c => handWrap.appendChild(cardEl(c, false)));
+    bjPlayer.appendChild(handWrap);
+  });
+}
 
     async function startRound(){
       try{
