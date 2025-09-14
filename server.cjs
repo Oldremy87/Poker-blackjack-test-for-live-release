@@ -362,7 +362,7 @@ app.get('/api/leaderboard/top', async (req, res) => {
     if (!sid) return res.json({ ok: true, game, entries: [] });
 
     const { rows } = await p.query(
-      `select sp.user_id::text as user_id,
+      `select sp.user_id, as user_id,
          sp.points_total,
          coalesce(u.display_id,
                   'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
@@ -401,7 +401,7 @@ app.get('/api/leaderboard/window', async (req, res) => {
     // Base ranking, union “you” if missing so you always appear
     const { rows } = await p.query(
       ` with base as (
-    select sp.user_id::text as user_id, sp.points_total, sp.last_update
+    select sp.user_id, as user_id, sp.points_total, sp.last_update
       from 
       ${table} sp
         where sp.season_id = $1
