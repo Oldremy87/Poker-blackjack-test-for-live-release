@@ -5,299 +5,121 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Leaderboard</title>
   <style>
-  :root{
-       --hand-gap: 10px;
-        --card-ratio: 1.6;   /* height = width * ratio; tweak if your art needs */
-      --cardW: 100px;    
-      --bg: #0b0f19;
-      --panel: #111827;
-      --text: #00ffc6;
-      --text-dim: #7fffe6;
-      --accent: #ffcc00;
-      --accent-2: #ff3df7;
-      --accent-3: #6ae3ff;
-      --card-bg: #222638;
-      --card-border: #3af5d9;
-      --danger: #ff5577;
-      --ok: #45ff99;
+    :root{
+      --bg:#0b0f19; --panel:#111827; --text:#00ffc6; --dim:#7fffe6; --accent:#ffcc00;
     }
-     *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      background:var(--bg);
-      color:var(--text);
-      font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased;
-      -moz-osx-font-smoothing:grayscale;
+    body{ margin:0; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#0b0f19; color:var(--text); padding:16px;}
+    .wrap{ max-width:900px; margin:0 auto;}
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      border:1px solid rgba(58,245,217,.3); border-radius:16px; padding:16px; margin:12px 0;
     }
-    .wrap{
-      max-width:900px;
-      margin:0 auto;
-      padding:24px 16px 64px;
-    }
-    header{
-      display:flex;
-      flex-wrap:wrap;
-      gap:12px 16px;
-      align-items:center;
-      justify-content:space-between;
-      margin-bottom:16px;
-    }
-    h1{
-      margin:0;
-      font-size:clamp(20px,3.5vw,28px);
-      letter-spacing:.2px;
-    }
-    .muted{ color:var(--muted); font-size:14px; }
-    .tabs{
-      display:flex; gap:8px; flex-wrap:wrap;
-      background:transparent;
-    }
-    .tab{
-      border:1px solid var(--border);
-      background:var(--card);
-      color:var(--text);
-      padding:8px 12px;
-      border-radius:10px;
-      cursor:pointer;
-      font-weight:600;
-      transition:transform .08s ease, border-color .15s ease, background .15s ease;
-    }
-    .tab[aria-pressed="true"]{
-      background:linear-gradient(180deg, #1a2232, #0f141e);
-      border-color:#2b364b;
-      color:#cfe6ff;
-      outline:2px solid color-mix(in oklab, var(--accent) 30%, transparent);
-    }
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:16px;
-    }
-    @media (min-width: 820px){
-      .grid{ grid-template-columns: 1fr 1fr; }
-    }
-    .card{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:16px;
-      padding:14px;
-      box-shadow: 0 1px 0 rgba(255,255,255,.03) inset,
-                  0 8px 24px rgba(0,0,0,.28);
-    }
-    .card h2{
-      margin:2px 0 10px;
-      font-size:18px;
-      display:flex; align-items:baseline; gap:10px;
-    }
-    .card h2 .sub{ font-size:12px; color:var(--muted); font-weight:500; }
-    ul.ranklist{
-      list-style:none; margin:0; padding:0;
-      display:flex; flex-direction:column; gap:2px;
-    }
-    .ranklist li{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      padding:10px 10px;
-      border-radius:10px;
-      border:1px solid transparent;
-    }
-    .ranklist li:nth-child(odd){ background:rgba(255,255,255,.02); }
-    .ranklist .left{
-      display:flex; align-items:center; gap:10px; min-width:0;
-    }
-    .rank{
-      display:inline-block; min-width:2.2ch;
-      text-align:right; font-variant-numeric:tabular-nums;
-      color:var(--muted);
-    }
-    .user{
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-      max-width:56vw;
-    }
-    @media (min-width:820px){ .user{ max-width:28vw; } }
-    .pts{
-      font-variant-numeric:tabular-nums;
-      color:#d5e3ff;
-      font-weight:600;
-      letter-spacing:.2px;
-    }
-    li.you{
-      border-color: color-mix(in oklab, var(--you) 24%, transparent);
-      background: linear-gradient(180deg, rgba(255,209,102,.06), rgba(255,209,102,.02));
-    }
-    li.you .user{ color:var(--you); font-weight:700; }
-    .footnote{ margin-top:8px; color:var(--muted); font-size:13px; }
-    .youline{ font-weight:700; margin-top:6px; }
-    .error{
-      margin-top:8px; color:#ff8a8a; font-size:14px;
-    }
-    .toolbar{
-      display:flex; gap:10px; align-items:center; margin-top:8px;
-    }
-    .pill{
-      border:1px solid var(--border);
-      padding:6px 10px; border-radius:999px; color:var(--muted); font-size:12px;
-    }
-    a, a:visited{ color:#9ec9ff; text-decoration:none; }
-    a:hover{ text-decoration:underline; }
+    h1,h2{ margin:0 0 10px; }
+    .tabs{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+    .btn{ appearance:none; border:0; border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer;
+      background:var(--accent); color:#000; text-decoration:none; display:inline-block;}
+    .btn.ghost{ background:transparent; color:var(--text); border:1px solid rgba(58,245,217,.35);}
+    .leaderboard{ list-style:none; padding:0; margin:0;}
+    .leaderboard li{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06);}
+    .leaderboard li:last-child{ border-bottom:0;}
+    .leaderboard .user{ opacity:.9;}
+    .leaderboard .pts{ font-weight:700;}
+    .hint{ color:var(--dim); margin-top:6px; font-size:12px;}
+    .bar{ display:flex; gap:8px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; }
+    .you{ font-weight:700; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <div>
+    <div class="panel">
+      <div class="bar">
         <h1 id="title">Leaderboard</h1>
-        <div class="muted">Current season rankings</div>
-      </div>
-      <div class="tabs" role="tablist" aria-label="Choose game">
-        <button id="tabPoker" class="tab" role="tab" aria-pressed="false">Poker</button>
-        <button id="tabBJ" class="tab" role="tab" aria-pressed="false">Blackjack</button>
-      </div>
-    </header>
-
-    <div class="grid">
-      <section class="card">
-        <h2>Top 25 <span class="sub">(season)</span></h2>
-        <ul id="lbTopList" class="ranklist" aria-live="polite"></ul>
-        <div id="topError" class="error" hidden></div>
-      </section>
-
-      <section class="card">
-        <h2>Your Rank <span class="sub">(±3 around you)</span></h2>
-        <ul id="lbWindowList" class="ranklist" aria-live="polite"></ul>
-        <div class="youline" id="youLine"></div>
-        <div class="footnote" id="youHint"></div>
-        <div id="winError" class="error" hidden></div>
-
-        <div class="toolbar">
-          <span class="pill">Tip: You’ll also see this mini-window in-game.</span>
+        <div class="tabs">
+          <a class="btn ghost" href="?game=poker">Poker</a>
+          <a class="btn ghost" href="?game=blackjack">Blackjack</a>
         </div>
-      </section>
+      </div>
+      <div class="hint">This page shows the Top 25 and a personal window around your current rank.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Top 25</h2>
+      <ol id="lbTopList" class="leaderboard"></ol>
+    </div>
+
+    <div class="panel">
+      <h2>Your Rank (±3)</h2>
+      <div id="youLine" class="hint"></div>
+      <ol id="lbWindowList" class="leaderboard"></ol>
+      <div id="youHint" class="hint"></div>
     </div>
   </div>
 
   <script>
-    // --- Game detection + tab controls ---
     function getGame(){
       const p = new URLSearchParams(location.search);
-      const q = (p.get('game') || '').toLowerCase();
-      if (q === 'blackjack' || q === 'bj') return 'blackjack';
-      if (q === 'poker' || q === '') {
-        // fallback to path sniff if query not set
-        return location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
-      }
-      return 'poker';
-    }
-    function setActiveTabs(game){
-      document.getElementById('tabPoker').setAttribute('aria-pressed', String(game==='poker'));
-      document.getElementById('tabBJ').setAttribute('aria-pressed', String(game==='blackjack'));
-      const title = document.getElementById('title');
-      title.textContent = (game==='blackjack' ? 'Blackjack' : 'Poker') + ' Leaderboard';
-    }
-    function goGame(game){
-      const url = new URL(location.href);
-      url.searchParams.set('game', game);
-      // Keep client-side navigation light; reload to reset state
-      location.href = url.toString();
-    }
-    document.getElementById('tabPoker').addEventListener('click', ()=>goGame('poker'));
-    document.getElementById('tabBJ').addEventListener('click',   ()=>goGame('blackjack'));
-
-    // --- Render helpers ---
-    function liRow({ rank, user, points, you=false }){
-      const li = document.createElement('li');
-      if (you) li.classList.add('you');
-      li.dataset.rank = rank;
-      li.innerHTML = `
-        <span class="left">
-          <span class="rank">${rank}.</span>
-          <span class="user">${user}${you ? ' (you)' : ''}</span>
-        </span>
-        <span class="pts">${points}</span>
-      `;
-      return li;
+      const g = (p.get('game')||'poker').toLowerCase();
+      return (g==='blackjack')?'blackjack':'poker';
     }
 
-    // --- Data loaders ---
     async function loadTop(game){
       const list = document.getElementById('lbTopList');
-      const err  = document.getElementById('topError');
-      list.innerHTML = ''; err.hidden = true; err.textContent = '';
-      try{
-        const r = await fetch(`/api/leaderboard/top?game=${encodeURIComponent(game)}&limit=25`, { credentials:'include' });
-        const d = await r.json(); if (!d.ok) throw new Error('top_error');
-        if (!Array.isArray(d.entries) || d.entries.length === 0){
-          const li = document.createElement('li');
-          li.innerHTML = `<span class="left"><span class="rank">–</span><span class="user muted">No entries yet</span></span><span class="pts">0</span>`;
-          list.appendChild(li);
-          return d;
-        }
-        d.entries.forEach(e => list.appendChild(liRow(e)));
-        return d;
-      }catch(e){
-        err.textContent = 'Could not load Top 25. Try again in a moment.';
-        err.hidden = false;
-        return { entries: [] };
-      }
+      list.innerHTML = '';
+      const r = await fetch(`/api/leaderboard/top?game=${game}&limit=25`, { credentials:'include' });
+      const d = await r.json(); if (!d.ok) return { entries:[], youInTop:false };
+      d.entries.forEach((e) => {
+        const li = document.createElement('li');
+        li.dataset.rank = e.rank;
+        li.innerHTML = `<span>${e.rank}. <span class="user">${e.user}</span></span><span class="pts">${e.points}</span>`;
+        list.appendChild(li);
+      });
+      return d;
     }
 
     async function loadWindow(game){
       const list = document.getElementById('lbWindowList');
       const youLine = document.getElementById('youLine');
       const youHint = document.getElementById('youHint');
-      const err  = document.getElementById('winError');
-
       list.innerHTML = ''; youLine.textContent = ''; youHint.textContent = '';
-      err.hidden = true; err.textContent = '';
 
-      try{
-        const r = await fetch(`/api/leaderboard/window?game=${encodeURIComponent(game)}&k=3`, { credentials:'include' });
-        const d = await r.json(); if (!d.ok) throw new Error('window_error');
+      const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+      const d = await r.json(); if (!d.ok) return null;
 
-        // Build window list
-        if (Array.isArray(d.window) && d.window.length){
-          d.window.forEach(row => list.appendChild(liRow({
-            rank: row.rank, user: row.user, points: row.points, you: !!row.you
-          })));
-        } else {
-          const li = document.createElement('li');
-          li.innerHTML = `<span class="left"><span class="rank">–</span><span class="user muted">No rank yet — play a hand to enter the board</span></span><span class="pts">0</span>`;
-          list.appendChild(li);
+      // Build the window list
+      d.window.forEach((row) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
+        if (row.you) {
+          li.classList.add('you');
+          li.style.fontWeight = '700';
         }
+        list.appendChild(li);
+      });
 
-        // Summary line + hint
-        if (d.you){
-          youLine.textContent = `You are #${d.you.rank} with ${d.you.points} pts`;
-          youHint.textContent = (d.you.deltaAhead != null)
-            ? `Only ${d.you.deltaAhead} pts to the next rank.`
-            : '';
+      if (d.you){
+        youLine.textContent = `You are #${d.you.rank} with ${d.you.points} pts`;
+        if (d.you.deltaAhead != null) {
+          youHint.textContent = `Only ${d.you.deltaAhead} pts to the next rank.`;
         }
-        return d;
-      }catch(e){
-        err.textContent = 'Could not load your rank window. Try again in a moment.';
-        err.hidden = false;
-        return null;
       }
+      return d;
     }
 
     function highlightYouInTop(topData, winData){
       if (!topData || !winData || !winData.you) return;
+      // If you appear in Top 25, bold that row
       const youRank = winData.you.rank;
       const li = document.querySelector(`#lbTopList li[data-rank="${youRank}"]`);
-      if (li) li.classList.add('you');
+      if (li) { li.style.fontWeight = '700'; li.classList.add('you'); }
     }
 
-    // --- Init ---
     (async function init(){
       const game = getGame();
-      setActiveTabs(game);
+      document.getElementById('title').textContent = (game==='blackjack'?'Blackjack':'Poker') + ' Leaderboard';
       try{
         const [topData, winData] = await Promise.all([loadTop(game), loadWindow(game)]);
-        highlightYouInTop(topData, winData || {});
-      }catch(e){
-        // swallow — individual sections already surfaced errors
-      }
+        highlightYouInTop(topData, winData);
+      }catch{}
     })();
   </script>
 </body>

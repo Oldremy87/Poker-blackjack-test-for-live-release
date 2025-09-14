@@ -861,9 +861,9 @@ async function loadProfile(){
 }
 async function loadLeaderboard(){
   try{
-    const game = location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
-    const res = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
-    const d = await res.json(); if (!d.ok) return;
+    const game = window.location.pathname.includes('blackjack') ? 'blackjack' : 'poker';
+    const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+    const d = await r.json(); if (!d.ok) return;
 
     const list = document.getElementById('leaderboardList');
     if (!list) return;
@@ -871,24 +871,18 @@ async function loadLeaderboard(){
 
     d.window.forEach(row => {
       const li = document.createElement('li');
-      li.innerHTML = `
-        <span>${row.rank}. <span class="user">${row.user}${row.you ? ' (you)' : ''}</span></span>
-        <span class="pts">${row.points}</span>`;
+      li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
       if (row.you) li.style.fontWeight = '700';
       list.appendChild(li);
     });
 
-    // tiny hint under the list (distance to next rank)
-    let hint = document.getElementById('lbHint');
-    if (!hint) {
-      hint = document.createElement('div');
-      hint.id = 'lbHint';
-      hint.className = 'readout';
-      list.parentNode.appendChild(hint);
+    // Optional tiny hint: “X pts to next rank”
+    if (d.you && d.you.deltaAhead != null) {
+      const hint = document.createElement('li');
+      hint.style.opacity = .75;
+      hint.innerHTML = `<span class="user">You’re ${d.you.deltaAhead} pts from the next rank</span>`;
+      list.appendChild(hint);
     }
-    hint.textContent = (d.you && d.you.deltaAhead != null)
-      ? `Only ${d.you.deltaAhead} pts to the next rank.`
-      : '';
   }catch{}
 }
 
