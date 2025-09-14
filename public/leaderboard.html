@@ -27,6 +27,11 @@
     .hint{ color:var(--dim); margin-top:6px; font-size:12px;}
     .bar{ display:flex; gap:8px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; }
     .you{ font-weight:700; }
+    .lb{ list-style:none; padding:0; margin:0; }
+.lb li{ display:flex; align-items:center; gap:.75rem; padding:.25rem 0; }
+.lb .who{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lb .pts{ margin-left:auto; }
+.lb li.you{ font-weight:700; }
   </style>
 </head>
 <body>
@@ -56,71 +61,64 @@
   </div>
 
   <script>
-    function getGame(){
-      const p = new URLSearchParams(location.search);
-      const g = (p.get('game')||'poker').toLowerCase();
-      return (g==='blackjack')?'blackjack':'poker';
-    }
+   function getGame(){
+  const p = new URLSearchParams(location.search);
+  const g = (p.get('game')||'poker').toLowerCase();
+  return (g==='blackjack')?'blackjack':'poker';
+}
 
-    async function loadTop(game){
-      const list = document.getElementById('lbTopList');
-      list.innerHTML = '';
-      const r = await fetch(`/api/leaderboard/top?game=${game}&limit=25`, { credentials:'include' });
-      const d = await r.json(); if (!d.ok) return { entries:[], youInTop:false };
-      d.entries.forEach((e) => {
-        const li = document.createElement('li');
-        li.dataset.rank = e.rank;
-        li.innerHTML = `<span>${e.rank}. <span class="user">${e.user}</span></span><span class="pts">${e.points}</span>`;
-        list.appendChild(li);
-      });
-      return d;
-    }
+async function loadTop(game){
+  const list = document.getElementById('lbTopList');
+  list.innerHTML = '';
+  const r = await fetch(`/api/leaderboard/top?game=${game}&limit=25`, { credentials:'include' });
+  const d = await r.json(); if (!d.ok) return { entries:[], youInTop:false };
+  d.entries.forEach((e) => {
+    const li = document.createElement('li');
+    li.dataset.rank = e.rank;
+    li.innerHTML = `<span class="who">${e.rank}. <span class="user">${e.user}</span></span><span class="pts">${e.points}</span>`;
+    list.appendChild(li);
+  });
+  return d;
+}
 
-    async function loadWindow(game){
-      const list = document.getElementById('lbWindowList');
-      const youLine = document.getElementById('youLine');
-      const youHint = document.getElementById('youHint');
-      list.innerHTML = ''; youLine.textContent = ''; youHint.textContent = '';
+async function loadWindow(game){
+  const list = document.getElementById('lbWindowList');
+  const youLine = document.getElementById('youLine');
+  const youHint = document.getElementById('youHint');
+  list.innerHTML = ''; youLine.textContent = ''; youHint.textContent = '';
 
-      const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
-      const d = await r.json(); if (!d.ok) return null;
+  const r = await fetch(`/api/leaderboard/window?game=${game}&k=3`, { credentials:'include' });
+  const d = await r.json(); if (!d.ok) return null;
 
-      // Build the window list
-      d.window.forEach((row) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
-        if (row.you) {
-          li.classList.add('you');
-          li.style.fontWeight = '700';
-        }
-        list.appendChild(li);
-      });
+  d.window.forEach((row) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="who">${row.rank}. <span class="user">${row.user}</span></span><span class="pts">${row.points}</span>`;
+    if (row.you) li.classList.add('you');
+    list.appendChild(li);
+  });
 
-      if (d.you){
-        youLine.textContent = `You are #${d.you.rank} with ${d.you.points} pts`;
-        if (d.you.deltaAhead != null) {
-          youHint.textContent = `Only ${d.you.deltaAhead} pts to the next rank.`;
-        }
-      }
-      return d;
-    }
+  if (d.you){
+    youLine.textContent = `You are #${d.you.rank} with ${d.you.points} pts`;
+    youHint.textContent = (d.you.deltaAhead != null) ? `Only ${d.you.deltaAhead} pts to the next rank.` : '';
+  }
+  return d;
+}
 
-    function highlightYouInTop(topData, winData){
-      if (!topData || !winData || !winData.you) return;
-      // If you appear in Top 25, bold that row
-      const youRank = winData.you.rank;
-      const li = document.querySelector(`#lbTopList li[data-rank="${youRank}"]`);
-      if (li) { li.style.fontWeight = '700'; li.classList.add('you'); }
-    }
+function highlightYouInTop(topData, winData){
+  if (!topData || !winData || !winData.you) return;
+  const youRank = winData.you.rank;
+  const li = document.querySelector(`#lbTopList li[data-rank="${youRank}"]`);
+  if (li) li.classList.add('you');
+}
 
-    (async function init(){
-      const game = getGame();
-      document.getElementById('title').textContent = (game==='blackjack'?'Blackjack':'Poker') + ' Leaderboard';
-      try{
-        const [topData, winData] = await Promise.all([loadTop(game), loadWindow(game)]);
-        highlightYouInTop(topData, winData);
-      }catch{}
-    })();
+(async function init(){
+  const game = getGame();
+  document.getElementById('title').textContent = (game==='blackjack'?'Blackjack':'Poker') + ' Leaderboard';
+  try{
+    const [topData, winData] = await Promise.all([loadTop(game), loadWindow(game)]);
+    highlightYouInTop(topData, winData);
+  }catch(e){ console.warn('leaderboard page load failed', e); }
+})();
   </script>
 </body>
 </html>
