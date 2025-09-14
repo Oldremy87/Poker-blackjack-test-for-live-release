@@ -522,6 +522,14 @@
   }
   return resp;
 }
+async function ensureCsrf(){
+  try {
+    const r = await fetch('/api/csrf', { credentials: 'include' });
+    const j = await r.json();
+    window.csrfToken = j.csrfToken;
+  } catch {}
+}
+document.addEventListener('DOMContentLoaded', ensureCsrf);
 
    const API = Object.freeze({
   profile:'/api/profile',

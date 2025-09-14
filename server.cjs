@@ -96,6 +96,23 @@ app.use(session({
     maxAge: 1000 * 60 * 60 * 24 * 30
   }
 }));
+// --- UID COOKIE (robust) ---
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+app.use((req, res, next) => {
+  let uid = req.cookies?.uid;
+  if (!uid || !UUID_RE.test(uid)) {
+    uid = randomUUID();
+    res.cookie('uid', uid, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 1000 * 60 * 60 * 24 * 365 // 1 year
+    });
+  }
+  req.uid = uid;
+  next();
+});
 
 const crossSite = process.env.CROSS_SITE_COOKIES === 'true';
 const csrfProtection = csrf({
@@ -345,12 +362,12 @@ app.get('/api/leaderboard/top', async (req, res) => {
     if (!sid) return res.json({ ok: true, game, entries: [] });
 
     const { rows } = await p.query(
-      `
-      select sp.user_id,
-             sp.points_total,
-             coalesce(u.display_id,
-                      'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
-      from ${table} sp
+      `select sp.user_id::text as user_id,
+         sp.points_total,
+         coalesce(u.display_id,
+                  'PUP-'||upper(left(sp.user_id::text,4))||'…'||upper(right(sp.user_id::text,4))) as tag
+    from
+       ${table} sp
       left join users u on u.user_id = sp.user_id
       where sp.season_id = $1
       order by sp.points_total desc, sp.last_update asc, sp.user_id
@@ -383,10 +400,10 @@ app.get('/api/leaderboard/window', async (req, res) => {
 
     // Base ranking, union “you” if missing so you always appear
     const { rows } = await p.query(
-      `
-      with base as (
-        select sp.user_id, sp.points_total, sp.last_update
-        from ${table} sp
+      ` with base as (
+    select sp.user_id::text as user_id, sp.points_total, sp.last_update
+      from 
+      ${table} sp
         where sp.season_id = $1
 
         union all
