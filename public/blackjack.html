@@ -667,29 +667,15 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     if (el) el.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
   }catch{}
 }
-  function cardEl(card, hidden = false) {
-    const el = document.createElement('div');
-    el.className = 'card';
-
-    // Label
-    const label = document.createElement('p');
-    label.textContent = hidden
-      ? 'Face down'
-      : (card.displayText || `${card.rank} of ${card.suit}`);
-
-    // Try to show an image for face-up cards
-    if (!hidden && card.filename) {
+    
+    function cardEl(card, faceDown=false){
+      const div = document.createElement('div'); div.className='card';
       const img = document.createElement('img');
-      img.alt = label.textContent;
-      img.src = `/cards/${card.filename}`;
-      // If the image can't be loaded, fall back to text-only
-      img.addEventListener('error', () => { img.remove(); });
-      el.appendChild(img);
+      img.src = faceDown ? 'cards/card-back.png' : `cards/${card.filename}`;
+      img.alt = faceDown ? 'Hidden card' : card.displayText;
+      div.appendChild(img);
+      return div;
     }
-
-    el.appendChild(label);
-    return el;
-  }
 async function loadLeaderboard(){
   try{
     const res = await fetch('/api/leaderboard/window?game=blackjack&k=3', { credentials:'include' });
@@ -720,7 +706,7 @@ async function loadLeaderboard(){
       : '';
   } catch(e){ console.warn('blackjack window LB failed', e); }
 }
-    function renderHands({ dealer, player }){
+ function renderHands({ dealer, player }){
       // dealer
       bjDealer.innerHTML = '';
       if (dealer.full){
