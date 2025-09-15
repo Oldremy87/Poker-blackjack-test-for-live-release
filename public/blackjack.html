@@ -667,7 +667,29 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     if (el) el.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
   }catch{}
 }
+  function cardEl(card, hidden = false) {
+    const el = document.createElement('div');
+    el.className = 'card';
 
+    // Label
+    const label = document.createElement('p');
+    label.textContent = hidden
+      ? 'Face down'
+      : (card.displayText || `${card.rank} of ${card.suit}`);
+
+    // Try to show an image for face-up cards
+    if (!hidden && card.filename) {
+      const img = document.createElement('img');
+      img.alt = label.textContent;
+      img.src = `/cards/${card.filename}`;
+      // If the image can't be loaded, fall back to text-only
+      img.addEventListener('error', () => { img.remove(); });
+      el.appendChild(img);
+    }
+
+    el.appendChild(label);
+    return el;
+  }
 async function loadLeaderboard(){
   try{
     const res = await fetch('/api/leaderboard/window?game=blackjack&k=3', { credentials:'include' });
@@ -698,53 +720,23 @@ async function loadLeaderboard(){
       : '';
   } catch(e){ console.warn('blackjack window LB failed', e); }
 }
-  // Simple card element (face-up or face-down)
-  function cardEl(card, hidden = false) {
-    const el = document.createElement('div');
-    el.className = 'card';
-
-    const img = document.createElement('img');
-    img.alt = hidden
-      ? 'Face down'
-      : (card?.displayText || `${card?.rank} of ${card?.suit}`);
-
-    // Face-down uses the back image from /public/card-back.png
-    img.src = hidden ? '/card-back.png'
-                     : (card?.filename ? `/cards/${card.filename}` : '');
-
-    // if face-up image fails, fall back to text label
-    img.addEventListener('error', () => { img.remove(); el.appendChild(document.createTextNode(img.alt)); });
-
-    el.appendChild(img);
-    return el;
-  }
-
-  // Render helper that uses the back for the dealer hole card
-  function renderHands({ dealer, player, players }) {
-    // Dealer
-    bjDealer.innerHTML = '';
-    if (dealer?.full) {
-      dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
-    } else {
-      if (dealer?.up) bjDealer.appendChild(cardEl(dealer.up, false));
-      if (dealer?.holeHidden) bjDealer.appendChild(cardEl(null, true)); // <-- back image
+    function renderHands({ dealer, player }){
+      // dealer
+      bjDealer.innerHTML = '';
+      if (dealer.full){
+        dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
+      } else {
+        bjDealer.appendChild(cardEl(dealer.up, false));
+        bjDealer.appendChild(cardEl(dealer.holeHidden ? dealer.up : dealer.up, dealer.holeHidden));
+      }
+      // player(s)
+      bjPlayer.innerHTML = '';
+      player.forEach((h,i)=>{
+        const handWrap = document.createElement('div'); handWrap.style.display='flex'; handWrap.style.gap='10px';
+        h.cards.forEach(c => handWrap.appendChild(cardEl(c, false)));
+        bjPlayer.appendChild(handWrap);
+      });
     }
-
-    // Player(s)
-    bjPlayer.innerHTML = '';
-    // Support both shapes: start => `player` (array of cards), later => `players` (array of hands)
-    const hands = Array.isArray(players) ? players
-                 : Array.isArray(player) ? [{ cards: player }]
-                 : [];
-
-    hands.forEach(h => {
-      const wrap = document.createElement('div');
-      wrap.style.display = 'flex';
-      wrap.style.gap = '10px';
-      (h.cards || []).forEach(c => wrap.appendChild(cardEl(c, false)));
-      bjPlayer.appendChild(wrap);
-    });
-  }
 
     async function startRound(){
       try{
