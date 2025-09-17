@@ -1059,116 +1059,146 @@ async function loadLeaderboard(){
   } catch(e){ console.warn('blackjack window LB failed', e); }
 }
  function renderHands({ dealer, player }){
-      // dealer
-      bjDealer.innerHTML = '';
-      if (dealer.full){
-        dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
-      } else {
-        bjDealer.appendChild(cardEl(dealer.up, false));
-        bjDealer.appendChild(cardEl(dealer.holeHidden ? dealer.up : dealer.up, dealer.holeHidden));
-      }
-      // player(s)
-      bjPlayer.innerHTML = '';
-      player.forEach((h,i)=>{
-        const handWrap = document.createElement('div'); handWrap.style.display='flex'; handWrap.style.gap='10px';
-        h.cards.forEach(c => handWrap.appendChild(cardEl(c, false)));
-        bjPlayer.appendChild(handWrap);
-      });
-    }
+  bjDealer.innerHTML = '';
+  if (dealer.full){
+    dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
+  } else {
+    bjDealer.appendChild(cardEl(dealer.up, false));
+    bjDealer.appendChild(cardEl(dealer.holeHidden ? dealer.up : dealer.up, dealer.holeHidden));
+  }
+
+  bjPlayer.innerHTML = '';
+  (player || []).forEach(h=>{
+    const handWrap = document.createElement('div');
+    handWrap.style.display='flex';
+    handWrap.style.gap='10px';
+    (h.cards || []).forEach(c => handWrap.appendChild(cardEl(c, false)));
+    bjPlayer.appendChild(handWrap);
+  });
+}
+
 
     async function startRound(){
-      try{
-        const r = await postWithCsrf(API.bj.start, { method:'POST' });
-        const d = await r.json();
-        if (!r.ok || !d.ok) { alert(d.error||'Start failed'); return; }
-        if (d.fair?.commit && d.fair?.handId){
-          bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}… (hand ${d.fair.handId.slice(0,8)})`;
-        }
-        renderHands({ dealer:d.dealer, player:[{ cards:d.player }] });
-        btnStart.disabled = true;
-        btnHit.disabled = btnStand.disabled = false;
-        bjMsg.textContent = 'Your move.';
-        applyBJCan(d.can);
-      }catch(e){ alert('Start failed.'); }
+  try{
+    const d = await postWithCsrf(API.bj.start, {});   // already JSON
+    if (!d.ok) throw new Error(d.error || 'Start failed');
+
+    if (d.fair?.commit && d.fair?.handId){
+      bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}… (hand ${d.fair.handId.slice(0,8)})`;
     }
+
+    // If server dealt a natural BJ and settled immediately, just snapshot it.
+    if (d.settled) {
+      afterActionSnapshot(d);
+      return;
+    }
+
+    // Normal start payload: dealer upcard + player’s two cards in d.player
+    renderHands({ dealer: d.dealer, player: [{ cards: d.player }] });
+    updateBjPanels(d);
+
+    btnStart.disabled = true;
+    btnHit.disabled = btnStand.disabled = false;
+    bjMsg.textContent = 'Your move.';
+    applyBJCan(d.can || {});
+  } catch(e){
+    alert(`Start failed: ${e.message || e}`);
+  }
+}
   
     async function hit(){ 
-      const r = await postWithCsrf(API.bj.hit, { method:'POST' });
-      const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Hit failed'); return; }
-      afterActionSnapshot(d);
-      if (d.settled) bjMsg.textContent='Round settled. Press Feed the dealer for a new round.';
-    }
-    async function stand() {
-    try {
-      setButtons({ hit:false, stand:false });
-
-      const r = await postWithCsrf(API.bj.stand, { method: 'POST' });
-      const d = await r.json();
-      if (!r.ok || !d.ok) throw new Error(d.error || 'Stand failed');
-
-      // use the server snapshot only
-      afterActionSnapshot(d);
-
-      if (d.fair?.serverSeed) {
-        bjFair.textContent =
-          `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
-      }
-
-      await sleep(600);
-    } catch (err) {
-      toast(`Stand failed: ${err.message}`, { type: 'error' });
-      setButtons({ deal:true, hit:false, stand:false });
-    }
+  try{
+    const d = await postWithCsrf(API.bj.hit, {});
+    if (!d.ok) throw new Error(d.error || 'Hit failed');
+    afterActionSnapshot(d);
+    if (d.settled) bjMsg.textContent = 'Round settled. Press Feed the dealer for a new round.';
+  } catch(e){
+    alert(`Hit failed: ${e.message || e}`);
   }
-    async function doubleDown(){
-      const r = await postWithCsrf(API.bj.double, { method:'POST' });
-      const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Double failed'); return; }
-      afterActionSnapshot(d);
+}
+
+async function stand(){
+  try{
+    setButtons({ hit:false, stand:false });
+    const d = await postWithCsrf(API.bj.stand, {});
+    if (!d.ok) throw new Error(d.error || 'Stand failed');
+
+    afterActionSnapshot(d);
+    if (d.fair?.serverSeed) {
+      bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
     }
-    async function split(){
-      const r = await postWithCsrf(API.bj.split, { method:'POST' });
-      const d = await r.json(); if (!r.ok || !d.ok){ alert(d.error||'Split failed'); return; }
-      afterActionSnapshot(d);
-    }
+    await sleep(600);
+  } catch(e){
+    toast(`Stand failed: ${e.message || e}`, { type:'error' });
+    setButtons({ deal:true, hit:false, stand:false });
+  }
+}
+
+async function doubleDown(){
+  try{
+    const d = await postWithCsrf(API.bj.double, {});
+    if (!d.ok) throw new Error(d.error || 'Double failed');
+    afterActionSnapshot(d);
+  } catch(e){
+    alert(`Double failed: ${e.message || e}`);
+  }
+}
+
+async function split(){
+  try{
+    const d = await postWithCsrf(API.bj.split, {});
+    if (!d.ok) throw new Error(d.error || 'Split failed');
+    afterActionSnapshot(d);
+  } catch(e){
+    alert(`Split failed: ${e.message || e}`);
+  }
+}
 
     // ——— Daily & Payout (copied minimal from poker page) ———
     async function onDaily(){
-      const res = await postWithCsrf(API.daily, { method:'POST' });
-      const data = await res.json();
-      if (!res.ok || !data.ok){
-        const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
-        alert('Daily already claimed. Try again in ~'+mins+' minutes.');
-        return;
-      }
-      const creditUnits = Math.floor((data.credit||0)/100);
-      const balanceUnits = Math.floor((data.sessionBalance||0)/100);
-      alert(`Daily reward claimed: +${creditUnits} KIBL`);
-      payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
-      totalPayout = balanceUnits; payoutBtn.disabled = (totalPayout===0);
+  try{
+    const data = await postWithCsrf(API.daily, {});
+    if (!data.ok){
+      const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
+      alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
+      return;
     }
-    async function onPayout(){
-      if (totalPayout===0){ alert('No payout to claim!'); return; }
-      const addr = addressInput.value.trim();
-      if (!/^nexa:/.test(addr)){ alert('Please enter a valid Nexa address (nexa:...)'); return; }
-      try{
-        loading.style.display='block'; payoutBtn.disabled=true;
-        const resp = await postWithCsrf(API.payout, { method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ playerAddress: addr, 'h-captcha-response': (window.hcaptcha?.getResponse?.()||'') })
-        });
-        const data = await resp.json().catch(()=> ({}));
-        if (!resp.ok || data.error){ alert('Payout failed: '+(data.error||resp.statusText)); return; }
-        alert(`Payout successful! Tx ID: ${data.txId}`);
-        totalPayout = data.remainingKIBL ?? 0;
-        payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
-        payoutBtn.disabled = (totalPayout===0);
-      } finally { loading.style.display='none'; }
+    const creditUnits  = Math.floor((data.credit||0)/100);
+    const balanceUnits = Math.floor((data.sessionBalance||0)/100);
+    alert(`Daily reward claimed: +${creditUnits} KIBL`);
+    payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
+    totalPayout = balanceUnits; payoutBtn.disabled = (totalPayout===0);
+  } catch(e){
+    alert(`Daily failed: ${e.message || e}`);
+  }
+}
+
+async function onPayout(){
+  if (totalPayout===0){ alert('No payout to claim!'); return; }
+  const addr = addressInput.value.trim();
+  if (!/^nexa:/.test(addr)){ alert('Please enter a valid Nexa address (nexa:...)'); return; }
+  try{
+    loading.style.display='block'; payoutBtn.disabled=true;
+
+    const data = await postWithCsrf(API.payout, {
+      playerAddress: addr,
+      'h-captcha-response': (window.hcaptcha?.getResponse?.() || '')
+    });
+
+    if (!data || data.error) {
+      throw new Error(data?.error || 'Unknown payout error');
     }
-  
-// ===== Client-side scoring mirrors server rules =====
 
-
-
+    alert(`Payout successful! Tx ID: ${data.txId}`);
+    totalPayout = data.remainingKIBL ?? 0;
+    payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
+    payoutBtn.disabled = (totalPayout===0);
+  } catch(e){
+    alert(`Payout failed: ${e.message || e}`);
+  } finally {
+    loading.style.display='none';
+  }
+}
 
     // Wire up
     btnStart.addEventListener('click', startRound);
