@@ -644,7 +644,7 @@
           <button id="bjHit"    class="btn" disabled>Hit</button>
           <button id="bjStand"  class="btn" disabled>Stand</button>
          <button id="bjDoubleBtn" class="btn" disabled>Double</button>
-          <button id="bjSplitBtn"  class="btn" disabled>Split</button>
+          <button id="bjSplitBtn"  class="btn hidden >Split</button>
         
         </div>
 
@@ -944,12 +944,20 @@ function updateBjPanels(snapshotJson) {
   const bjMsg = document.getElementById('bjStatus');
 const leaderboardList = document.getElementById('leaderboardList');
 
-  function applyBJCan(can = {}) {
-    btnHit.disabled    = !(can.hit ?? true);
-    btnStand.disabled  = !(can.stand ?? true);
-    btnDouble.disabled = !(can.double ?? false);
-    btnSplit.classList.toggle('hidden', !(can.split ?? false));
-  }
+ function applyBJCan(can = {}) {
+  const canHit    =  (can.hit    ?? true);
+  const canStand  =  (can.stand  ?? true);
+  const canDouble = !!(can.double ?? false);
+  const canSplit  = !!(can.split  ?? false);
+
+  btnHit.disabled    = !canHit;
+  btnStand.disabled  = !canStand;
+  btnDouble.disabled = !canDouble;
+
+  // control both visibility and clickability for split
+  btnSplit.disabled  = !canSplit;
+  btnSplit.classList.toggle('hidden', !canSplit);
+ }
 
 
     let totalPayout = 0;
@@ -1275,7 +1283,7 @@ async function onPayout(){
     dailyBtn.addEventListener('click', onDaily);
     payoutBtn.addEventListener('click', onPayout);
     btnDouble.addEventListener('click', doubleDown);
-btnSplit .addEventListener('click', split);
+    btnSplit .addEventListener('click', split);
 
 
     // bootstrap
