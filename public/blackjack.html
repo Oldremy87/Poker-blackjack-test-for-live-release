@@ -266,6 +266,7 @@
 }
 
 
+
 /* Let each dialog expand to its grid column */
 .bj-dialog { width: auto; }
 
@@ -471,6 +472,67 @@
 }
 @media (min-width:1025px){
   #bj-panels{ grid-column: 2; position: sticky; top: 12px; }
+}
+/* Register a custom angle for spinning borders (safe in modern browsers) */
+@property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+/* Base look for the payout chip */
+#payoutTotal{
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 12px;
+  position: relative;
+  background: #0f1425;
+  border: 1px solid rgba(58,245,217,.35);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+
+/* Win pulse: rainbow border + neon glow + bounce */
+#payoutTotal.payout-pulse{
+  border: 2px solid transparent;
+  background:
+    linear-gradient(#0f1425, #0f1425) padding-box,
+    conic-gradient(from var(--spin),
+      #00ffc6, #ffcc00, #ff3df7, #6ae3ff, #00ffc6) border-box;
+  color: #ffffff;
+  text-shadow:
+    0 0 6px #00ffc6,
+    0 0 10px #ff3df7,
+    0 0 16px #ffcc00;
+  box-shadow:
+    0 0 18px rgba(0,255,198,.35),
+    0 0 28px rgba(255,61,247,.25),
+    0 0 40px rgba(255,204,0,.18);
+  animation:
+    payoutBounce .9s cubic-bezier(.2,1.4,.2,1) 1,
+    payoutGlow .9s ease-out 1,
+    payoutSpin 1.2s linear 1;
+  will-change: transform, box-shadow, filter;
+}
+
+@keyframes payoutBounce{
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18) rotate(-0.8deg); }
+  65%  { transform: scale(1.10) rotate(0.6deg); }
+  100% { transform: scale(1); }
+}
+
+@keyframes payoutGlow{
+  0%   { filter: saturate(1) brightness(1); }
+  40%  { filter: saturate(1.6) brightness(1.25); }
+  100% { filter: saturate(1) brightness(1); }
+}
+
+@keyframes payoutSpin{
+  to { --spin: 360deg; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce){
+  #payoutTotal.payout-pulse{
+    animation: none;
+    box-shadow: 0 0 18px rgba(0,255,198,.35);
+  }
 }
 
   </style>
@@ -984,16 +1046,25 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
       .join('<br>');
     toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 2500 });
-  } 
+  }
   if (creditUnits > 0) {
-  payoutEl.classList.add('payout-pulse');
-  setTimeout(()=>payoutEl.classList.remove('payout-pulse'), 1500);
-}
+    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 2500 });
+
+    // Sound: restart and play (user gesture already happened)
+    const sfx = document.getElementById('feedSound');
+    if (sfx) { try { sfx.currentTime = 0; sfx.volume = 0.6; sfx.play().catch(()=>{}); } catch(_){} }
+
+    // Haptic (best-effort on mobile)
+    if (navigator.vibrate) { navigator.vibrate([10, 40, 10]); }
+
+    // Pulse the payout readout
+    payoutEl.classList.add('payout-pulse');
+    setTimeout(() => payoutEl.classList.remove('payout-pulse'), 1400);
+  }
 
   payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
   totalPayout = balanceUnits;
   payoutBtn.disabled = (totalPayout === 0);
-
   // Always refresh profile + leaderboard so numbers are current
   loadProfile();
   loadLeaderboard();
