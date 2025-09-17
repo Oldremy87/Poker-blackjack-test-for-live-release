@@ -622,11 +622,6 @@
     <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
   </section>
 </div>
-</div>
-    
-<aside class="panel-claim" id="claimPanel">
-  
-
 <section class="panel claim-block" style="margin-top:10px;">
     <h2>Claim</h2>
     <div class="field">
@@ -647,7 +642,9 @@
     <p id="result" class="readout">Idle</p>
   </section>
   
-</aside>
+</div>
+
+    
 </div>
         </div>
 
@@ -769,7 +766,7 @@ function setChip(el, kind, text) {
 
 function updatePlayerPanelFromSnapshot(data) {
   const pTotalsEl  = document.getElementById('playerTotals');
- 
+  const pCardsEl   = document.getElementById('playerCards');
   const pStatusEl  = document.getElementById('playerStatus');
   const pFooterEl  = document.getElementById('playerFooter');
 
@@ -823,7 +820,7 @@ function updatePlayerPanelFromSnapshot(data) {
 
 function updateDealerPanelFromSnapshot(data) {
   const dTotalsEl  = document.getElementById('dealerTotals');
-  
+  const dCardsEl   = document.getElementById('dealerCards');
   const dStatusEl  = document.getElementById('dealerStatus');
   const dFooterEl  = document.getElementById('dealerFooter');
 
