@@ -1297,6 +1297,98 @@ function settleAndRewardBJ(req, r){
   const bonuses = [];
   return { points, creditMinor, bonuses, results };
 }
+async function claimAndAwardBJ(
+  req,
+  round,
+  results,
+  { points = 0, creditMinor = 0, bonuses = [], natBjCount = 0 } = {}
+) {
+  // in-process guard
+  if (!round || round._rewarded) return { awarded: false, roundMinor: 0, fair: null };
+
+  const toInt = v => Math.floor(Number(v) || 0);
+  const extraMinor = toInt((bonuses || []).reduce((s, b) => s + toInt(b.amount || 0), 0));
+  const roundMinor = Math.max(0, toInt(creditMinor) + extraMinor);
+
+  // Try to claim exactly once via DB (best-effort).
+  // Expect a UNIQUE constraint on bj_awards.hand_id.
+  let claimed = true;
+  if (hasDb) {
+    try {
+      const p = await db();
+      await getOrCreateUser(req.uid);
+      const { rowCount } = await p.query(
+        `INSERT INTO bj_awards (hand_id, user_id, points, credit_minor)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (hand_id) DO NOTHING`,
+        [round.handId, req.uid, toInt(points), roundMinor]
+      );
+      claimed = (rowCount === 1);
+    } catch {
+      // If bj_awards table is missing or DB hiccups, fall back to in-memory claim.
+      claimed = true;
+    }
+  }
+  if (!claimed) return { awarded: false, roundMinor: 0, fair: null };
+
+  // Credit session wallet (minor units)
+  const cap = Math.floor(Number(process.env.BANK_CAP ?? 5_000_000));
+  req.session.wallet.blackjack = Math.max(0, toInt(req.session.wallet.blackjack || 0) + roundMinor);
+  req.session.bank = Math.min(
+    cap,
+    toInt(req.session.wallet.poker || 0) + toInt(req.session.wallet.blackjack || 0)
+  );
+
+  // Stats + achievements + season points
+  const bjFlags = [];
+  if ((results || []).some(x => x.result === 'win' || x.result === 'bj')) bjFlags.push('first_win');
+  if (natBjCount > 0) bjFlags.push('bj_natural');
+
+  await saveStatsFor(req.uid, 'blackjack', {
+    creditMinor: roundMinor,
+    isWin: roundMinor > 0,
+    isRoyal: false,
+    flags: bjFlags
+  });
+  await awardSeasonPointsFor(req.uid, 'blackjack', toInt(points));
+
+  // (best-effort) increment natural BJ counter
+  if (natBjCount > 0 && hasDb) {
+    try {
+      const p = await db();
+      await p.query(
+        'UPDATE user_stats_blackjack SET blackjacks = blackjacks + $2, last_seen_at = now() WHERE user_id = $1',
+        [req.uid, natBjCount]
+      );
+    } catch {}
+  }
+
+  // Best-effort fairness reveal (only once)
+  let fair = null;
+  if (!round.revealed) {
+    fair = {
+      handId: round.handId,
+      commit: round.commit,
+      serverSeed: round.serverSeed,
+      clientSeed: round.clientSeed || null,
+      algo: "FY+hashStream sha256(serverSeed:clientSeed:handId:bj)"
+    };
+    round.revealed = true;
+    if (hasDb) {
+      try {
+        const p = await db();
+        await p.query(
+          'UPDATE fair_rounds SET server_seed=$2, revealed_at=now() WHERE hand_id=$1',
+          [round.handId, round.serverSeed]
+        );
+      } catch {}
+    }
+  }
+
+  round._rewarded = true;
+  return { awarded: true, roundMinor, fair };
+}
+
 
 // ---- Rate limits for BJ actions
 const bjStartLimiter  = rateLimit({ windowMs: 60_000, max: 40, standardHeaders:true, legacyHeaders:false });
@@ -1345,39 +1437,51 @@ app.post('/api/bj/start', bjStartLimiter, async (req, res) => {
     round.dealer.push(drawCard(round));
     round.players[0].cards.push(drawCard(round));
     round.dealer.push(drawCard(round));
+     req.session.bj.round = round;
 
-    req.session.bj.round = round;
-   const pTotal = scoreHand(round.players[0].cards).total;
-if (pTotal === 21) {
-  const h = round.players[0];
-  h.result = 'bj';            // 2-card 21 = natural blackjack
-  h.settled = true;
-  advanceOrSettle(round);
+    const pTotal = scoreHand(round.players[0].cards).total;
+    if (pTotal === 21) {
+      const h = round.players[0];
+      h.result = 'bj';
+      h.settled = true;
+      advanceOrSettle(round);
 
+      const tally = settleAndRewardBJ(req, round);
+      const natBjCount = 1;
+      const claim = await claimAndAwardBJ(req, round, tally.results, { ...tally, natBjCount });
 
-  const tally = settleAndRewardBJ(req, round);
-  const natBjCount = 1;
-  const claim = await claimAndAwardBJ(
-    req, round, tally.results, { ...tally, natBjCount }
-  );
-
-  return res.json({
-    ok: true,
-    fair: { handId, commit: commitHash },
-    settled: true,
-    dealer: { up: round.dealer[0], hole: round.dealer[1], full: round.dealer },
-    players: snapshotPlayers(round),
-    results: tally.results,
-    credit: claim.awarded ? claim.roundMinor : 0,  // minor units
-    sessionBalance: req.session.bank,              // minor units
-    points: Math.floor(tally.points || 0),
-    bonuses: tally.bonuses || [],
-    fairReveal: claim.fair || null,
-    can: { hit:false, stand:false, double:false, split:false }
-  });
-}
-  } catch(e){
-    logger.error('bj/start', { e:String(e) });
+      return res.json({
+        ok: true,
+        fair: { handId, commit: commitHash },
+        settled: true,
+        dealer: { up: round.dealer[0], hole: round.dealer[1], full: round.dealer },
+        players: snapshotPlayers(round),
+        results: tally.results,
+        credit: claim.awarded ? claim.roundMinor : 0,
+        sessionBalance: req.session.bank,
+        points: Math.floor(tally.points || 0),
+        bonuses: tally.bonuses || [],
+        fairReveal: claim.fair || null,
+        can: { hit:false, stand:false, double:false, split:false }
+      });
+    } else {
+      // Normal start path
+      return res.json({
+        ok: true,
+        fair: { handId, commit: commitHash },
+        settled: false,
+        dealer: { up: round.dealer[0], holeHidden: true },
+        player: round.players[0].cards,                  // (your client expects `player` on start)
+        can: {
+          hit: true,
+          stand: true,
+          double: true,
+          split: canSplit(round.players[0].cards)
+        }
+      });
+    }
+  } catch (e) {
+    logger.error('bj/start', { e: String(e) });
     return res.status(500).json({ ok:false, error:'bj_start_error' });
   }
 });
