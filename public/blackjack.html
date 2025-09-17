@@ -702,7 +702,7 @@ document.addEventListener('DOMContentLoaded', ensureCsrf);
     b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
   }
 })();
-document.getElementById('bjDoubleBtn').addEventListener('click', doubleBJ);
+
    const API = Object.freeze({
   profile:'/api/profile',
   daily:'/api/daily-reward',
@@ -727,12 +727,6 @@ document.getElementById('bjDoubleBtn').addEventListener('click', doubleBJ);
   const btnSplit  = document.getElementById('bjSplitBtn');
   const bjMsg = document.getElementById('bjStatus');
 const leaderboardList = document.getElementById('leaderboardList');
-
-btnStart.addEventListener('click', startRound);
-  btnHit.addEventListener('click', hit);
-  btnStand.addEventListener('click', stand);
-  btnDouble.addEventListener('click', doubleDown);  // was pointing to a non-existent doubleBJ
-  btnSplit.addEventListener('click', splitHand);
 
   function applyBJCan(can = {}) {
     btnHit.disabled    = !(can.hit ?? true);
