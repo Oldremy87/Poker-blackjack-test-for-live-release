@@ -723,7 +723,6 @@ async function ensureCsrf() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await ensureCsrf();                 // <-- make sure token is ready
-  wireBJ();                           // attach handlers after token exists
   showHowtoOnce();
 });
 
