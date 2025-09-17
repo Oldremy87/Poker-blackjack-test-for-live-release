@@ -1059,7 +1059,7 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
 
     // Pulse the payout readout
     payoutEl.classList.add('payout-pulse');
-    setTimeout(() => payoutEl.classList.remove('payout-pulse'), 1400);
+    setTimeout(() => payoutEl.classList.remove('payout-pulse'), 1900);
   }
 
   payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
