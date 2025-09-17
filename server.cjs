@@ -1360,7 +1360,7 @@ function afterActionSnapshot(data) {
     setBJButtons({ deal:false, hit:true, stand:true });
   }
 }
-document.getElementById('bjDoubleBtn').addEventListener('click', doubleBJ);
+
 
 async function doubleBJ() {
   try {

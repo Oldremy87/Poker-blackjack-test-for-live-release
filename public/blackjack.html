@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', ensureCsrf);
     b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
   }
 })();
-
+document.getElementById('bjDoubleBtn').addEventListener('click', doubleBJ);
    const API = Object.freeze({
   profile:'/api/profile',
   daily:'/api/daily-reward',
