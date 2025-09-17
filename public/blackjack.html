@@ -563,7 +563,7 @@
     </ul>
     <button id="bjHowtoClose">Let’s play</button>
   </div>
-   
+   </div>
          <p id="userTag" class="readout"></p>
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
          <a class="btn btn-ghost" href="bjpoints.html">Points</a>
@@ -720,14 +720,27 @@ document.getElementById('bjDoubleBtn').addEventListener('click', doubleBJ);
     const bjFair   = document.getElementById('bjFair');
     const bjDealer = document.getElementById('bjDealer');
     const bjPlayer = document.getElementById('bjPlayer');
-    const bjMsg    = document.getElementById('bjMsg');
+      const btnStart  = document.getElementById('bjStart');
+  const btnHit    = document.getElementById('bjHit');
+  const btnStand  = document.getElementById('bjStand');
+  const btnDouble = document.getElementById('bjDoubleBtn');
+  const btnSplit  = document.getElementById('bjSplitBtn');
+  const bjMsg = document.getElementById('bjStatus');
+const leaderboardList = document.getElementById('leaderboardList');
 
-    const btnStart = document.getElementById('bjStart');
-    const btnHit   = document.getElementById('bjHit');
-    const btnStand = document.getElementById('bjStand');
-    const btnDouble = document.getElementById('bjDoubleBtn'); // optional (hidden in alpha)
-    const btnSplit  = document.getElementById('bjSplitBtn');  // optional (hidden in alpha)
-    const leaderboardList = document.getElementById('leaderboardList');
+btnStart.addEventListener('click', startRound);
+  btnHit.addEventListener('click', hit);
+  btnStand.addEventListener('click', stand);
+  btnDouble.addEventListener('click', doubleDown);  // was pointing to a non-existent doubleBJ
+  btnSplit.addEventListener('click', splitHand);
+
+  function applyBJCan(can = {}) {
+    btnHit.disabled    = !(can.hit ?? true);
+    btnStand.disabled  = !(can.stand ?? true);
+    btnDouble.disabled = !(can.double ?? false);
+    btnSplit.classList.toggle('hidden', !(can.split ?? false));
+  }
+
 
     let totalPayout = 0;
      function formatWait(ms) {
@@ -758,15 +771,11 @@ if (data.settled) {
 }
 
     if (d.settled){
-      setDisabled(btnStart, false);
-      setDisabled(btnHit,   true);
-      setDisabled(btnStand, true);
-      setDisabled(btnDouble,true);
-      setDisabled(btnSplit, true);
+      applyBJCan({ hit:false, stand:false, double:false, split:false });
       announceAndRefresh(d);
     } else {
-      setDisabled(btnHit,   false);
-      setDisabled(btnStand, false);
+       applyBJCan({ hit:true, stand:true, double:false, split:false });
+      btnStart.disabled = true;
     }
   }
     function setButtons({ deal, hit, stand }) {
@@ -925,6 +934,7 @@ async function loadLeaderboard(){
         btnStart.disabled = true;
         btnHit.disabled = btnStand.disabled = false;
         bjMsg.textContent = 'Your move.';
+        applyBJCan(d.can);
       }catch(e){ alert('Start failed.'); }
     }
   
