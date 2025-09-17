@@ -944,20 +944,12 @@ function updateBjPanels(snapshotJson) {
   const bjMsg = document.getElementById('bjStatus');
 const leaderboardList = document.getElementById('leaderboardList');
 
- function applyBJCan(can = {}) {
-  const canHit    =  (can.hit    ?? true);
-  const canStand  =  (can.stand  ?? true);
-  const canDouble = !!(can.double ?? false);
-  const canSplit  = !!(can.split  ?? false);
-
-  btnHit.disabled    = !canHit;
-  btnStand.disabled  = !canStand;
-  btnDouble.disabled = !canDouble;
-
-  // control both visibility and clickability for split
-  btnSplit.disabled  = !canSplit;
-  btnSplit.classList.toggle('hidden', !canSplit);
- }
+  function applyBJCan(can = {}) {
+    btnHit.disabled    = !(can.hit ?? true);
+    btnStand.disabled  = !(can.stand ?? true);
+    btnDouble.disabled = !(can.double ?? false);
+    btnSplit.classList.toggle = !(can.split ?? false);
+  }
 
 
     let totalPayout = 0;
