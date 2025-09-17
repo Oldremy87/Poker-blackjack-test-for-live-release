@@ -307,16 +307,7 @@ app.get('/api/profile', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'profile_error' });
   }
 });
-(function showHowtoOnce(){
-  const k = 'bj_seen_instructions_v1';
-  if (localStorage.getItem(k)) return;
-  const m = document.getElementById('bjHowto');
-  const b = document.getElementById('bjHowtoClose');
-  if (m && b) {
-    m.style.display = 'flex';
-    b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
-  }
-})();
+
 
 // hash-stream PRNG (deterministic, verifiable)
 const sha256hex = (s) => createHash('sha256').update(String(s)).digest('hex');
@@ -329,28 +320,6 @@ function* hashStream(seedHex) {
     const u32 = parseInt(h.slice(0, 8), 16) >>> 0;
     yield u32 / 0xffffffff;
   }
-}
-function announceAndRefresh(d){
-  const creditUnits  = Math.floor((d.credit || 0) / 100);
-  const balanceUnits = Math.floor((d.sessionBalance || 0) / 100);
-
-  if (d.bonuses?.length) {
-    const lines = d.bonuses
-      .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
-      .join('<br>');
-    toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 1500 });
-  }
-  if (creditUnits > 0) {
-    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 1500 });
-  }
-
-  payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
-  totalPayout = balanceUnits;
-  payoutBtn.disabled = (totalPayout === 0);
-
-  // Always refresh profile + leaderboard so numbers are current
-  loadProfile();
-  loadLeaderboard();
 }
 // Fisher–Yates with a provided random stream
 function shuffleDeterministic(deck, rng) {

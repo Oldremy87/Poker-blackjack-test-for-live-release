@@ -547,6 +547,16 @@ async function ensureCsrf(){
   } catch {}
 }
 document.addEventListener('DOMContentLoaded', ensureCsrf);
+(function showHowtoOnce(){
+  const k = 'bj_seen_instructions_v1';
+  if (localStorage.getItem(k)) return;
+  const m = document.getElementById('bjHowto');
+  const b = document.getElementById('bjHowtoClose');
+  if (m && b) {
+    m.style.display = 'flex';
+    b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
+  }
+})();
 
    const API = Object.freeze({
   profile:'/api/profile',
