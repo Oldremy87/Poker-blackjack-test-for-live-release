@@ -459,6 +459,20 @@
 .payout-pulse { animation: pulse 450ms ease-out; }
 /* You already have this line in your file, keep it: */
 /* #ageGate :focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; } */
+.hud{
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.panel-table { grid-column: 1; }
+.panel-claim { grid-column: 2; }
+
+/* Stack cleanly on tablets/phones */
+@media (max-width: 1024px){
+  .hud { grid-template-columns: 1fr; }
+  .panel-table, .panel-claim { grid-column: 1 / -1; }
+}
 
   </style>
 </head>
@@ -532,7 +546,7 @@
 </header>
   <div class="wrap">
     <div class="hud">
-      <div class="panel panel-table" id="bjPanel">
+     <div class="panel panel-table" id="bjPanel">
         <h1>Blackjack</h1>
      <div id="bjHowto" class="modal" style="display:none">
   <div class="modal-content">
@@ -601,7 +615,7 @@
 </div>
 </div>
       <!-- Right sidebar: reuse your existing payout/leaderboard flows -->
-      <div class="panel panel-claim">
+      <aside class="panel panel-claim" id="claimPanel">
         <div class="controls">
            <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
           <p id="payoutTotal">Total Payout: 0 KIBL</p>
@@ -630,6 +644,7 @@
           <ol id="leaderboardList" class="leaderboard"></ol>
           <div class="readout" style="margin-top:6px;">
    <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
+   </aside>
 </div>
         </div>
       </div>
