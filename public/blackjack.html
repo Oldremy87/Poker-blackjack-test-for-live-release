@@ -769,7 +769,7 @@ function setChip(el, kind, text) {
 
 function updatePlayerPanelFromSnapshot(data) {
   const pTotalsEl  = document.getElementById('playerTotals');
-  const pCardsEl   = document.getElementById('playerCards');
+ 
   const pStatusEl  = document.getElementById('playerStatus');
   const pFooterEl  = document.getElementById('playerFooter');
 
@@ -823,7 +823,7 @@ function updatePlayerPanelFromSnapshot(data) {
 
 function updateDealerPanelFromSnapshot(data) {
   const dTotalsEl  = document.getElementById('dealerTotals');
-  const dCardsEl   = document.getElementById('dealerCards');
+  
   const dStatusEl  = document.getElementById('dealerStatus');
   const dFooterEl  = document.getElementById('dealerFooter');
 
@@ -987,7 +987,7 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
       .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
       .join('<br>');
     toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 2500 });
-  }
+  } 
   if (creditUnits > 0) {
   payoutEl.classList.add('payout-pulse');
   setTimeout(()=>payoutEl.classList.remove('payout-pulse'), 1500);
