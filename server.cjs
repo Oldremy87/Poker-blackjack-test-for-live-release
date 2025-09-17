@@ -1353,7 +1353,7 @@ if (pTotal === 21) {
   h.result = 'bj';            // 2-card 21 = natural blackjack
   h.settled = true;
   advanceOrSettle(round);
-  updateBjPanels(json);
+
 
   const tally = settleAndRewardBJ(req, round);
   const natBjCount = 1;
