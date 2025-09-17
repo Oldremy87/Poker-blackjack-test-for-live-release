@@ -247,6 +247,97 @@
   border-radius: 6px;
   box-shadow: 0 0 10px rgba(255,204,0,0.4);
 }
+#bj-panels {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: .75rem;
+  z-index: 50;
+}
+
+.bj-dialog {
+  width: min(420px, 90vw);
+  background: #0f1221;
+  color: #eef1ff;
+  border: 1px solid #2c3160;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  padding: .75rem .9rem;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+
+.bj-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .35rem;
+  font-size: 0.95rem;
+  letter-spacing: .2px;
+}
+
+.bj-dialog .body {
+  display: grid;
+  gap: .4rem;
+}
+
+.bj-dialog footer {
+  margin-top: .35rem;
+  font-size: .8rem;
+}
+
+.muted { color: #aab0ffb0; }
+
+#playerTotals, #dealerTotals {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+#playerCards, #dealerCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .45rem;
+}
+
+.cardchip {
+  border: 1px solid #3a3f7d;
+  background: #171b35;
+  padding: .25rem .5rem;
+  border-radius: 10px;
+  font-size: .85rem;
+}
+
+.chip {
+  display: inline-block;
+  padding: .18rem .5rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  border: 1px solid transparent;
+}
+.chip.win   { background: #123e22; color: #c0ffd7; border-color: #1f6a3a; }
+.chip.loss  { background: #3e1212; color: #ffd0d0; border-color: #6a1f1f; }
+.chip.push  { background: #3b3b3b; color: #f1f1f1; border-color: #646464; }
+.chip.play  { background: #122a3e; color: #cfe8ff; border-color: #1f476a; }
+.chip.bj    { background: #262051; color: #e3d7ff; border-color: #4b409a; }
+
+.handline {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
+.handline .idx {
+  width: 1.15rem;
+  text-align: right;
+  color: #aab0ffb0;
+  font-size: .8rem;
+}
+.softflag {
+  font-size: .8rem;
+  opacity: .8;
+  margin-left: .25rem;
+}
+.activeHand { outline: 1px dashed #6ea8ff; outline-offset: 6px; border-radius: 12px; padding: .2rem .3rem; }
+
 
 @media (max-width: 600px) {
   .card, .placeholder { width: 80px; height: 138px; }
@@ -362,6 +453,7 @@
 
   </style>
 </head>
+<body> 
 <!-- Age gate -->
 <div id="ageGate" class="age-gate" role="dialog" aria-modal="true" aria-labelledby="ageTitle" hidden>
   <div class="age-card" role="document">
@@ -421,7 +513,7 @@
     </svg>
     @NexaKennelKlub
   </a>
-      <a class="btn btn-ghost" href="/"              class="kk-home" aria-label="Go to Home">🏠 Home</a>
+      <a class="btn btn-ghost kk-home" href="/" aria-label="Go to Home">🏠 Home</a>
   <a class="btn btn-ghost" href="/play.html" aria-current="page">Poker</a>
 
    <div class="brand">
@@ -431,7 +523,7 @@
 </header>
   <div class="wrap">
     <div class="hud">
-      <div class="panel" id="bjPanel">
+      <div class="panel panel-table" id="bjPanel">
         <h1>Blackjack</h1>
      <div id="bjHowto" class="modal" style="display:none">
   <div class="modal-content">
@@ -447,7 +539,7 @@
     </ul>
     <button id="bjHowtoClose">Let’s play</button>
   </div>
-  <div>
+  
          <p id="userTag" class="readout"></p>
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
          <a class="btn btn-ghost" href="bjpoints.html">Points</a>
@@ -471,9 +563,34 @@
       <div id="bjStatus" class="muted"></div>
        
       </div>
+<!-- Blackjack Totals Panels -->
+<div id="bj-panels" aria-live="polite">
+  <div id="playerPanel" class="bj-dialog">
+    <header>
+      <strong>Your Hand</strong>
+      <span id="playerStatus" class="chip"></span>
+    </header>
+    <div class="body">
+      <div id="playerTotals"></div>
+      <div id="playerCards"></div>
+    </div>
+    <footer id="playerFooter" class="muted"></footer>
+  </div>
 
+  <div id="dealerPanel" class="bj-dialog">
+    <header>
+      <strong>Dealer</strong>
+      <span id="dealerStatus" class="chip"></span>
+    </header>
+    <div class="body">
+      <div id="dealerTotals"></div>
+      <div id="dealerCards"></div>
+    </div>
+    <footer id="dealerFooter" class="muted"></footer>
+  </div>
+</div>
       <!-- Right sidebar: reuse your existing payout/leaderboard flows -->
-      <div class="panel">
+      <div class="panel panel-claim">
         <div class="controls">
            <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
           <p id="payoutTotal">Total Payout: 0 KIBL</p>
@@ -856,6 +973,126 @@ async function loadLeaderboard(){
         payoutBtn.disabled = (totalPayout===0);
       } finally { loading.style.display='none'; }
     }
+  
+// ===== Client-side scoring mirrors server rules =====
+function bjScore(cards) {
+  let total = 0, aces = 0;
+  for (const c of (cards||[])) {
+    const r = c.rank;
+    if (r === 'Ace') { total += 11; aces++; }
+    else if (r === 'King' || r === 'Queen' || r === 'Jack') total += 10;
+    else total += Number(r) || 0;
+  }
+  while (total > 21 && aces > 0) { total -= 10; aces--; }
+  return { total, soft: aces > 0, isBJ: (cards?.length === 2 && total === 21) };
+}
+
+function renderCardChips(cards) {
+  return (cards||[]).map(c => {
+    const text = c.displayText || `${c.rank} of ${c.suit}`;
+    return `<span class="cardchip">${text}</span>`;
+  }).join('');
+}
+
+function setChip(el, kind, text) {
+  el.className = `chip ${kind}`;
+  el.textContent = text;
+}
+
+function updatePlayerPanelFromSnapshot(data) {
+  const pTotalsEl  = document.getElementById('playerTotals');
+  const pCardsEl   = document.getElementById('playerCards');
+  const pStatusEl  = document.getElementById('playerStatus');
+  const pFooterEl  = document.getElementById('playerFooter');
+
+  pFooterEl.textContent = '';
+
+  // Start payload uses `player` (array of cards); later snapshots use `players` (array of hands)
+  const hands = Array.isArray(data.players) && data.players.length
+    ? data.players.map((ph, i) => ({ ...ph, idx: i }))
+    : (data.player ? [{ cards: data.player, idx: 0 }] : []);
+
+  if (!hands.length) {
+    pTotalsEl.textContent = '—';
+    pCardsEl.innerHTML = '';
+    setChip(pStatusEl, 'play', 'Ready');
+    return;
+  }
+
+  // Build per-hand lines (supporting split)
+  const lines = [];
+  const cardRows = [];
+  const activeIdx = (typeof data.activeIndex === 'number') ? data.activeIndex : 0;
+
+  for (const h of hands) {
+    const { total, soft, isBJ } = bjScore(h.cards || []);
+    const idx = (hands.length > 1) ? `<span class="idx">${h.idx+1}.</span>` : '';
+    const softStr = soft ? `<span class="softflag">(soft)</span>` : '';
+    lines.push(`<div class="handline ${h.idx === activeIdx && !data.settled ? 'activeHand':''}">
+      ${idx}<div>Total: <strong>${total}</strong> ${softStr}</div>
+    </div>`);
+    cardRows.push(`<div class="handline">${idx}<div>${renderCardChips(h.cards||[])}</div></div>`);
+
+    // Set a simple status based on result when settled
+    if (data.settled && h.result) {
+      const map = { win:'win', bj:'bj', push:'push', loss:'loss', bust:'loss' };
+      setChip(pStatusEl, map[h.result] || 'play', h.result.toUpperCase());
+    } else {
+      setChip(pStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : (data.settled ? 'Done' : 'Your move'));
+    }
+  }
+
+  pTotalsEl.innerHTML = lines.join('');
+  pCardsEl.innerHTML  = cardRows.join('');
+
+  // If server returned credits/points on the final settle, echo a tiny footer
+  if (data.settled && (Number.isFinite(data.credit) || Number.isFinite(data.points))) {
+    const kibl = Math.floor((Number(data.credit)||0)/100);
+    const pts  = Number.isFinite(data.points) ? Number(data.points) : null;
+    pFooterEl.textContent = `${kibl ? `+${kibl} KIBL` : ''}${kibl && pts ? ' · ' : ''}${(pts||pts===0) ? `+${pts} pts` : ''}`;
+  }
+}
+
+function updateDealerPanelFromSnapshot(data) {
+  const dTotalsEl  = document.getElementById('dealerTotals');
+  const dCardsEl   = document.getElementById('dealerCards');
+  const dStatusEl  = document.getElementById('dealerStatus');
+  const dFooterEl  = document.getElementById('dealerFooter');
+
+  if (!data.dealer) {
+    dTotalsEl.textContent = '—';
+    dCardsEl.innerHTML = '';
+    setChip(dStatusEl, 'play', 'Waiting');
+    dFooterEl.textContent = '';
+    return;
+  }
+
+  if (data.settled && Array.isArray(data.dealer.full)) {
+    const { total, soft, isBJ } = bjScore(data.dealer.full);
+    const softStr = soft ? ' (soft)' : '';
+    dTotalsEl.innerHTML = `Total: <strong>${total}</strong>${softStr}`;
+    dCardsEl.innerHTML  = renderCardChips(data.dealer.full);
+    setChip(dStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : 'Revealed');
+    dFooterEl.textContent = '';
+  } else {
+    // Not settled yet — show upcard only
+    const up = data.dealer.up ? [data.dealer.up] : [];
+    dTotalsEl.textContent = 'Upcard shown';
+    dCardsEl.innerHTML    = renderCardChips(up);
+    setChip(dStatusEl, 'play', 'In play');
+    dFooterEl.textContent = 'Dealer total hidden until settle';
+  }
+}
+
+// Call this anywhere you already handle a BJ JSON response (start/hit/stand/double/split)
+function updateBjPanels(snapshotJson) {
+  try {
+    updatePlayerPanelFromSnapshot(snapshotJson || {});
+    updateDealerPanelFromSnapshot(snapshotJson || {});
+  } catch (_) {}
+}
+
+
 
     // Wire up
     btnStart.addEventListener('click', startRound);
