@@ -727,22 +727,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showHowtoOnce();
 });
 
-/* pulled out so it always runs after CSRF */
-function wireBJ() {
-  const btnStart  = document.getElementById('bjStart');
-  const btnHit    = document.getElementById('bjHit');
-  const btnStand  = document.getElementById('bjStand');
-  const btnDouble = document.getElementById('bjDoubleBtn');
-  const btnSplit  = document.getElementById('bjSplitBtn');
 
-  if (btnStart)  btnStart.onclick  = startRound;
-  if (btnHit)    btnHit.onclick    = hitBJ;
-  if (btnStand)  btnStand.onclick  = standBJ;
-  if (btnDouble) btnDouble.onclick = doubleBJ;
-  if (btnSplit)  btnSplit.onclick  = splitBJ;
-}
-
-/* keep your existing showHowtoOnce body; just call it from DOMContentLoaded */
 function showHowtoOnce() {
   const k = 'bj_seen_instructions_v1';
   if (localStorage.getItem(k)) return;
