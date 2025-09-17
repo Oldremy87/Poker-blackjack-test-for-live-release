@@ -534,6 +534,18 @@
     box-shadow: 0 0 18px rgba(0,255,198,.35);
   }
 }
+#bjPlayer {
+  display: flex;              /* still flex, but vertical */
+  flex-direction: column;     /* stack rows */
+  align-items: center;        /* center the rows */
+  gap: var(--hand-gap);
+}
+
+/* each row of cards */
+#bjPlayer .hand-row {
+  display: flex;
+  gap: var(--hand-gap);
+}
 
   </style>
 </head>
@@ -1140,12 +1152,11 @@ async function loadLeaderboard(){
   }
 
   bjPlayer.innerHTML = '';
-  (player || []).forEach(h=>{
-    const handWrap = document.createElement('div');
-    handWrap.style.display='flex';
-    handWrap.style.gap='10px';
-    (h.cards || []).forEach(c => handWrap.appendChild(cardEl(c, false)));
-    bjPlayer.appendChild(handWrap);
+  (player || []).forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'hand-row';
+    (h.cards || []).forEach(c => row.appendChild(cardEl(c, false)));
+    bjPlayer.appendChild(row);
   });
 }
 

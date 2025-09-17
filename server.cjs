@@ -1190,9 +1190,18 @@ function scoreHand(cards){
 }
 function isBlackjack(cards){ return cards.length===2 && scoreHand(cards).total===21; }
 function drawCard(round){ return round.deck[round.deckPos++]; }
+// OLD
+// function canSplit(cards){ return (cards?.length===2) && (cards[0].rank===cards[1].rank); }
+
+// NEW
 function canSplit(cards){
-  return (cards?.length===2) && (cards[0].rank===cards[1].rank);
+  if (!cards || cards.length !== 2) return false;
+  const a = cards[0].rank, b = cards[1].rank;
+  if (a === b) return true; // exact pair
+  const tenVals = new Set(['10','Jack','Queen','King']);
+  return tenVals.has(a) && tenVals.has(b); // any two 10-value cards
 }
+
 // ===== BLACKJACK RULES (tweakable) =====
 const ALLOW_DOUBLE_AFTER_SPLIT = false;     // common default: DAS off
 const SPLIT_ACES_ONE_CARD_ONLY = true;      // common default: one card to each Ace, no hits
