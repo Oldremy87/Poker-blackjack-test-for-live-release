@@ -476,6 +476,28 @@
 @media (min-width:1025px){
   #bj-panels{ grid-column: 2; position: sticky; top: 12px; }
 }
+.hud{
+  display:grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap:16px;
+  align-items:start;
+}
+
+.panel-table { grid-column: 1; }
+.hud > #bj-panels,
+.hud > .panel-claim { grid-column: 2; }
+
+@media (max-width:1024px){
+  .hud{ grid-template-columns: 1fr; }
+  .panel-table,
+  .hud > #bj-panels,
+  .hud > .panel-claim { grid-column: 1 / -1; }
+}
+
+@media (min-width:1025px){
+  #bj-panels{ position: sticky; top: 12px; }
+}
+
 
   </style>
 </head>
@@ -547,114 +569,88 @@
       <h1>PixelPup BlackJack</h1>
     </div>
 </header>
-  <div class="wrap">
-    <div class="hud">
-     <div class="panel panel-table" id="bjPanel">
-        <h1>Blackjack</h1>
-     <div id="bjHowto" class="modal" style="display:none">
-  <div class="modal-content">
-    <h2>How to Play Blackjack (PixelPup)</h2>
-    <ul>
-      <li>Goal: beat dealer without going over 21.</li>
-      <li>Face cards = 10, Aces = 1 or 11.</li>
-      <li>Natural Blackjack (Ace + 10-value on deal) auto-wins.</li>
-      <li>Actions: Hit, Stand, Double (draw 1 then stand), Split (one split, pairs only).</li>
-      <li>Points/KIBL: Win = +3 credits; Natural BJ = +6; Double win adds +2; Split wins slightly reduced. No wagering.</li>
-      <li>Fairness: provably fair deck (commit-reveal). See “Fairness” in menu.</li>
-      <li>Limits: we pace play to keep it fair for everyone.</li>
-    </ul>
-    <button id="bjHowtoClose">Let’s play</button>
-  </div>
-   </div>
-         <p id="userTag" class="readout"></p>
-         <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
-         <a class="btn btn-ghost" href="bjpoints.html">Points</a>
-        <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
-        <p id="payoutTotal">Total Payout: 0 KIBL</p>
-  
-        
-        <p id="bjFair" class="readout"></p>
-         
-        <div class="readout">Dealer</div>
-        <div id="bjDealer" class="card-hand" aria-live="polite"></div>
+ <div class="wrap">
+  <div class="hud">
+    <!-- LEFT: main table -->
+    <section class="panel panel-table" id="bjPanel">
+      <h1>Blackjack</h1>
+      <!-- … keep your how-to modal, tag, Achievements/Points links, bjFair, hands and buttons … -->
+      <p id="bjFair" class="readout"></p>
 
-        <div class="readout">You</div>
-        <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
+      <div class="readout">Dealer</div>
+      <div id="bjDealer" class="card-hand" aria-live="polite"></div>
 
-        <div class="controls">
-          <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
-          <button id="bjHit"    class="btn" disabled>Hit</button>
-          <button id="bjStand"  class="btn" disabled>Stand</button>
-         <button id="bjDoubleBtn" class="btn" disabled>Double</button>
-          <button id="bjSplitBtn"  class="hidden">Split</button>
-        
-        </div>
+      <div class="readout">You</div>
+      <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
+
+      <div class="controls">
+        <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
+        <button id="bjHit"    class="btn" disabled>Hit</button>
+        <button id="bjStand"  class="btn" disabled>Stand</button>
+        <button id="bjDoubleBtn" class="btn" disabled>Double</button>
+        <button id="bjSplitBtn"  class="hidden">Split</button>
+      </div>
 
       <div id="bjStatus" class="muted"></div>
-       
-      </div>
-<!-- Blackjack Totals Panels -->
-<div id="bj-panels" aria-live="polite">
-  <div id="playerPanel" class="bj-dialog">
-    <header>
-      <strong>Your Hand</strong>
-      <span id="playerStatus" class="chip"></span>
-    </header>
-    <div class="body">
-      <div id="playerTotals"></div>
-      <div id="playerCards"></div>
-    </div>
-    <footer id="playerFooter" class="muted"></footer>
-  </div>
+    </section>
 
-  <div id="dealerPanel" class="bj-dialog">
-    <header>
-      <strong>Dealer</strong>
-      <span id="dealerStatus" class="chip"></span>
-    </header>
-    <div class="body">
-      <div id="dealerTotals"></div>
-      <div id="dealerCards"></div>
-    </div>
-    <footer id="dealerFooter" class="muted"></footer>
-  </div>
-</div>
-</div>
-    <aside class="panel panel-claim" id="claimPanel">
-  
-
-  <section class="panel claim-block" style="margin-top:10px;">
-    <h2>Claim</h2>
-    <div class="field">
-      <label class="readout" for="addressInput">Wallet address</label>
-      <input id="addressInput" placeholder="nexa:..." style="width:100%; padding:10px 12px; border-radius:10px;
-             border:1px solid rgba(58,245,217,.35); background:#0f1425; color:var(--text)"/>
-    </div>
-    <div class="field">
-      <label class="readout">Human check</label>
-      <div id="payoutCaptcha" class="h-captcha"
-           data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
-           data-size="normal"></div>
-    </div>
-    <div class="controls">
-      <button id="ClaimPayout" class="btn btn-primary" type="button">FEED ME! 🐾</button>
-    </div>
-    <div id="loading" class="readout" style="display:none;">Processing…</div>
-    <p id="result" class="readout">Idle</p>
-  </section>
-
-  <section class="panel" style="margin-top:10px;">
-    <h2>Season Points Window (Skill Points)</h2>
-    <ol id="leaderboardList" class="leaderboard"></ol>
-    <div class="readout" id="lbHint" style="margin-top:6px;"></div>
-    <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
-  </section>
-</aside>
-</div>
+    <!-- RIGHT: compact score panels -->
+    <section id="bj-panels" aria-live="polite" class="panel">
+      <div id="playerPanel" class="bj-dialog">
+        <header><strong>Your Hand</strong><span id="playerStatus" class="chip"></span></header>
+        <div class="body">
+          <div id="playerTotals"></div>
+          <div id="playerCards"></div>
         </div>
+        <footer id="playerFooter" class="muted"></footer>
       </div>
-    </div>
+
+      <div id="dealerPanel" class="bj-dialog">
+        <header><strong>Dealer</strong><span id="dealerStatus" class="chip"></span></header>
+        <div class="body">
+          <div id="dealerTotals"></div>
+          <div id="dealerCards"></div>
+        </div>
+        <footer id="dealerFooter" class="muted"></footer>
+      </div>
+    </section>
+
+    <!-- RIGHT: claim + leaderboard -->
+    <aside class="panel panel-claim" id="claimPanel">
+      <div class="controls">
+        <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
+        <p id="payoutTotal" class="readout" style="margin:0;">Total Payout: 0 KIBL</p>
+      </div>
+
+      <section class="panel claim-block" style="margin-top:10px;">
+        <h2>Claim</h2>
+        <div class="field">
+          <label class="readout" for="addressInput">Wallet address</label>
+          <input id="addressInput" placeholder="nexa:..." style="width:100%; padding:10px 12px; border-radius:10px;
+                 border:1px solid rgba(58,245,217,.35); background:#0f1425; color:var(--text)"/>
+        </div>
+        <div class="field">
+          <label class="readout">Human check</label>
+          <div id="payoutCaptcha" class="h-captcha"
+               data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
+               data-size="normal"></div>
+        </div>
+        <div class="controls">
+          <button id="ClaimPayout" class="btn btn-primary" type="button">FEED ME! 🐾</button>
+        </div>
+        <div id="loading" class="readout" style="display:none;">Processing…</div>
+        <p id="result" class="readout">Idle</p>
+      </section>
+
+      <section class="panel" style="margin-top:10px;">
+        <h2>Season Points Window (Skill Points)</h2>
+        <ol id="leaderboardList" class="leaderboard"></ol>
+        <div class="readout" id="lbHint" style="margin-top:6px;"></div>
+        <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
+      </section>
+    </aside>
   </div>
+</div>
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
 
