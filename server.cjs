@@ -1801,40 +1801,63 @@ app.post('/api/bj/double', bjActionLimiter, async (req, res) => {
 
 // ---- /api/bj/split (one split v1; exact pair)
 app.post('/api/bj/split', bjActionLimiter, (req, res) => {
-  try{
+  try {
     bjEnsure(req);
     const r = req.session?.bj?.round;
-    if (!r || r.settled) return res.status(400).json({ ok:false, error:'no_round' });
+    if (!r)               return res.status(400).json({ ok:false, error:'no_round' });
+    if (r.settled)        return res.status(400).json({ ok:false, error:'hand_settled' });
 
-    const i = r.activeIndex;
+    const i = (typeof r.activeIndex === 'number') ? r.activeIndex : 0;
     const h = r.players[i];
-    if (!h || h.settled || h.cards.length!==2 || !canSplit(h.cards)) return res.status(400).json({ ok:false, error:'cant_split' });
-    if (r.players.some(p=>p.splitFrom)) return res.status(400).json({ ok:false, error:'one_split_only' });
+    if (!h || h.settled)  return res.status(400).json({ ok:false, error:'hand_settled' });
 
+    // must be a pair, exactly 2 cards
+    if (h.cards.length !== 2 || !canSplit(h.cards)) {
+      return res.status(400).json({ ok:false, error:'cant_split' });
+    }
+
+    // v1 policy: allow only one split total
+    if (r.players.some(p => p.splitFrom)) {
+      return res.status(400).json({ ok:false, error:'one_split_only' });
+    }
+
+    // perform split
     const a = h.cards[0], b = h.cards[1];
-    h.cards = [a]; h.splitFrom = true;
-    const h2 = { cards:[b], settled:false, result:null, doubled:false, splitFrom:true };
-    r.players.splice(i+1, 0, h2);
+    h.cards = [a];
+    h.splitFrom = true;
+    h.doubled = false;
+    delete h.lockedAfterOne;
 
-    // draw one to each
+    const h2 = { cards: [b], settled:false, result:null, doubled:false, splitFrom:true };
+
+    // insert new hand right after the current hand so play order is clear
+    r.players.splice(i + 1, 0, h2);
+
+    // draw one card to each split hand (guard against underflow)
+    if (r.deckPos + 2 > r.deck.length) {
+      return res.status(500).json({ ok:false, error:'deck_underflow' });
+    }
     h.cards.push(drawCard(r));
     h2.cards.push(drawCard(r));
 
-    // Split Aces rule: one card to each, no further hits/doubles
+    // Split Aces: one card only, no further hits/doubles on either hand
     if (SPLIT_ACES_ONE_CARD_ONLY && a.rank === 'Ace' && b.rank === 'Ace') {
-    h.lockedAfterOne = true;
-    h2.lockedAfterOne = true;
+      h.lockedAfterOne  = true;
+      h2.lockedAfterOne = true;
     }
 
+    // stay on the first split hand
+    r.activeIndex = i;
+
     return res.json({
-      ok:true,
-      dealer:{ up:r.dealer[0], holeHidden:true },
+      ok: true,
+      dealer: { up: r.dealer[0], holeHidden: true },
       players: snapshotPlayers(r),
       activeIndex: r.activeIndex,
-      settled:false
+      settled: r.settled
     });
-  } catch(e){
-    logger.error('bj/split', { e:String(e) });
+  } catch (e) {
+    logger.error('bj/split', { e: String(e) });
     return res.status(500).json({ ok:false, error:'bj_split_error' });
   }
 });
