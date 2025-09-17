@@ -348,6 +348,15 @@
   .age-card{ transform: translateY(6px); opacity:.98; animation: agIn .18s ease-out forwards; }
   @keyframes agIn{ to{ transform: none; opacity:1; } }
 }
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:9999; }
+.modal-content { background:#111; color:#fff; padding:1.25rem; max-width:600px; border-radius:14px; }
+.modal-content h2 { margin-top:0 }
+@keyframes pulse {
+  0% { transform:scale(1); }
+  30% { transform:scale(1.08); }
+  100% { transform:scale(1); }
+}
+.payout-pulse { animation: pulse 450ms ease-out; }
 /* You already have this line in your file, keep it: */
 /* #ageGate :focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; } */
 
@@ -424,13 +433,20 @@
     <div class="hud">
       <div class="panel" id="bjPanel">
         <h1>Blackjack</h1>
-        <div id="bjHow" class="callout" role="region" aria-label="How to play blackjack">
-  <strong>How to play:</strong>
-  Get closer to 21 than the dealer without busting. Aces count as 1 or 11. Dealer hits to 16 and stands on 17.
-  Press <em>Feed the dealer</em> to start, then <em>Hit</em> or <em>Stand</em>.
-  <a href="bjpoints.html" class="btn btn-ghost" style="margin-left:8px;">Payouts</a>
-  <button class="close" aria-label="Hide tips">×</button>
-</div>
+     <div id="bjHowto" class="modal" style="display:none">
+  <div class="modal-content">
+    <h2>How to Play Blackjack (PixelPup)</h2>
+    <ul>
+      <li>Goal: beat dealer without going over 21.</li>
+      <li>Face cards = 10, Aces = 1 or 11.</li>
+      <li>Natural Blackjack (Ace + 10-value on deal) auto-wins.</li>
+      <li>Actions: Hit, Stand, Double (draw 1 then stand), Split (one split, pairs only).</li>
+      <li>Points/KIBL: Win = +3 credits; Natural BJ = +6; Double win adds +2; Split wins slightly reduced. No wagering.</li>
+      <li>Fairness: provably fair deck (commit-reveal). See “Fairness” in menu.</li>
+      <li>Limits: we pace play to keep it fair for everyone.</li>
+    </ul>
+    <button id="bjHowtoClose">Let’s play</button>
+  </div>
          <p id="userTag" class="readout"></p>
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
          <a class="btn btn-ghost" href="bjpoints.html">Points</a>
@@ -447,11 +463,11 @@
           <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
           <button id="bjHit"    class="btn" disabled>Hit</button>
           <button id="bjStand"  class="btn" disabled>Stand</button>
-         <button id="bjDoubleBtn" class="hidden">Double</button>
+         <button id="bjDoubleBtn" class="btn" disabled>Double</button>
           <button id="bjSplitBtn"  class="hidden">Split</button>
         </div>
 
-        <p id="bjMsg" class="readout"></p>
+      <div id="bjStatus" class="muted"></div>
        
       </div>
 
@@ -472,7 +488,7 @@
           <div class="field">
             <label class="readout">Human check</label>
             <div id="payoutCaptcha" class="h-captcha"
-                 data-sitekey="dcc8a3aa-1db0-4d48-9260-df5c25846d92"
+                 data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
                  data-size="normal"></div>
           </div>
           <div class="controls"><button id="ClaimPayout" class="btn btn-primary" type="button">FEED ME! 🐾</button></div>
@@ -571,6 +587,20 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
   function afterActionSnapshot(d){
     const dealer = d.dealer.full ? d.dealer : d.dealer;
     renderHands({ dealer, player:d.players });
+    const status = document.getElementById('bjStatus');
+if (!status) return;
+
+if (data.settled) {
+  // prefer server-provided results if present
+  const res = Array.isArray(data.results) && data.results[0]?.result;
+  const text = res === 'bj' ? 'Blackjack!' :
+               res === 'win' ? 'Win' :
+               res === 'push' ? 'Push' :
+               res === 'bust' || res === 'loss' ? 'Loss' : 'Hand settled';
+  status.textContent = text;
+} else {
+  status.textContent = 'Your move';
+}
 
     if (d.settled){
       setDisabled(btnStart, false);
@@ -640,6 +670,10 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
   if (creditUnits > 0) {
     toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 2500 });
   }
+  if (creditUnits > 0) {
+  payoutEl.classList.add('payout-pulse');
+  setTimeout(()=>payoutEl.classList.remove('payout-pulse'), 500);
+}
 
   payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
   totalPayout = balanceUnits;

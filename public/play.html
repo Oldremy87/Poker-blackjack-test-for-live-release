@@ -205,6 +205,12 @@
   .brand h1 { font-size: 1.35rem; }
   body { padding: 12px; }
 }
+@keyframes pulse {
+  0% { transform:scale(1); }
+  30% { transform:scale(1.08); }
+  100% { transform:scale(1); }
+}
+.payout-pulse { animation: pulse 450ms ease-out; }
 
 
 /* 2-line clamp for long names like “Queen of Diamonds” */
@@ -566,7 +572,7 @@
     <div class="field">
       <label>Human check</label>
       <div id="payoutCaptcha" class="h-captcha"
-     data-sitekey="dcc8a3aa-1db0-4d48-9260-df5c25846d92"
+     data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
      data-size="normal"></div>
 
     </div>
