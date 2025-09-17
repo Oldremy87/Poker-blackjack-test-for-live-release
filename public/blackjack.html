@@ -945,11 +945,15 @@ function updateBjPanels(snapshotJson) {
 const leaderboardList = document.getElementById('leaderboardList');
 
   function applyBJCan(can = {}) {
-    btnHit.disabled    = !(can.hit ?? true);
-    btnStand.disabled  = !(can.stand ?? true);
-    btnDouble.disabled = !(can.double ?? false);
-    btnSplit.classList.toggle('hidden', !(can.split ?? false));
-  }
+  btnHit.disabled    = !(can.hit ?? true);
+  btnStand.disabled  = !(can.stand ?? true);
+  btnDouble.disabled = !(can.double ?? false);
+
+  // Split: show only when server says it’s allowed AND enable the button
+  const allowSplit = !!(can.split);
+  btnSplit.disabled = !allowSplit;
+  btnSplit.classList.toggle('hidden', !allowSplit);
+}
 
 
     let totalPayout = 0;
