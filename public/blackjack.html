@@ -247,24 +247,28 @@
   border-radius: 6px;
   box-shadow: 0 0 10px rgba(255,204,0,0.4);
 }
-#bj-panels {
-  position: static;                /* no overlay */
+#bj-panels{
+  position: static;                  /* no overlay */
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));
   gap: .75rem;
   margin-top: .75rem;
-  z-index: 10;                     /* harmless now */
   align-items: start;
+  grid-column: 1 / 2;                /* ← force left column of .hud */
+  z-index: 1;
 }
 
-/* Keep them visible while scrolling on wide screens */
+/* Optional: keep it visible while scrolling on wide screens */
 @media (min-width:1025px){
-  #bj-panels {
-    position: sticky;              /* sticks within the left panel */
-    top: 12px;
-  }
+  #bj-panels{ position: sticky; top: 12px; }
 }
+
+/* On narrow screens stack them */
+@media (max-width:900px){
+  #bj-panels{ grid-template-columns: 1fr; }
+}
+
 
 /* Let each dialog expand to its grid column */
 .bj-dialog { width: auto; }
@@ -544,13 +548,13 @@
     </ul>
     <button id="bjHowtoClose">Let’s play</button>
   </div>
-  
+   
          <p id="userTag" class="readout"></p>
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
          <a class="btn btn-ghost" href="bjpoints.html">Points</a>
         
         <p id="bjFair" class="readout"></p>
-
+         
         <div class="readout">Dealer</div>
         <div id="bjDealer" class="card-hand" aria-live="polite"></div>
 
@@ -563,6 +567,7 @@
           <button id="bjStand"  class="btn" disabled>Stand</button>
          <button id="bjDoubleBtn" class="btn" disabled>Double</button>
           <button id="bjSplitBtn"  class="hidden">Split</button>
+        
         </div>
 
       <div id="bjStatus" class="muted"></div>
