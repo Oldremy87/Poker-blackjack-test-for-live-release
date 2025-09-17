@@ -544,7 +544,6 @@
       <h1>PixelPup BlackJack</h1>
     </div>
 </header>
-<body>
   <div class="wrap">
     <div class="hud">
      <div class="panel panel-table" id="bjPanel">
@@ -702,6 +701,122 @@ document.addEventListener('DOMContentLoaded', ensureCsrf);
     b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
   }
 })();
+function bjScore(cards) {
+  let total = 0, aces = 0;
+  for (const c of (cards||[])) {
+    const r = c.rank;
+    if (r === 'Ace') { total += 11; aces++; }
+    else if (r === 'King' || r === 'Queen' || r === 'Jack') total += 10;
+    else total += Number(r) || 0;
+  }
+  while (total > 21 && aces > 0) { total -= 10; aces--; }
+  return { total, soft: aces > 0, isBJ: (cards?.length === 2 && total === 21) };
+}
+
+function renderCardChips(cards) {
+  return (cards||[]).map(c => {
+    const text = c.displayText || `${c.rank} of ${c.suit}`;
+    return `<span class="cardchip">${text}</span>`;
+  }).join('');
+}
+
+function setChip(el, kind, text) {
+  el.className = `chip ${kind}`;
+  el.textContent = text;
+}
+
+function updatePlayerPanelFromSnapshot(data) {
+  const pTotalsEl  = document.getElementById('playerTotals');
+  const pCardsEl   = document.getElementById('playerCards');
+  const pStatusEl  = document.getElementById('playerStatus');
+  const pFooterEl  = document.getElementById('playerFooter');
+
+  pFooterEl.textContent = '';
+
+  // Start payload uses `player` (array of cards); later snapshots use `players` (array of hands)
+  const hands = Array.isArray(data.players) && data.players.length
+    ? data.players.map((ph, i) => ({ ...ph, idx: i }))
+    : (data.player ? [{ cards: data.player, idx: 0 }] : []);
+
+  if (!hands.length) {
+    pTotalsEl.textContent = '—';
+    pCardsEl.innerHTML = '';
+    setChip(pStatusEl, 'play', 'Ready');
+    return;
+  }
+
+  // Build per-hand lines (supporting split)
+  const lines = [];
+  const cardRows = [];
+  const activeIdx = (typeof data.activeIndex === 'number') ? data.activeIndex : 0;
+
+  for (const h of hands) {
+    const { total, soft, isBJ } = bjScore(h.cards || []);
+    const idx = (hands.length > 1) ? `<span class="idx">${h.idx+1}.</span>` : '';
+    const softStr = soft ? `<span class="softflag">(soft)</span>` : '';
+    lines.push(`<div class="handline ${h.idx === activeIdx && !data.settled ? 'activeHand':''}">
+      ${idx}<div>Total: <strong>${total}</strong> ${softStr}</div>
+    </div>`);
+    cardRows.push(`<div class="handline">${idx}<div>${renderCardChips(h.cards||[])}</div></div>`);
+
+    // Set a simple status based on result when settled
+    if (data.settled && h.result) {
+      const map = { win:'win', bj:'bj', push:'push', loss:'loss', bust:'loss' };
+      setChip(pStatusEl, map[h.result] || 'play', h.result.toUpperCase());
+    } else {
+      setChip(pStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : (data.settled ? 'Done' : 'Your move'));
+    }
+  }
+
+  pTotalsEl.innerHTML = lines.join('');
+  pCardsEl.innerHTML  = cardRows.join('');
+
+  // If server returned credits/points on the final settle, echo a tiny footer
+  if (data.settled && (Number.isFinite(data.credit) || Number.isFinite(data.points))) {
+    const kibl = Math.floor((Number(data.credit)||0)/100);
+    const pts  = Number.isFinite(data.points) ? Number(data.points) : null;
+    pFooterEl.textContent = `${kibl ? `+${kibl} KIBL` : ''}${kibl && pts ? ' · ' : ''}${(pts||pts===0) ? `+${pts} pts` : ''}`;
+  }
+}
+
+function updateDealerPanelFromSnapshot(data) {
+  const dTotalsEl  = document.getElementById('dealerTotals');
+  const dCardsEl   = document.getElementById('dealerCards');
+  const dStatusEl  = document.getElementById('dealerStatus');
+  const dFooterEl  = document.getElementById('dealerFooter');
+
+  if (!data.dealer) {
+    dTotalsEl.textContent = '—';
+    dCardsEl.innerHTML = '';
+    setChip(dStatusEl, 'play', 'Waiting');
+    dFooterEl.textContent = '';
+    return;
+  }
+
+  if (data.settled && Array.isArray(data.dealer.full)) {
+    const { total, soft, isBJ } = bjScore(data.dealer.full);
+    const softStr = soft ? ' (soft)' : '';
+    dTotalsEl.innerHTML = `Total: <strong>${total}</strong>${softStr}`;
+    dCardsEl.innerHTML  = renderCardChips(data.dealer.full);
+    setChip(dStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : 'Revealed');
+    dFooterEl.textContent = '';
+  } else {
+    // Not settled yet — show upcard only
+    const up = data.dealer.up ? [data.dealer.up] : [];
+    dTotalsEl.textContent = 'Upcard shown';
+    dCardsEl.innerHTML    = renderCardChips(up);
+    setChip(dStatusEl, 'play', 'In play');
+    dFooterEl.textContent = 'Dealer total hidden until settle';
+  }
+}
+
+// Call this anywhere you already handle a BJ JSON response (start/hit/stand/double/split)
+function updateBjPanels(snapshotJson) {
+  try {
+    updatePlayerPanelFromSnapshot(snapshotJson || {});
+    updateDealerPanelFromSnapshot(snapshotJson || {});
+  } catch (_) {}
+}
 
    const API = Object.freeze({
   profile:'/api/profile',
@@ -747,31 +862,34 @@ const REVEAL_EXTRA_MS = 600 ;
 const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
 
   function afterActionSnapshot(d){
-    const dealer = d.dealer.full ? d.dealer : d.dealer;
-    renderHands({ dealer, player:d.players });
-    const status = document.getElementById('bjStatus');
-if (!status) return;
+  const dealer = d.dealer.full ? d.dealer : d.dealer;
+  renderHands({ dealer, player:d.players });
 
-if (data.settled) {
-  // prefer server-provided results if present
-  const res = Array.isArray(data.results) && data.results[0]?.result;
-  const text = res === 'bj' ? 'Blackjack!' :
-               res === 'win' ? 'Win' :
-               res === 'push' ? 'Push' :
-               res === 'bust' || res === 'loss' ? 'Loss' : 'Hand settled';
-  status.textContent = text;
-} else {
-  status.textContent = 'Your move';
-}
-
+  const status = document.getElementById('bjStatus');
+  if (status){
     if (d.settled){
-      applyBJCan({ hit:false, stand:false, double:false, split:false });
-      announceAndRefresh(d);
+      const res = Array.isArray(d.results) && d.results[0]?.result;
+      status.textContent = res === 'bj' ? 'Blackjack!' :
+                           res === 'win' ? 'Win' :
+                           res === 'push' ? 'Push' :
+                           (res === 'bust' || res === 'loss') ? 'Loss' : 'Hand settled';
     } else {
-       applyBJCan({ hit:true, stand:true, double:false, split:false });
-      btnStart.disabled = true;
+      status.textContent = 'Your move';
     }
   }
+
+  // keep the side panels in sync
+  updateBjPanels(d);
+
+  if (d.settled){
+    applyBJCan({ hit:false, stand:false, double:false, split:false });
+    announceAndRefresh(d);
+  } else {
+    applyBJCan({ hit:true, stand:true, double:false, split:false });
+    btnStart.disabled = true;
+  }
+}
+
     function setButtons({ deal, hit, stand }) {
     const btnStart = document.getElementById('bjStart');
     const btnHit   = document.getElementById('bjHit');
@@ -1006,122 +1124,7 @@ async function loadLeaderboard(){
     }
   
 // ===== Client-side scoring mirrors server rules =====
-function bjScore(cards) {
-  let total = 0, aces = 0;
-  for (const c of (cards||[])) {
-    const r = c.rank;
-    if (r === 'Ace') { total += 11; aces++; }
-    else if (r === 'King' || r === 'Queen' || r === 'Jack') total += 10;
-    else total += Number(r) || 0;
-  }
-  while (total > 21 && aces > 0) { total -= 10; aces--; }
-  return { total, soft: aces > 0, isBJ: (cards?.length === 2 && total === 21) };
-}
 
-function renderCardChips(cards) {
-  return (cards||[]).map(c => {
-    const text = c.displayText || `${c.rank} of ${c.suit}`;
-    return `<span class="cardchip">${text}</span>`;
-  }).join('');
-}
-
-function setChip(el, kind, text) {
-  el.className = `chip ${kind}`;
-  el.textContent = text;
-}
-
-function updatePlayerPanelFromSnapshot(data) {
-  const pTotalsEl  = document.getElementById('playerTotals');
-  const pCardsEl   = document.getElementById('playerCards');
-  const pStatusEl  = document.getElementById('playerStatus');
-  const pFooterEl  = document.getElementById('playerFooter');
-
-  pFooterEl.textContent = '';
-
-  // Start payload uses `player` (array of cards); later snapshots use `players` (array of hands)
-  const hands = Array.isArray(data.players) && data.players.length
-    ? data.players.map((ph, i) => ({ ...ph, idx: i }))
-    : (data.player ? [{ cards: data.player, idx: 0 }] : []);
-
-  if (!hands.length) {
-    pTotalsEl.textContent = '—';
-    pCardsEl.innerHTML = '';
-    setChip(pStatusEl, 'play', 'Ready');
-    return;
-  }
-
-  // Build per-hand lines (supporting split)
-  const lines = [];
-  const cardRows = [];
-  const activeIdx = (typeof data.activeIndex === 'number') ? data.activeIndex : 0;
-
-  for (const h of hands) {
-    const { total, soft, isBJ } = bjScore(h.cards || []);
-    const idx = (hands.length > 1) ? `<span class="idx">${h.idx+1}.</span>` : '';
-    const softStr = soft ? `<span class="softflag">(soft)</span>` : '';
-    lines.push(`<div class="handline ${h.idx === activeIdx && !data.settled ? 'activeHand':''}">
-      ${idx}<div>Total: <strong>${total}</strong> ${softStr}</div>
-    </div>`);
-    cardRows.push(`<div class="handline">${idx}<div>${renderCardChips(h.cards||[])}</div></div>`);
-
-    // Set a simple status based on result when settled
-    if (data.settled && h.result) {
-      const map = { win:'win', bj:'bj', push:'push', loss:'loss', bust:'loss' };
-      setChip(pStatusEl, map[h.result] || 'play', h.result.toUpperCase());
-    } else {
-      setChip(pStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : (data.settled ? 'Done' : 'Your move'));
-    }
-  }
-
-  pTotalsEl.innerHTML = lines.join('');
-  pCardsEl.innerHTML  = cardRows.join('');
-
-  // If server returned credits/points on the final settle, echo a tiny footer
-  if (data.settled && (Number.isFinite(data.credit) || Number.isFinite(data.points))) {
-    const kibl = Math.floor((Number(data.credit)||0)/100);
-    const pts  = Number.isFinite(data.points) ? Number(data.points) : null;
-    pFooterEl.textContent = `${kibl ? `+${kibl} KIBL` : ''}${kibl && pts ? ' · ' : ''}${(pts||pts===0) ? `+${pts} pts` : ''}`;
-  }
-}
-
-function updateDealerPanelFromSnapshot(data) {
-  const dTotalsEl  = document.getElementById('dealerTotals');
-  const dCardsEl   = document.getElementById('dealerCards');
-  const dStatusEl  = document.getElementById('dealerStatus');
-  const dFooterEl  = document.getElementById('dealerFooter');
-
-  if (!data.dealer) {
-    dTotalsEl.textContent = '—';
-    dCardsEl.innerHTML = '';
-    setChip(dStatusEl, 'play', 'Waiting');
-    dFooterEl.textContent = '';
-    return;
-  }
-
-  if (data.settled && Array.isArray(data.dealer.full)) {
-    const { total, soft, isBJ } = bjScore(data.dealer.full);
-    const softStr = soft ? ' (soft)' : '';
-    dTotalsEl.innerHTML = `Total: <strong>${total}</strong>${softStr}`;
-    dCardsEl.innerHTML  = renderCardChips(data.dealer.full);
-    setChip(dStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : 'Revealed');
-    dFooterEl.textContent = '';
-  } else {
-    // Not settled yet — show upcard only
-    const up = data.dealer.up ? [data.dealer.up] : [];
-    dTotalsEl.textContent = 'Upcard shown';
-    dCardsEl.innerHTML    = renderCardChips(up);
-    setChip(dStatusEl, 'play', 'In play');
-    dFooterEl.textContent = 'Dealer total hidden until settle';
-  }
-}
-
-// Call this anywhere you already handle a BJ JSON response (start/hit/stand/double/split)
-function updateBjPanels(snapshotJson) {
-  try {
-    updatePlayerPanelFromSnapshot(snapshotJson || {});
-    updateDealerPanelFromSnapshot(snapshotJson || {});
-  } catch (_) {}
-}
 
 
 
@@ -1131,6 +1134,9 @@ function updateBjPanels(snapshotJson) {
     btnStand.addEventListener('click', stand);
     dailyBtn.addEventListener('click', onDaily);
     payoutBtn.addEventListener('click', onPayout);
+    btnDouble.addEventListener('click', doubleDown);
+btnSplit .addEventListener('click', split);
+
 
     // bootstrap
     (async ()=>{
