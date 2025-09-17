@@ -248,24 +248,26 @@
   box-shadow: 0 0 10px rgba(255,204,0,0.4);
 }
 #bj-panels {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  position: static;                /* no overlay */
+  width: 100%;
   display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
   gap: .75rem;
-  z-index: 50;
+  margin-top: .75rem;
+  z-index: 10;                     /* harmless now */
+  align-items: start;
 }
 
-.bj-dialog {
-  width: min(420px, 90vw);
-  background: #0f1221;
-  color: #eef1ff;
-  border: 1px solid #2c3160;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.35);
-  padding: .75rem .9rem;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+/* Keep them visible while scrolling on wide screens */
+@media (min-width:1025px){
+  #bj-panels {
+    position: sticky;              /* sticks within the left panel */
+    top: 12px;
+  }
 }
+
+/* Let each dialog expand to its grid column */
+.bj-dialog { width: auto; }
 
 .bj-dialog header {
   display: flex;
@@ -279,6 +281,9 @@
 .bj-dialog .body {
   display: grid;
   gap: .4rem;
+}
+@media (max-width:900px){
+  #bj-panels { grid-template-columns: 1fr; }
 }
 
 .bj-dialog footer {
@@ -515,7 +520,7 @@
   </a>
       <a class="btn btn-ghost kk-home" href="/" aria-label="Go to Home">🏠 Home</a>
   <a class="btn btn-ghost" href="/play.html" aria-current="page">Poker</a>
-
+</nav>
    <div class="brand">
       <div class="brand-badge">KK</div>
       <h1>PixelPup BlackJack</h1>
