@@ -1117,7 +1117,7 @@ async function draw() {
       // Sound: restart and play (user gesture already happened)
     const sfx = document.getElementById('feedSound');
     if (sfx) { try { sfx.currentTime = 0; sfx.volume = 0.6; sfx.play().catch(()=>{}); } catch(_){} }
-
+        confettiBurst();
     // Haptic (best-effort on mobile)
     if (navigator.vibrate) { navigator.vibrate([10, 40, 10]); }
 

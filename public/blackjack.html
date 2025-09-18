@@ -640,7 +640,7 @@
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
          <a class="btn btn-ghost" href="bjpoints.html">Points</a>
         <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
-        <p id="payoutTotal">Total Payout: 0 KIBL</p>
+        
   
         
         <p id="bjFair" class="readout"></p>
@@ -649,6 +649,7 @@
         <div id="bjDealer" class="card-hand" aria-live="polite"></div>
 
         <div class="readout">You</div>
+        <p id="payoutTotal">Total Payout: 0 KIBL</p>
         <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
 
         <div class="controls">
@@ -659,11 +660,7 @@
           <button id="bjSplitBtn"  class="btn" disabled>Split</button>
         
         </div>
-
-      <div id="bjStatus" class="muted"></div>
-       
-      </div>
-<!-- Blackjack Totals Panels -->
+        <!-- Blackjack Totals Panels -->
 <div id="bj-panels" aria-live="polite">
   <div id="playerPanel" class="bj-dialog">
     <header>
@@ -687,6 +684,10 @@
       <div id="dealerCards"></div>
     </div>
     <footer id="dealerFooter" class="muted"></footer>
+      <div id="bjStatus" class="muted"></div>
+       
+      </div>
+
 
   </div>
   <section class="panel" style="margin-top:10px;">
@@ -1065,7 +1066,7 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
   }
   if (creditUnits > 0) {
     toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 2500 });
-
+      confettiBurst();
     // Sound: restart and play (user gesture already happened)
     const sfx = document.getElementById('feedSound');
     if (sfx) { try { sfx.currentTime = 0; sfx.volume = 0.6; sfx.play().catch(()=>{}); } catch(_){} }
