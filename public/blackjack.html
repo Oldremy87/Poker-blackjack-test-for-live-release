@@ -8,6 +8,7 @@
   <style>
       /* ===== Retro PixelPup theme (CSP-safe, no external fonts) ===== */
     :root{
+        --ui-scale: 1;        /* user slider 0.8–1.25 */
        --hand-gap: 10px;
         --card-ratio: 1.6;   /* height = width * ratio; tweak if your art needs */
       --cardW: 100px;    
@@ -158,8 +159,9 @@
     /* Card visual */
     /* Card + placeholder sizing and layout */
 .card, .placeholder {
-  width: var(--cardW);
-  height: calc(var(--cardW) * var(--card-ratio));          
+  --_w: calc(var(--cardBaseW, var(--cardW)) * var(--ui-scale));
+  width: var(--_w);
+  height: calc(var(--_w) * var(--card-ratio));         
   border-radius: 10px;
   background: var(--card-bg);
   color: #fff;
@@ -174,7 +176,9 @@
   text-align: center;
   box-shadow: 0 0 20px rgba(0,255,198,0.1);
 }
-
+body.compact {
+  --hand-gap: 8px;
+}
 /* Dealing placeholders centered and unbroken */
 .placeholder {
   display: flex;
@@ -764,7 +768,11 @@
       <div id="bjStatus" class="muted"></div>
        
       </div>
-
+<div class="row" style="justify-content:center; gap:8px; margin-top:6px;">
+  <label class="readout" for="bjSize">Table size</label>
+  <input id="bjSize" type="range" min="80" max="125" value="100" step="5" style="width:180px;">
+  <button id="bjFit" class="btn btn-ghost" type="button">Fit</button>
+</div>
 
  
 </div>
@@ -873,6 +881,65 @@ document.addEventListener('DOMContentLoaded', async () => {
   await ensureCsrf();                 // <-- make sure token is ready
   showHowtoOnce();
 });
+// --- Size/fit controls ---
+const sizeSlider = document.getElementById('bjSize');
+const fitBtn     = document.getElementById('bjFit');
+
+function applyScaleFromSlider(){
+  const v = Math.max(80, Math.min(125, Number(sizeSlider?.value||100)));
+  const scale = v / 100;
+  document.documentElement.style.setProperty('--ui-scale', String(scale));
+  try { localStorage.setItem('kk_bj_scale', String(v)); } catch {}
+}
+
+// Compute a base card width that fits the widest row we can see
+function fitBjToScreen(){
+  const panel = document.getElementById('bjPanel');
+  if (!panel) return;
+
+  const gap = parseFloat(getComputedStyle(document.documentElement)
+               .getPropertyValue('--hand-gap') || '10') || 10;
+
+  // How many cards in the widest visible row?
+  const dealerCount = document.querySelectorAll('#bjDealer .card').length || 2;
+  const rowCounts = Array.from(document.querySelectorAll('#bjPlayer .hand-row'))
+                    .map(r => r.querySelectorAll('.card, .placeholder').length);
+  const n = Math.max(dealerCount, ...(rowCounts.length ? rowCounts : [2]));
+
+  // Available width inside the table panel (minus a little padding)
+  const available = panel.clientWidth - 32;
+  const perCard = (available - gap * (n - 1)) / n;
+
+  // Clamp so it always looks nice
+  const base = Math.max(64, Math.min(perCard, 136)); // px
+  document.documentElement.style.setProperty('--cardBaseW', base + 'px');
+}
+
+function initBjSizeUI(){
+  // Restore saved scale
+  try {
+    const saved = Number(localStorage.getItem('kk_bj_scale'));
+    if (sizeSlider && saved) sizeSlider.value = saved;
+  } catch {}
+  applyScaleFromSlider();
+  fitBjToScreen();
+
+  sizeSlider?.addEventListener('input', applyScaleFromSlider);
+  fitBtn?.addEventListener('click', fitBjToScreen);
+
+  // Re-fit on window resize
+  window.addEventListener('resize', fitBjToScreen);
+
+  // Re-fit whenever hands change (hit/stand/split/double)
+  const player = document.getElementById('bjPlayer');
+  const dealer = document.getElementById('bjDealer');
+  const mo = new MutationObserver(fitBjToScreen);
+  if (player) mo.observe(player, { childList:true, subtree:true });
+  if (dealer) mo.observe(dealer, { childList:true, subtree:true });
+}
+
+// Call once when the page boots (after DOM ready)
+initBjSizeUI();
 
 
 function showHowtoOnce() {
@@ -1081,7 +1148,7 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
   function afterActionSnapshot(d){
   const dealer = d.dealer.full ? d.dealer : d.dealer;
   renderHands({ dealer, player:d.players });
-
+fitBjToScreen();
   const status = document.getElementById('bjStatus');
   if (status){
     if (d.settled){
@@ -1253,7 +1320,7 @@ async function loadLeaderboard(){
     bjDealer.appendChild(cardEl(dealer.up, false));
     bjDealer.appendChild(cardEl(dealer.holeHidden ? dealer.up : dealer.up, dealer.holeHidden));
   }
-
+fitBjToScreen();
   bjPlayer.innerHTML = '';
   (player || []).forEach(h => {
     const row = document.createElement('div');
