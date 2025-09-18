@@ -771,19 +771,16 @@
     <ol id="leaderboardList" class="leaderboard"></ol>
     <div class="readout" id="lbHint" style="margin-top:6px;"></div>
     <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
-  </section>
     <h2>Claim</h2>
     <div class="field">
       <label class="readout" for="addressInput">Wallet address</label>
       <input id="addressInput" placeholder="nexa:..." style="width:100%; padding:10px 12px; border-radius:10px;
              border:1px solid rgba(58,245,217,.35); background:#0f1425; color:var(--text)"/>
-    </div>
     <div class="field">
       <label class="readout">Human check</label>
       <div id="payoutCaptcha" class="h-captcha"
            data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
            data-size="normal"></div>
-    </div>
     <div class="controls">
       <button id="ClaimPayout" class="btn btn-primary" type="button">FEED ME! 🐾</button>
     </div>
@@ -795,7 +792,7 @@
 
     
 </div>
-        </div>
+        
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
 
@@ -898,7 +895,7 @@ function flashPayout(){
   setTimeout(() => payoutEl?.classList.remove('payout-win'), 1400);
 }
 
-function confettiBurst(count = 24, ms = 1200){
+function confettiBurst(count = 48, ms = 1800){
   const wrap = document.createElement('div');
   wrap.className = 'fx-confetti';
   document.body.appendChild(wrap);
