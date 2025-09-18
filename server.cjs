@@ -152,8 +152,11 @@ const tablesByGame = {
 
 if (!HCAPTCHA_SECRET) console.error('⚠️ HCAPTCHA_SECRET is not set');
 
-function getClientIp(req) {
-  const ip = (req.ips && req.ips.length ? req.ips[0] : req.ip) || '';
+function getClientIp(req){
+  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const raw = xf || req.socket?.remoteAddress || req.ip || 'unknown';
+  return raw === '::1' ? '127.0.0.1' : raw;
+   const ip = (req.ips && req.ips.length ? req.ips[0] : req.ip) || '';
   return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
 }
 
@@ -306,6 +309,20 @@ app.get('/api/profile', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'profile_error' });
   }
 });
+
+function getClientIp(req) {
+  // If trust proxy is on, Express populates req.ips (left-most=client)
+  let ip = (req.ips && req.ips.length ? req.ips[0] : '')
+        || (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+        || req.ip
+        || req.socket?.remoteAddress
+        || '';
+
+  // Normalize IPv6/localhost variants
+  if (ip === '::1' || ip === '::ffff:127.0.0.1') return '127.0.0.1';
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  return ip;
+}
 
 
 // hash-stream PRNG (deterministic, verifiable)
@@ -612,38 +629,62 @@ function evalHand(hand) {
   }
   return { payout, isWin: payout>0, isRoyal: royal };
 }
+
+
+const handsByActor = new Map(); // `${uid}@${ip}`
+
+
+function touch(rec, now) {
+  return (!rec || (now - rec.windowStart) >= WINDOW_MS)
+    ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
+    : rec;
+}
+
 function gateStartHand(req, game = 'poker') {
-  const ip   = getClientIp(req) || 'unknown';
-  const uid  = req.uid || 'nouid';
-  const key  = `${uid}@${ip}`;   // per-user-per-ip
-
   const now = Date.now();
-  let rec = handsByActor.get(key);
-  if (!rec || (now - rec.windowStart) >= WINDOW_MS) {
-    rec = { windowStart: now, counts: { poker: 0, blackjack: 0 } };
-  }
+  const ip  = getClientIp(req) || 'unknown';
+  const uid = req.uid || 'nouid';
+  const key = `${uid}@${ip}`;
 
-  const limit = game === 'blackjack' ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
-  const used  = rec.counts[game] || 0;
+  const limit = (game === 'blackjack') ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
 
-  if (used >= limit) {
-    const retryMs = Math.max(0, WINDOW_MS - (now - rec.windowStart));
+  const perActor = touch(handsByActor.get(key), now);
+  const perIp    = touch(handsByIp.get(ip), now);
+
+  const usedActor = perActor.counts[game] || 0;
+  const usedIp    = perIp.counts[game]    || 0;
+
+  if (usedActor >= limit || usedIp >= limit) {
+    const started = Math.min(perActor.windowStart, perIp.windowStart);
+    const retryMs = Math.max(0, WINDOW_MS - (now - started));
     return { ok: false, error: 'ip_limit', retryMs, limit };
   }
 
-  rec.counts[game] = used + 1;
-  handsByActor.set(key, rec);
+  perActor.counts[game] = usedActor + 1;
+  perIp.counts[game]    = usedIp + 1;
 
-  return { ok: true, remaining: Math.max(0, limit - rec.counts[game]), windowMs: WINDOW_MS };
+  handsByActor.set(key, perActor);
+  handsByIp.set(ip, perIp);
+
+  const remaining = Math.max(0, limit - Math.max(perActor.counts[game], perIp.counts[game]));
+  return { ok: true, remaining, windowMs: WINDOW_MS };
 }
 
-// clean old windows
+// housecleaning
 setInterval(() => {
   const now = Date.now();
-  for (const [key, rec] of handsByActor) {
-    if (now - rec.windowStart >= WINDOW_MS) handsByActor.delete(key);
+  for (const [k, rec] of handsByActor) {
+    if (now - rec.windowStart >= WINDOW_MS) handsByActor.delete(k);
+  }
+  
+}, 6 * 60 * 1000);
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of handsByIp) {
+    if (now - record.windowStart >= SIX_HOURS_MS) handsByIp.delete(ip);
   }
 }, 6 * 60 * 1000);
+
 
 const drawLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 const dealLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });
