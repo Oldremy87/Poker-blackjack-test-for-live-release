@@ -14,7 +14,7 @@ const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // ----- ENV / MODE -----
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
@@ -152,10 +152,9 @@ const tablesByGame = {
 
 if (!HCAPTCHA_SECRET) console.error('⚠️ HCAPTCHA_SECRET is not set');
 
-function getClientIp(req){
-  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  const raw = xf || req.socket?.remoteAddress || req.ip || 'unknown';
-  return raw === '::1' ? '127.0.0.1' : raw;
+function getClientIp(req) {
+  const ip = (req.ips && req.ips.length ? req.ips[0] : req.ip) || '';
+  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
 }
 
 // =================== Security headers ===================
@@ -613,28 +612,38 @@ function evalHand(hand) {
   }
   return { payout, isWin: payout>0, isRoyal: royal };
 }
-function gateStartHand(req, game = 'poker'){
-  const ip = getClientIp(req);
-  const now = Date.now();
+function gateStartHand(req, game = 'poker') {
+  const ip   = getClientIp(req) || 'unknown';
+  const uid  = req.uid || 'nouid';
+  const key  = `${uid}@${ip}`;   // per-user-per-ip
 
-  let rec = handsByIp.get(ip);
+  const now = Date.now();
+  let rec = handsByActor.get(key);
   if (!rec || (now - rec.windowStart) >= WINDOW_MS) {
-    rec = { windowStart: now, counts: { poker:0, blackjack:0 } };
+    rec = { windowStart: now, counts: { poker: 0, blackjack: 0 } };
   }
 
-  const limit = (game === 'blackjack') ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
+  const limit = game === 'blackjack' ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
   const used  = rec.counts[game] || 0;
 
   if (used >= limit) {
     const retryMs = Math.max(0, WINDOW_MS - (now - rec.windowStart));
-    return { ok:false, error:'ip_limit', retryMs, limit };
+    return { ok: false, error: 'ip_limit', retryMs, limit };
   }
 
   rec.counts[game] = used + 1;
-  handsByIp.set(ip, rec);
+  handsByActor.set(key, rec);
 
-  return { ok:true, remaining: Math.max(0, limit - rec.counts[game]), windowMs: WINDOW_MS };
+  return { ok: true, remaining: Math.max(0, limit - rec.counts[game]), windowMs: WINDOW_MS };
 }
+
+// clean old windows
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, rec] of handsByActor) {
+    if (now - rec.windowStart >= WINDOW_MS) handsByActor.delete(key);
+  }
+}, 6 * 60 * 1000);
 
 const drawLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 const dealLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });
