@@ -971,10 +971,10 @@ function confettiBurst(count = 48, ms = 1800){
     const s = document.createElement('i');
     s.style.setProperty('--x', `${Math.random()*100}%`);
     s.style.setProperty('--rot', `${Math.random()*360}deg`);
-    s.style.setProperty('--dur', `${1000 + Math.random()*700}ms`);
+    s.style.setProperty('--dur', `${1000 + Math.random()*900}ms`);
     wrap.appendChild(s);
   }
-  setTimeout(()=> wrap.remove(), ms + 300);
+  setTimeout(()=> wrap.remove(), ms + 500);
 }
 
 function bjScore(cards) {
