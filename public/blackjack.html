@@ -22,6 +22,9 @@
       --card-border: #3af5d9;
       --danger: #ff5577;
       --ok: #45ff99;
+       --win-cyan:  #3af5d9;
+  --win-pink:  #ff3df7;
+  --win-gold:  #ffcc00;
     }
     /* Always hide elements with [hidden], and loaders by default */
 [hidden] { display: none !important; }
@@ -202,7 +205,76 @@
   .brand h1 { font-size: 1.35rem; }
   body { padding: 12px; }
 }
+/* Lightweight confetti (optional flair) */
+.fx-confetti{ position:fixed; inset:0; pointer-events:none; z-index:9999; overflow:hidden; }
+.fx-confetti i{
+  position:absolute; top:-12px; left: var(--x,50%);
+  width:8px; height:14px; border-radius:2px;
+  background: linear-gradient(var(--rot,0deg),
+              var(--win-pink), var(--win-gold), var(--win-cyan));
+  opacity:.95;
+  transform: rotate(var(--rot,0deg));
+  animation: arcade-confetti var(--dur,1200ms) ease-out forwards;
+}
+@keyframes arcade-confetti{
+  0%   { transform: translateY(-10px) rotate(var(--rot,0deg)); }
+  100% { transform: translateY(calc(100vh + 12px)) rotate(calc(var(--rot,0deg) + 260deg)); opacity:0; }
+}
+#payoutTotal{ position: relative; display:inline-block; border-radius:12px; padding:2px 6px; }
 
+/* One-shot bling class we add/remove from JS */
+.payout-win{
+  /* quick pop + glow + sheen */
+  animation:
+    arcade-pop .18s ease-out,
+    arcade-glow 1.2s ease-out;
+  filter: saturate(1.2);
+}
+
+/* Neon aura behind the text */
+.payout-win::before{
+  content:"";
+  position:absolute; inset:-8px;
+  border-radius:14px;
+  background: conic-gradient(from 0deg,
+    var(--win-pink), var(--win-gold), var(--win-cyan), var(--win-pink));
+  filter: blur(14px) opacity(.55);
+  z-index:-1;
+  animation: arcade-spin 1.1s ease-out both;
+}
+
+/* Shiny sweep across the text */
+.payout-win::after{
+  content:"";
+  position:absolute; inset:-2px;
+  border-radius:12px;
+  background:
+    linear-gradient(120deg,
+      rgba(255,255,255,0) 0%,
+      rgba(255,255,255,.25) 15%,
+      rgba(255,255,255,0) 32%);
+  transform: translateX(-140%);
+  animation: arcade-sheen .9s ease-out .06s forwards;
+  pointer-events:none;
+}
+
+@keyframes arcade-pop{
+  0% { transform: scale(1); }
+  70%{ transform: scale(1.08); }
+  100%{ transform: scale(1); }
+}
+@keyframes arcade-glow{
+  0%   { box-shadow: 0 0 0 rgba(0,0,0,0); }
+  45%  { box-shadow: 0 0 18px rgba(255,61,247,.25), 0 0 32px rgba(58,245,217,.18) inset; }
+  100% { box-shadow: 0 0 0 rgba(0,0,0,0); }
+}
+@keyframes arcade-spin{
+  from { transform: rotate(0deg) scale(1.02); }
+  to   { transform: rotate(120deg) scale(1); }
+}
+@keyframes arcade-sheen{
+  to { transform: translateX(140%); }
+}
 
 /* 2-line clamp for long names like “Queen of Diamonds” */
 .card p {
@@ -689,15 +761,17 @@
       </div>
 
 
-  </div>
+ 
+</div>
+
+<section class="panel claim-block" style="margin-top:10px;">
+   </div>
   <section class="panel" style="margin-top:10px;">
     <h2>Season Points Window (Skill Points)</h2>
     <ol id="leaderboardList" class="leaderboard"></ol>
     <div class="readout" id="lbHint" style="margin-top:6px;"></div>
     <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
   </section>
-</div>
-<section class="panel claim-block" style="margin-top:10px;">
     <h2>Claim</h2>
     <div class="field">
       <label class="readout" for="addressInput">Wallet address</label>
@@ -813,7 +887,30 @@ function showHowtoOnce() {
   }
 }
 
+function flashPayout(){
+  if (!payoutEl) return;
+  // retrigger the one-shot animation reliably
+  payoutEl.classList.remove('payout-win');
+  // force reflow
+  void payoutEl.offsetWidth;
+  payoutEl.classList.add('payout-win');
+  // clean up after the glow ends
+  setTimeout(() => payoutEl?.classList.remove('payout-win'), 1400);
+}
 
+function confettiBurst(count = 24, ms = 1200){
+  const wrap = document.createElement('div');
+  wrap.className = 'fx-confetti';
+  document.body.appendChild(wrap);
+  for (let i=0;i<count;i++){
+    const s = document.createElement('i');
+    s.style.setProperty('--x', `${Math.random()*100}%`);
+    s.style.setProperty('--rot', `${Math.random()*360}deg`);
+    s.style.setProperty('--dur', `${1000 + Math.random()*700}ms`);
+    wrap.appendChild(s);
+  }
+  setTimeout(()=> wrap.remove(), ms + 300);
+}
 
 function bjScore(cards) {
   let total = 0, aces = 0;
@@ -1066,11 +1163,14 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
   }
   if (creditUnits > 0) {
     toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 2500 });
-      confettiBurst();
+      
     // Sound: restart and play (user gesture already happened)
     const sfx = document.getElementById('feedSound');
     if (sfx) { try { sfx.currentTime = 0; sfx.volume = 0.6; sfx.play().catch(()=>{}); } catch(_){} }
+  flashPayout();
 
+  // 🎉 optional quick confetti burst (comment out if you prefer)
+  confettiBurst();
     // Haptic (best-effort on mobile)
     if (navigator.vibrate) { navigator.vibrate([10, 40, 10]); }
 
