@@ -14,7 +14,7 @@ const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
 
 const app = express();
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // ----- ENV / MODE -----
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
@@ -117,13 +117,13 @@ app.use((req, res, next) => {
 const crossSite = process.env.CROSS_SITE_COOKIES === 'true';
 const csrfProtection = csrf({
   cookie: {
-    key: '_csrf',           // name of the secret cookie
+    key: '_csrf',           
     httpOnly: true,
     sameSite: 'lax',
     secure: isProd,
   }
 });
-// must be BEFORE you mount csrfProtection on /api/* mutating routes
+// must be BEFORE you mount csrfProtection 
 app.get('/api/csrf', csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
@@ -141,8 +141,8 @@ const DRAW_MIN_MS  = Number(process.env.DRAW_MIN_MS || 1500);     // min time be
 const MAX_PAYOUT   = Number(process.env.MAX_PAYOUT || 100_000);   // per claim cap (minor units)
 const BANK_CAP     = Number(process.env.BANK_CAP || 5_000_000);   // max server bank per session
 const PAYOUT_COOLDOWN_MS = Number(process.env.PAYOUT_COOLDOWN_MS || SIX_HOURS_MS); // per address cooldown
-const HCAPTCHA_SECRET   = process.env.HCAPTCHA_SECRET;  // REQUIRED
-const HCAPTCHA_HOSTNAME = process.env.HCAPTCHA_HOSTNAME || '';    // optional hardening
+const HCAPTCHA_SECRET   = process.env.HCAPTCHA_SECRET;  
+const HCAPTCHA_HOSTNAME = process.env.HCAPTCHA_HOSTNAME || '';   
 const tablesByGame = {
   poker:      { stats: 'user_stats',            points: 'season_points' },
   blackjack:  { stats: 'user_stats_blackjack',  points: 'season_points_blackjack' }
@@ -152,27 +152,18 @@ const tablesByGame = {
 
 if (!HCAPTCHA_SECRET) console.error('⚠️ HCAPTCHA_SECRET is not set');
 
-function getClientIp(req){
-  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  const raw = xf || req.socket?.remoteAddress || req.ip || 'unknown';
-  return raw === '::1' ? '127.0.0.1' : raw;
-   const ip = (req.ips && req.ips.length ? req.ips[0] : req.ip) || '';
-  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-}
 
 // =================== Security headers ===================
-app.use(helmet()); // sets a bunch of safe defaults (noSniff, hsts, hidePoweredBy, etc.)
+app.use(helmet()); 
 
-// Match your explicit policies:
 app.use(helmet.referrerPolicy({ policy: 'no-referrer' }));
 
-// X-Frame-Options for old browsers (CSP frame-ancestors is the modern control)
 app.use(helmet.frameguard({ action: 'deny' })); // deny being embedded anywhere
 
-// Content Security Policy (keeps your inline scripts + hCaptcha working)
+// Content Security Policy 
 app.use(
   helmet.contentSecurityPolicy({
-    useDefaults: false, // we’ll be explicit
+    useDefaults: false, 
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://hcaptcha.com", "https://*.hcaptcha.com"],
@@ -183,7 +174,7 @@ app.use(
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
-      frameAncestors: ["'none'"], // don’t allow others to iframe your site
+      frameAncestors: ["'none'"], 
      upgradeInsecureRequests: []  
     },
   })
@@ -204,11 +195,6 @@ app.get('/healthz', async (_req,res)=>{
     try { await pool.query('select 1'); } catch { dbOk = 'down'; }
   }
   res.json({ ok:true, ts:new Date().toISOString(), db: dbOk });
-});
-
-app.use((req, _res, next) => {
-  logger.info('Incoming request', { method: req.method, url: req.url, ip: req.ip, ua: req.headers['user-agent'] || '' });
-  next();
 });
 
 // --- UID COOKIE (used by getOrCreateUser/saveAfterDraw) ---
@@ -250,10 +236,9 @@ const HANDS_LIMIT = Math.max(1, Number(process.env.IP_HANDS_PER_6H)) || 40;
 const HANDS_LIMIT_POKER = Number(process.env.IP_HANDS_PER_6H_POKER || HANDS_LIMIT);
 const HANDS_LIMIT_BJ    = Number(process.env.IP_HANDS_PER_6H_BJ    || HANDS_LIMIT);
 const WINDOW_MS   = 6 * 60 * 60 * 1000;
-const handsByUid = new Map(); // uid -> { windowStart, counts:{poker,bj} }
-const handsByIp  = new Map(); // ip  -> { windowStart, counts:{poker,bj} }
-const handsByUA  = new Map(); // uaHash -> { windowStart, counts:{poker,bj} } (optional)
-
+const handsByUid = new Map(); 
+const handsByIp  = new Map(); 
+const handsByUA  = new Map(); 
 function touch(rec, now) {
   return (!rec || (now - rec.windowStart) >= WINDOW_MS)
     ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
@@ -265,13 +250,6 @@ function uaHash(req) {
   return createHash('sha256').update(ua).digest('hex').slice(0, 16);
 }
 
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of handsByIp) {
-    if (now - record.windowStart >= SIX_HOURS_MS) handsByIp.delete(ip);
-  }
-}, 6 * 60 * 1000);
 
 app.get('/api/profile', async (req, res) => {
   try {
@@ -334,7 +312,6 @@ app.get('/api/profile', async (req, res) => {
 });
 
 function getClientIp(req) {
-  // trust proxy is already true at app level
   if (Array.isArray(req.ips) && req.ips.length) return req.ips[0];
 
   const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -370,6 +347,7 @@ function shuffleDeterministic(deck, rng) {
   }
   return a;
 }
+// Leaderboard
 app.get('/api/leaderboard/top', async (req, res) => {
   try {
     const game = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
@@ -472,7 +450,7 @@ app.get('/api/leaderboard/window', async (req, res) => {
       you: r.is_you
     }));
 
-    // Give handy deltas to the next/prev ranks (for UI “you’re 8 pts behind”)
+    // Give handy deltas to the next/prev ranks 
     let you = window.find(x => x.you) || null;
     if (you) {
       const idx = window.findIndex(x => x.you);
@@ -610,8 +588,6 @@ async function awardSeasonPoints(uid, points){
   } catch(e){ await p.query('rollback'); }
 }
 
-
-// In server.js, extend ensureBank()
 function ensureBank(req) {
   if (!req.session.bank) req.session.bank = 0;
   if (!req.session.bank && req.session.bank !== 0) req.session.bank = 0;
@@ -627,6 +603,64 @@ function ensureBank(req) {
       }
   if (!req.session.currentHand) req.session.currentHand = null;
 }
+// Wallet functions
+// /api/wallet/link  (server)
+app.post('/api/wallet/link', async (req, res) => {
+  try {
+    const { address, network } = req.body || {};
+    if (!address || !/^nexa:/.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
+    const net = (network === 'mainnet') ? 'mainnet' : 'mainnet'; 
+    await getOrCreateUser(req.uid);
+    if (hasDb) {
+      const p = await db();
+      await p.query(
+        `update users set wallet_addr=$2, wallet_net=$3, last_seen_at=now() where user_id=$1`,
+        [req.uid, address, net]
+      );
+    } else {
+      req.session.linkedWallet = { address, network: net };
+      if (req.session.save) await new Promise((r,j)=>req.session.save(e=>e?j(e):r()));
+    }
+    res.json({ ok:true });
+  } catch { res.status(500).json({ ok:false, error:'link_error' }); }
+});
+app.get('/api/wallet/status', async (req,res)=>{
+  try {
+    if (req.session?.linkedWallet) return res.json({ ok:true, linked:true, ...req.session.linkedWallet });
+    if (!hasDb) return res.json({ ok:true, linked:false });
+    const p = await db();
+    const { rows } = await p.query('select wallet_addr as address, wallet_net as network from users where user_id=$1', [req.uid]);
+    if (rows[0]?.address) return res.json({ ok:true, linked:true, ...rows[0] });
+    res.json({ ok:true, linked:false });
+  } catch { res.status(500).json({ ok:false, error:'status_error' }); }
+});
+import { WatchOnlyWallet } from 'nexa-wallet-sdk';
+
+app.post('/api/bet/build-unsigned', requireAuth, async (req,res)=>{
+  try {
+    const { fromAddress, kiblAmount, feeNexa } = req.body || {};
+    if (!fromAddress || !/^nexa:/.test(fromAddress)) return res.status(400).json({ ok:false, error:'bad_address' });
+
+    const network = 'mainnet'; // you said mainnet only
+    const house   = process.env.HOUSE_ADDR_MAINNET;
+    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX; // <-- enforce KIBL
+
+    if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
+
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
+    const unsignedTx = await w.newTransaction()
+      .onNetwork(network)
+      .sendTo(house, String(feeNexa ?? 600))              
+      .sendToToken(house, String(kiblAmount ?? 10000), tokenIdHex) 
+      .populate()
+      .build(); // UNSIGNED hex
+
+    res.json({ ok:true, unsignedTx, house, network });
+  } catch (e) {
+    res.status(500).json({ ok:false, error:'build_failed' });
+  }
+});
+
 
 function evalHand(hand) {
   const sorted = hand.slice().sort((a,b)=>RANK_VALUE[a.rank]-RANK_VALUE[b.rank]);
@@ -1475,7 +1509,13 @@ async function claimAndAwardBJ(
 
 
 // ---- Rate limits for BJ actions
-const bjStartLimiter  = rateLimit({ windowMs: 60_000, max: 40, standardHeaders:true, legacyHeaders:false });
+const bjStartLimiter  = rateLimit({
+  windowMs: 60_000,
+  max: 40,
+  keyGenerator: (req) => req.uid || req.ip || 'nouid',
+  standardHeaders: true,
+  legacyHeaders: false
+});
 const bjActionLimiter = rateLimit({ windowMs: 60_000, max: 80, standardHeaders:true, legacyHeaders:false });
 
 

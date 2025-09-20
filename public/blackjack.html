@@ -734,6 +734,7 @@ body.compact {
         <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
 
         <div class="controls">
+          <button id="betBtn" class="btn">Place 100 KIBL bet</button>
           <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
           <button id="bjHit"    class="btn" disabled>Hit</button>
           <button id="bjStand"  class="btn" disabled>Stand</button>
@@ -806,38 +807,50 @@ body.compact {
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
 
   <script>
-    // ===== shared helpers (copied from play.html so this page is standalone) =====
-    let __csrf = null;
-    async function fetchCsrf(){
+  import { placeBet } from '/wallet-bet.cjs';
+
+  async function ensureCsrf() {
+    if (!window.csrfToken) {
       const r = await fetch('/api/csrf', { credentials:'include' });
-      if (!r.ok) throw new Error('CSRF bootstrap failed');
-      const { csrfToken } = await r.json();
-      __csrf = csrfToken;
+      const j = await r.json().catch(()=>null);
+      if (j?.csrfToken) window.csrfToken = j.csrfToken;
     }
- // replace your postWithCsrf with this sturdier version
-async function postWithCsrf(url, body = {}) {
-  // if the token isn’t there yet, try once more
-  if (!window.csrfToken) {
+  }
+
+  async function ensureLinked() {
+    const r = await fetch('/api/wallet/status', { credentials:'include' });
+    const j = await r.json().catch(()=>null);
+    return j?.ok && j.linked ? j : null;
+  }
+
+  addEventListener('DOMContentLoaded', async () => {
     await ensureCsrf();
-  }
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'CSRF-Token': window.csrfToken || ''
-    },
-    credentials: 'include',
-    body: JSON.stringify(body)
+    const linked = await ensureLinked();
+
+    const btn = document.getElementById('betBtn');
+    if (!btn) return;
+    btn.disabled = !linked;
+
+    btn.addEventListener('click', async () => {
+      try {
+        if (!linked) return alert('Link a wallet on the Connect page first.');
+        const passphrase = prompt('Enter your wallet passphrase to sign the bet') || '';
+        if (!passphrase) return;
+
+        const { txId } = await placeBet({
+          passphrase,
+          kiblAmount: 10000, // e.g. 100 KIBL if 2 decimals
+          tokenIdHex: window.KIBL_TOKEN_ID_HEX,
+          feeNexa: 600
+        });
+
+        alert(`Bet sent! tx: ${txId.slice(0,12)}…`);
+      } catch (e) {
+        alert('Bet failed: ' + (e?.message || 'unknown'));
+      }
+    });
   });
-  // Try to parse JSON even on non-200s so we can surface server errors
-  let j = null;
-  try { j = await r.json(); } catch {}
-  if (!r.ok || (j && j.ok === false)) {
-    const msg = (j && (j.error || j.message)) || `HTTP ${r.status}`;
-    throw new Error(msg);
-  }
-  return j;
-}
+
 
 async function ensureCsrf(){
   try {
@@ -1100,6 +1113,7 @@ function updateBjPanels(snapshotJson) {
   payout:'/api/payout',
   bj: { start:'/api/bj/start', hit:'/api/bj/hit', stand:'/api/bj/stand', double:'/api/bj/double', split:'/api/bj/split' }
 });
+  window.KIBL_TOKEN_ID_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 
 
     const payoutEl = document.getElementById('payoutTotal');
@@ -1172,7 +1186,18 @@ fitBjToScreen();
     btnStart.disabled = true;
   }
 }
-
+document.getElementById('betBtn')?.addEventListener('click', async () => {
+  try {
+    const pass = prompt('Enter your wallet passphrase to sign the bet:');
+    const tokenIdHex = window.KIBL_TOKEN_ID_HEX;  // wherever you expose it client-side
+    const { txId } = await placeBet({ passphrase: pass, kiblAmount: 10000, tokenIdHex, feeNexa: 600 });
+    toast(`Bet sent: ${txId.slice(0,12)}…`, { type: 'win' });
+    // Optionally: call your /api/start-hand etc. or refresh profile/balances
+    loadProfile();
+  } catch (e) {
+    toast(`Bet failed: ${e.message}`, { type: 'error' });
+  }
+});
     function setButtons({ deal, hit, stand }) {
     const btnStart = document.getElementById('bjStart');
     const btnHit   = document.getElementById('bjHit');
