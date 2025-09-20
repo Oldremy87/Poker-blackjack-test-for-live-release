@@ -806,52 +806,7 @@ body.compact {
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
 
-  <script type="module">
-  import { placeBet } from '/wallet-bet.cjs';
-fetch('/api/csrf').then(r=>r.json()).then(j => window.csrfToken = j.csrfToken);
-
-  async function ensureCsrf() {
-    if (!window.csrfToken) {
-      const r = await fetch('/api/csrf', { credentials:'include' });
-      const j = await r.json().catch(()=>null);
-      if (j?.csrfToken) window.csrfToken = j.csrfToken;
-    }
-  }
-
-  async function ensureLinked() {
-    const r = await fetch('/api/wallet/status', { credentials:'include' });
-    const j = await r.json().catch(()=>null);
-    return j?.ok && j.linked ? j : null;
-  }
-
-  addEventListener('DOMContentLoaded', async () => {
-    await ensureCsrf();
-    const linked = await ensureLinked();
-
-    const btn = document.getElementById('betBtn');
-    if (!btn) return;
-    btn.disabled = !linked;
-
-    btn.addEventListener('click', async () => {
-      try {
-        if (!linked) return alert('Link a wallet on the Connect page first.');
-        const passphrase = prompt('Enter your wallet passphrase to sign the bet') || '';
-        if (!passphrase) return;
-
-        const { txId } = await placeBet({
-          passphrase,
-          kiblAmount: 10000, // e.g. 100 KIBL if 2 decimals
-          tokenIdHex: window.KIBL_TOKEN_ID_HEX,
-          feeNexa: 600
-        });
-
-        alert(`Bet sent! tx: ${txId.slice(0,12)}…`);
-      } catch (e) {
-        alert('Bet failed: ' + (e?.message || 'unknown'));
-      }
-    });
-  });
-</script>
+  
 <script>
 
 async function ensureCsrf(){
@@ -1538,6 +1493,52 @@ async function onPayout(){
 
 
   </script>
+  <script type="module">
+  import { placeBet } from '/wallet-bet.cjs';
+fetch('/api/csrf').then(r=>r.json()).then(j => window.csrfToken = j.csrfToken);
+
+  async function ensureCsrf() {
+    if (!window.csrfToken) {
+      const r = await fetch('/api/csrf', { credentials:'include' });
+      const j = await r.json().catch(()=>null);
+      if (j?.csrfToken) window.csrfToken = j.csrfToken;
+    }
+  }
+
+  async function ensureLinked() {
+    const r = await fetch('/api/wallet/status', { credentials:'include' });
+    const j = await r.json().catch(()=>null);
+    return j?.ok && j.linked ? j : null;
+  }
+
+  addEventListener('DOMContentLoaded', async () => {
+    await ensureCsrf();
+    const linked = await ensureLinked();
+
+    const btn = document.getElementById('betBtn');
+    if (!btn) return;
+    btn.disabled = !linked;
+
+    btn.addEventListener('click', async () => {
+      try {
+        if (!linked) return alert('Link a wallet on the Connect page first.');
+        const passphrase = prompt('Enter your wallet passphrase to sign the bet') || '';
+        if (!passphrase) return;
+
+        const { txId } = await placeBet({
+          passphrase,
+          kiblAmount: 10000, // e.g. 100 KIBL if 2 decimals
+          tokenIdHex: window.KIBL_TOKEN_ID_HEX,
+          feeNexa: 600
+        });
+
+        alert(`Bet sent! tx: ${txId.slice(0,12)}…`);
+      } catch (e) {
+        alert('Bet failed: ' + (e?.message || 'unknown'));
+      }
+    });
+  });
+</script>
 
   <footer class="readout" style="text-align:center; opacity:.9; padding:14px 0 6px;">
     © 2025 KIBL / PixelPup • Stay shiny 🐶✨ •
