@@ -806,8 +806,9 @@ body.compact {
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
 
-  <script>
+  <script type="module">
   import { placeBet } from '/wallet-bet.cjs';
+fetch('/api/csrf').then(r=>r.json()).then(j => window.csrfToken = j.csrfToken);
 
   async function ensureCsrf() {
     if (!window.csrfToken) {
@@ -850,7 +851,8 @@ body.compact {
       }
     });
   });
-
+</script>
+<script>
 
 async function ensureCsrf(){
   try {

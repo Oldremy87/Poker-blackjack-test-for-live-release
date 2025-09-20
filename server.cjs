@@ -12,7 +12,7 @@ const { Pool } = require('pg');
 const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
-
+const { WatchOnlyWallet } = require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 
@@ -634,9 +634,9 @@ app.get('/api/wallet/status', async (req,res)=>{
     res.json({ ok:true, linked:false });
   } catch { res.status(500).json({ ok:false, error:'status_error' }); }
 });
-import { WatchOnlyWallet } from 'nexa-wallet-sdk';
 
-app.post('/api/bet/build-unsigned', requireAuth, async (req,res)=>{
+
+app.post('/api/bet/build-unsigned',  async (req,res)=>{
   try {
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:/.test(fromAddress)) return res.status(400).json({ ok:false, error:'bad_address' });
