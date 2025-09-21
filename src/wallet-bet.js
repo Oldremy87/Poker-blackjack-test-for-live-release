@@ -1,12 +1,5 @@
 // public/wallet-bet.js
-const SDK_URL = 'https://esm.sh/nexa-wallet-sdk@latest?bundle&target=es2022';
-let Wallet, rostrumProvider;
-try {
-  ({ Wallet, rostrumProvider } = await import(SDK_URL));
-} catch (e) {
-  console.error('SDK load failed:', e);
-  throw e;
-}
+import { Wallet, rostrumProvider, WatchOnlyWallet } from 'nexa-wallet-sdk';
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
 async function loadWallet(pass) {
