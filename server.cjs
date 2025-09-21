@@ -169,7 +169,7 @@ app.use(
       scriptSrc: ["'self'", "'unsafe-inline'", "https://hcaptcha.com", "https://*.hcaptcha.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "https:", "wss:"],
       frameSrc: ["https://hcaptcha.com", "https://*.hcaptcha.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],

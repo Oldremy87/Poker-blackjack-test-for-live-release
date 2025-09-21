@@ -5,7 +5,19 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Connect Wallet – PixelPup</title>
-  <script defer src="/connect.cjs"></script>
+  <script>
+  // Make CSRF available to modules early
+  (async () => {
+    try {
+      const r = await fetch('/api/csrf', { credentials: 'include' });
+      const j = await r.json();
+      window.csrfToken = j.csrfToken;
+    } catch {}
+  })();
+</script>
+
+<!-- Load the Connect module -->
+<script type="module" src="/connect.js"></script>
   <style>
     :root{
       --bg:#0b0f19; --panel:#111827; --text:#00ffc6; --text-dim:#7fffe6;
