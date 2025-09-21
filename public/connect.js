@@ -1,12 +1,26 @@
 // public/connect.js  (ESM)
-const SDK_URL = 'https://esm.sh/nexa-wallet-sdk@latest'; // ESM wrapper for npm package
-let Wallet, rostrumProvider, WatchOnlyWallet;
+const SDK_URL = 'https://esm.sh/nexa-wallet-sdk@latest?bundle&target=es2022';
 
+let Wallet, rostrumProvider, WatchOnlyWallet;
 try {
   ({ Wallet, rostrumProvider, WatchOnlyWallet } = await import(SDK_URL));
 } catch (e) {
   console.error('SDK load failed:', e);
   alert('Unable to load the Nexa wallet SDK. Check your network and CSP.');
+}
+// After the import try/catch
+if (!Wallet || !rostrumProvider) {
+  // Hard-disable the buttons so we don’t attach dead handlers
+  addEventListener('DOMContentLoaded', () => {
+    for (const id of ['btnCreate','btnImport','btnDoImport','btnLink']) {
+      const b = document.getElementById(id);
+      if (b) b.disabled = true;
+    }
+  });
+  // Stop here (the alert above already told the user)
+} else {
+  // Only initialize if SDK is present
+  addEventListener('DOMContentLoaded', init);
 }
 
 const KEY = 'kk_wallet_v1'; // localStorage blob (encrypted)
@@ -110,4 +124,15 @@ async function init() {
     } catch {}
   });
 }
+passEl.addEventListener('change', async () => {
+  try {
+    if (!localStorage.getItem(KEY)) return;
+    const { seed, net } = JSON.parse(await dec(passEl.value || ''));
+    netSel.value = net;
+    await bootFromSeed(seed, net);
+  } catch (e) {
+    alert('Could not unlock local wallet. Check your passphrase.');
+  }
+});
+
 addEventListener('DOMContentLoaded', init);
