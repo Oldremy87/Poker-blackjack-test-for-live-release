@@ -1,6 +1,9 @@
-import { b as bufferExports, p as process, $ as $8265cc68049fe82c$export$2e2bcd8739ae039, a as $884ce55f1db7e177$export$eaa49f0478d81b9d } from "./chunks/index.web-CiXhaaXU.js";
+import { b as bufferExports, p as process } from "./chunks/browser-CUtw8GvZ.js";
 globalThis.Buffer ||= bufferExports.Buffer;
 globalThis.process ||= process;
+async function sdk() {
+  return await import("./chunks/index.web-OeWYP58i.js");
+}
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";
 function normalizeSeed(raw) {
@@ -38,68 +41,86 @@ async function init() {
   const netSel = document.getElementById("net");
   const passEl = document.getElementById("pass");
   const btnCreate = document.getElementById("btnCreate");
-  document.getElementById("btnImport");
-  document.getElementById("importArea");
+  const btnImport = document.getElementById("btnImport");
+  const importArea = document.getElementById("importArea");
   const seedIn = document.getElementById("seedIn");
   const btnDoImport = document.getElementById("btnDoImport");
   const linked = document.getElementById("linked");
   const addrText = document.getElementById("addr");
   const btnLink = document.getElementById("btnLink");
-  let wallet = null;
-  let account = null;
   let address = null;
-  async function connectNetwork() {
-    const net = netSel.value === "mainnet" ? "mainnet" : "testnet";
-    await $884ce55f1db7e177$export$eaa49f0478d81b9d.connect(net);
+  async function connectNetwork(net) {
+    const { rostrumProvider } = await sdk();
+    await rostrumProvider.connect(net);
   }
   async function bootFromSeed(seed, net) {
-    await connectNetwork();
-    wallet = new $8265cc68049fe82c$export$2e2bcd8739ae039(seed, net);
-    await wallet.initialize();
-    account = wallet.accountStore.getAccount("2.0");
-    const k = account.getPrimaryAddressKey();
-    address = k.address;
-    addrText.textContent = `Linked address (${net}): ${address}`;
-    linked.hidden = false;
+    const { Wallet } = await sdk();
+    await connectNetwork("mainnet");
+    const wallet2 = new Wallet(seed, net);
+    await wallet2.initialize();
+    const account2 = wallet2.accountStore.getAccount("2.0");
+    const k = account2.getPrimaryAddressKey();
+    return { wallet: wallet2, account: account2, address: k.address };
   }
   btnCreate?.addEventListener("click", async () => {
-    const pass = passEl.value || "";
-    const net = netSel.value;
-    const w = $8265cc68049fe82c$export$2e2bcd8739ae039.create();
-    const seed = w.export().phrase;
-    await enc(pass, JSON.stringify({ seed, net }));
-    await bootFromSeed(seed, net);
-    alert("New wallet created. Write down your seed!");
+    try {
+      const pass = passEl.value || "";
+      const net = netSel.value === "mainnet";
+      const { Wallet } = await sdk();
+      const w = Wallet.create();
+      const seed = w.export().phrase;
+      await enc(pass, JSON.stringify({ seed, net }));
+      const r = await bootFromSeed(seed, "mainnet");
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
+      linked.hidden = false;
+      alert("New wallet created. Write down your seed!");
+    } catch (e) {
+      alert(e?.message || "Failed to create wallet.");
+    }
+  });
+  btnImport?.addEventListener("click", () => {
+    importArea.hidden = !importArea.hidden;
   });
   btnDoImport?.addEventListener("click", async () => {
     try {
       const pass = passEl.value || "";
-      const net = netSel.value;
+      const net = netSel.value === "mainnet";
       const seed = require12Words(normalizeSeed(seedIn.value));
       await enc(pass, JSON.stringify({ seed, net }));
-      await bootFromSeed(seed, net);
+      const r = await bootFromSeed(seed, "mainnet");
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
+      linked.hidden = false;
       alert("Imported wallet. Seed stored encrypted locally.");
     } catch (e) {
-      alert(e?.message || "Failed to import seed. Please check the 12 words and try again.");
+      alert(e?.message || "Failed to import seed.");
     }
   });
   btnLink?.addEventListener("click", async () => {
-    const res = await fetch("/api/wallet/link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
-      body: JSON.stringify({ address, network: netSel.value })
-    });
-    const j = await res.json();
-    if (!j.ok) return alert("Link failed: " + (j.error || "unknown"));
-    alert("Wallet linked!");
-    location.href = "/play.html";
+    try {
+      const res = await fetch("/api/wallet/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
+        body: JSON.stringify({ address, network: netSel.value })
+      });
+      const j = await res.json();
+      if (!j.ok) return alert("Link failed: " + (j.error || "unknown"));
+      alert("Wallet linked!");
+      location.href = "/play.html";
+    } catch (e) {
+      alert(e?.message || "Link failed.");
+    }
   });
   passEl?.addEventListener("change", async () => {
     try {
       if (!localStorage.getItem(KEY)) return;
       const { seed, net } = JSON.parse(await dec(passEl.value || ""));
       netSel.value = net;
-      await bootFromSeed(seed, net);
+      const r = await bootFromSeed(seed, net);
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
+      linked.hidden = false;
     } catch {
     }
   });

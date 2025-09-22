@@ -1,6 +1,9 @@
-import { b as bufferExports, p as process, a as $884ce55f1db7e177$export$eaa49f0478d81b9d, $ as $8265cc68049fe82c$export$2e2bcd8739ae039 } from "./chunks/index.web-CiXhaaXU.js";
+import { b as bufferExports, p as process } from "./chunks/browser-CUtw8GvZ.js";
 globalThis.Buffer ||= bufferExports.Buffer;
 globalThis.process ||= process;
+async function sdk() {
+  return await import("./chunks/index.web-OeWYP58i.js");
+}
 const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
 async function loadWallet(pass) {
   const rawB64 = localStorage.getItem(KEY) || "";
@@ -14,8 +17,9 @@ async function loadWallet(pass) {
   const key = await crypto.subtle.importKey("raw", h, "AES-GCM", false, ["decrypt"]);
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  await $884ce55f1db7e177$export$eaa49f0478d81b9d.connect(net);
-  const w = new $8265cc68049fe82c$export$2e2bcd8739ae039(seed, net);
+  const { Wallet, rostrumProvider } = await sdk();
+  await rostrumProvider.connect(net);
+  const w = new Wallet(seed, net);
   await w.initialize();
   const acct = w.accountStore.getAccount("2.0");
   if (!acct) throw new Error("DApp account (2.0) not found. Open Connect and (re)create/import your wallet.");

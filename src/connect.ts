@@ -4,7 +4,9 @@ import process from 'process';
 (globalThis as any).Buffer  ||= Buffer;
 (globalThis as any).process ||= process;
 
-import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
+async function sdk() {
+  // thanks to the alias, this resolves to dist/index.web.mjs
+  return await import('nexa-wallet-sdk');}
 
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
@@ -65,66 +67,85 @@ async function init() {
   let account: any = null;
   let address: string | null = null;
 
-  async function connectNetwork() {
-    const net = netSel.value === 'mainnet' ? 'mainnet' : 'testnet';
-    await rostrumProvider.connect(net);
-  }
+async function connectNetwork(net: 'mainnet') {
+  const { rostrumProvider } = await sdk();
+  await rostrumProvider.connect(net);
+}
 
-  async function bootFromSeed(seed: string, net: string) {
-    await connectNetwork();
-    wallet = new Wallet(seed, net);
-    await wallet.initialize();
-    account = wallet.accountStore.getAccount('2.0');
-    const k = account.getPrimaryAddressKey();
-    address = k.address;
-    addrText.textContent = `Linked address (${net}): ${address}`;
-    linked.hidden = false;
-  }
+async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
+  const { Wallet } = await sdk();
+  await connectNetwork('mainnet');
+  const wallet = new Wallet(seed, net);
+  await wallet.initialize();
+  const account = wallet.accountStore.getAccount('2.0');
+  const k = account.getPrimaryAddressKey();
+  return { wallet, account, address: k.address };
+}
 
   btnCreate?.addEventListener('click', async () => {
-    const pass = passEl.value || '';
-    const net  = netSel.value;
-    const w = Wallet.create();
-    const seed = w.export().phrase;
-    await enc(pass, JSON.stringify({ seed, net }));
-    await bootFromSeed(seed, net);
-    alert('New wallet created. Write down your seed!');
+    try {
+      const pass = passEl.value || '';
+      const net  = (netSel.value === 'mainnet' );
+      const { Wallet } = await sdk();
+      const w = Wallet.create();
+      const seed = w.export().phrase;
+      await enc(pass, JSON.stringify({ seed, net }));
+      const r = await bootFromSeed(seed, 'mainnet');
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
+      linked.hidden = false;
+      alert('New wallet created. Write down your seed!');
+    } catch (e:any) {
+      alert(e?.message || 'Failed to create wallet.');
+    }
   });
 
- btnDoImport?.addEventListener('click', async () => {
-  try {
-    const pass = passEl.value || '';
-    const net  = netSel.value;
-    const seed = require12Words(normalizeSeed(seedIn.value));
+  btnImport?.addEventListener('click', () => { importArea.hidden = !importArea.hidden; });
 
-    await enc(pass, JSON.stringify({ seed, net }));
-    await bootFromSeed(seed, net);
-    alert('Imported wallet. Seed stored encrypted locally.');
-  } catch (e: any) {
-    alert(e?.message || 'Failed to import seed. Please check the 12 words and try again.');
-  }
-});
-
+  btnDoImport?.addEventListener('click', async () => {
+    try {
+      const pass = passEl.value || '';
+      const net  = (netSel.value === 'mainnet');
+      const seed = require12Words(normalizeSeed(seedIn.value));
+      await enc(pass, JSON.stringify({ seed, net }));
+      const r = await bootFromSeed(seed, 'mainnet');
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
+      linked.hidden = false;
+      alert('Imported wallet. Seed stored encrypted locally.');
+    } catch (e:any) {
+      alert(e?.message || 'Failed to import seed.');
+    }
+  });
 
   btnLink?.addEventListener('click', async () => {
-    const res = await fetch('/api/wallet/link', {
-      method:'POST',
-      headers: { 'Content-Type':'application/json', 'CSRF-Token': (window as any).csrfToken || '' },
-      body: JSON.stringify({ address, network: netSel.value })
-    });
-    const j = await res.json();
-    if (!j.ok) return alert('Link failed: ' + (j.error || 'unknown'));
-    alert('Wallet linked!');
-    location.href = '/play.html';
+    try {
+      const res = await fetch('/api/wallet/link', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'CSRF-Token': (window as any).csrfToken || '' },
+        body: JSON.stringify({ address, network: netSel.value })
+      });
+      const j = await res.json();
+      if (!j.ok) return alert('Link failed: ' + (j.error || 'unknown'));
+      alert('Wallet linked!');
+      location.href = '/play.html';
+    } catch (e:any) {
+      alert(e?.message || 'Link failed.');
+    }
   });
 
+  // auto-load from storage on pass change
   passEl?.addEventListener('change', async () => {
     try {
       if (!localStorage.getItem(KEY)) return;
       const { seed, net } = JSON.parse(await dec(passEl.value || ''));
       netSel.value = net;
-      await bootFromSeed(seed, net);
+      const r = await bootFromSeed(seed, net as any);
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
+      linked.hidden = false;
     } catch {}
   });
 }
+
 addEventListener('DOMContentLoaded', init);

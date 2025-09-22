@@ -4,7 +4,9 @@ import process from 'process';
 (globalThis as any).Buffer  ||= Buffer;
 (globalThis as any).process ||= process;
 
-import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
+async function sdk() {
+  return await import('nexa-wallet-sdk'); // aliased to browser ESM
+}
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
 async function loadWallet(pass: string){
@@ -22,6 +24,7 @@ async function loadWallet(pass: string){
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
 
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
+  const { Wallet, rostrumProvider } = await sdk();
   await rostrumProvider.connect(net);
   const w = new Wallet(seed, net);
   await w.initialize();
