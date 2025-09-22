@@ -1,11 +1,10 @@
 // src/connect.ts
-import './polyfills';
-import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
-
 import { Buffer } from 'buffer';
-if (!(globalThis as any).Buffer)  (globalThis as any).Buffer = Buffer;
-if (!(globalThis as any).global)  (globalThis as any).global = globalThis;
-if (!(globalThis as any).process) (globalThis as any).process = { env: {} } as any;
+import process from 'process';
+(globalThis as any).Buffer  ||= Buffer;
+(globalThis as any).process ||= process;
+
+import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
 
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';

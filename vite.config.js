@@ -26,15 +26,33 @@ export default defineConfig({
       },
     },
   },
-  resolve: {
+ resolve: {
     alias: {
-      buffer: 'buffer',     // make sure "buffer" resolves to the npm shim
+      crypto: 'crypto-browserify',
+      stream: 'stream-browserify',
+      buffer: 'buffer',
+      events: 'events/',
+      util: 'util/',
+     
     },
     mainFields: ['browser', 'module', 'jsnext:main', 'main'],
     conditions: ['browser', 'import', 'module', 'default'],
   },
+
   define: {
     global: 'globalThis',
-    'process.env': {},      // harmless stub some libs probe
+    'process.env': {},   // some libs probe this
+  },
+
+  optimizeDeps: {
+    include: [
+      'buffer',
+      'process',
+      'crypto-browserify',
+      'stream-browserify',
+      'events',
+      'util'
+    ],
   },
 });
+

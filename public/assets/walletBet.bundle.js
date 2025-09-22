@@ -1,30 +1,29 @@
-import { b as g, a as h, $ as y } from "./chunks/index.web-B-xBYMtd.js";
-globalThis.Buffer || (globalThis.Buffer = g.Buffer);
-globalThis.global || (globalThis.global = globalThis);
-globalThis.process || (globalThis.process = { env: {} });
-const T = "kk_wallet_v1", m = "kk_wallet_iv_v1";
-async function A(r) {
-  const e = localStorage.getItem(T) || "";
+import { b as y, p as g, a as h, $ as m } from "./chunks/index.web-nS7MzcTW.js";
+globalThis.Buffer ||= y.Buffer;
+globalThis.process ||= g;
+const A = "kk_wallet_v1", T = "kk_wallet_iv_v1";
+async function k(r) {
+  const e = localStorage.getItem(A) || "";
   if (!e) throw new Error("No local wallet. Visit Connect.");
-  const s = localStorage.getItem(m) || "", c = atob(e), o = atob(s), i = new Uint8Array([...o].map((p) => p.charCodeAt(0))), a = new Uint8Array([...c].map((p) => p.charCodeAt(0))), l = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(r)), u = await crypto.subtle.importKey("raw", l, "AES-GCM", !1, ["decrypt"]), t = await crypto.subtle.decrypt({ name: "AES-GCM", iv: i }, u, a), { seed: d, net: n } = JSON.parse(new TextDecoder().decode(t));
+  const c = localStorage.getItem(T) || "", s = atob(e), o = atob(c), i = new Uint8Array([...o].map((u) => u.charCodeAt(0))), a = new Uint8Array([...s].map((u) => u.charCodeAt(0))), d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(r)), f = await crypto.subtle.importKey("raw", d, "AES-GCM", !1, ["decrypt"]), t = await crypto.subtle.decrypt({ name: "AES-GCM", iv: i }, f, a), { seed: l, net: n } = JSON.parse(new TextDecoder().decode(t));
   await h.connect(n);
-  const w = new y(d, n);
+  const w = new m(l, n);
   await w.initialize();
-  const f = w.accountStore.getAccount("2.0");
-  if (!f) throw new Error("DApp account (2.0) not found. Open Connect and (re)create/import your wallet.");
-  const b = f.getPrimaryAddressKey().address;
-  return { wallet: w, account: f, address: b, network: n };
+  const p = w.accountStore.getAccount("2.0");
+  if (!p) throw new Error("DApp account (2.0) not found. Open Connect and (re)create/import your wallet.");
+  const b = p.getPrimaryAddressKey().address;
+  return { wallet: w, account: p, address: b, network: n };
 }
-async function S({ passphrase: r, kiblAmount: e, tokenIdHex: s, feeNexa: c }) {
-  const { wallet: o, account: i, address: a, network: l } = await A(r), t = await (await fetch("/api/bet/build-unsigned", {
+async function x({ passphrase: r, kiblAmount: e, tokenIdHex: c, feeNexa: s }) {
+  const { wallet: o, account: i, address: a, network: d } = await k(r), t = await (await fetch("/api/bet/build-unsigned", {
     method: "POST",
     headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
-    body: JSON.stringify({ fromAddress: a, kiblAmount: e, tokenIdHex: s, feeNexa: c })
+    body: JSON.stringify({ fromAddress: a, kiblAmount: e, tokenIdHex: c, feeNexa: s })
   })).json();
   if (!t.ok) throw new Error(t.error || "build_unsigned_failed");
-  const d = await o.newTransaction(i, t.unsignedTx).sign().build();
-  return { txId: await o.sendTransaction(d), network: l, address: a, house: t.house };
+  const l = await o.newTransaction(i, t.unsignedTx).sign().build();
+  return { txId: await o.sendTransaction(l), network: d, address: a, house: t.house };
 }
 export {
-  S as placeBet
+  x as placeBet
 };

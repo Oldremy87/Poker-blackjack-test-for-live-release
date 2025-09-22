@@ -1502,7 +1502,7 @@ async function onClaimPayout() {
   }
 
   addEventListener('DOMContentLoaded', async () => {
-    await ensureCsrf();
+    await fetchCsrf();
     const linked = await ensureLinked();
 
     const btn = document.getElementById('betBtn');

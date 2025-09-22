@@ -1510,7 +1510,7 @@ async function onPayout(){
   }
 
   addEventListener('DOMContentLoaded', async () => {
-    await ensureCsrf();
+    await fetch('/api/csrf', { credentials: 'include' });
     const linked = await ensureLinked();
 
     const btn = document.getElementById('betBtn');
