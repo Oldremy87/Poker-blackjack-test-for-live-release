@@ -9,6 +9,24 @@ import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
 
+function normalizeSeed(raw: string): string {
+  // lowercase, strip non-letters, collapse whitespace
+  return (raw || '')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ');
+}
+
+function require12Words(seed: string): string {
+  const words = seed.split(' ');
+  if (words.length !== 12) {
+    throw new Error(`Seed must be exactly 12 words (got ${words.length}).`);
+  }
+  return seed;
+}
+
 async function aesKey(pass: string) {
   const raw = new TextEncoder().encode(pass);
   const h   = await crypto.subtle.digest('SHA-256', raw);
@@ -73,16 +91,20 @@ async function init() {
     alert('New wallet created. Write down your seed!');
   });
 
-  btnImport?.addEventListener('click', () => { importArea.hidden = !importArea.hidden; });
-  btnDoImport?.addEventListener('click', async () => {
+ btnDoImport?.addEventListener('click', async () => {
+  try {
     const pass = passEl.value || '';
     const net  = netSel.value;
-    const seed = (seedIn.value || '').trim();
-    if (!seed) return alert('Enter a 12-word seed');
+    const seed = require12Words(normalizeSeed(seedIn.value));
+
     await enc(pass, JSON.stringify({ seed, net }));
     await bootFromSeed(seed, net);
     alert('Imported wallet. Seed stored encrypted locally.');
-  });
+  } catch (e: any) {
+    alert(e?.message || 'Failed to import seed. Please check the 12 words and try again.');
+  }
+});
+
 
   btnLink?.addEventListener('click', async () => {
     const res = await fetch('/api/wallet/link', {
