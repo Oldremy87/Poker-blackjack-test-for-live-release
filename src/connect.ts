@@ -1,22 +1,22 @@
-// public/connect.js  (ESM)
-import { Wallet, rostrumProvider, WatchOnlyWallet } from 'nexa-wallet-sdk';
+// src/connect.ts
+import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
 
-const KEY = 'kk_wallet_v1'; // localStorage blob (encrypted)
+const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
 
-async function aesKey(pass) {
+async function aesKey(pass: string) {
   const raw = new TextEncoder().encode(pass);
   const h   = await crypto.subtle.digest('SHA-256', raw);
   return crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['encrypt','decrypt']);
 }
-async function enc(pass, data) {
+async function enc(pass: string, data: string) {
   const key = await aesKey(pass);
   const iv  = crypto.getRandomValues(new Uint8Array(12));
   const ct  = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(data));
-  localStorage.setItem(IV, btoa(String.fromCharCode(...iv)));
+  localStorage.setItem(IV,  btoa(String.fromCharCode(...iv)));
   localStorage.setItem(KEY, btoa(String.fromCharCode(...new Uint8Array(ct))));
 }
-async function dec(pass) {
+async function dec(pass: string) {
   const key = await aesKey(pass);
   const ivb = atob(localStorage.getItem(IV) || '');
   const iv  = new Uint8Array([...ivb].map(c=>c.charCodeAt(0)));
@@ -27,49 +27,49 @@ async function dec(pass) {
 }
 
 async function init() {
-  const netSel = document.getElementById('net');
-  const passEl = document.getElementById('pass');
-  const btnCreate = document.getElementById('btnCreate');
-  const btnImport = document.getElementById('btnImport');
-  const importArea= document.getElementById('importArea');
-  const seedIn    = document.getElementById('seedIn');
-  const btnDoImport = document.getElementById('btnDoImport');
-  const linked    = document.getElementById('linked');
-  const addrText  = document.getElementById('addr');
-  const btnLink   = document.getElementById('btnLink');
+  const netSel     = document.getElementById('net')        as HTMLSelectElement;
+  const passEl     = document.getElementById('pass')       as HTMLInputElement;
+  const btnCreate  = document.getElementById('btnCreate')  as HTMLButtonElement;
+  const btnImport  = document.getElementById('btnImport')  as HTMLButtonElement;
+  const importArea = document.getElementById('importArea') as HTMLElement;
+  const seedIn     = document.getElementById('seedIn')     as HTMLTextAreaElement;
+  const btnDoImport= document.getElementById('btnDoImport')as HTMLButtonElement;
+  const linked     = document.getElementById('linked')     as HTMLElement;
+  const addrText   = document.getElementById('addr')       as HTMLElement;
+  const btnLink    = document.getElementById('btnLink')    as HTMLButtonElement;
 
-  let wallet = null;
-  let account = null;
-  let address = null;
+  let wallet: any = null;
+  let account: any = null;
+  let address: string | null = null;
 
   async function connectNetwork() {
     const net = netSel.value === 'mainnet' ? 'mainnet' : 'testnet';
-    await rostrumProvider.connect(net); // SDK supports browser bundle
+    await rostrumProvider.connect(net);
   }
 
-  async function bootFromSeed(seed, net) {
+  async function bootFromSeed(seed: string, net: string) {
     await connectNetwork();
     wallet = new Wallet(seed, net);
-    await wallet.initialize(); // discover accounts
-    account =  wallet.accountStore.getAccount('2.0');
+    await wallet.initialize();
+    account = wallet.accountStore.getAccount('2.0');
     const k = account.getPrimaryAddressKey();
     address = k.address;
     addrText.textContent = `Linked address (${net}): ${address}`;
     linked.hidden = false;
   }
 
-  btnCreate.addEventListener('click', async () => {
+  btnCreate?.addEventListener('click', async () => {
     const pass = passEl.value || '';
     const net  = netSel.value;
-    const w = Wallet.create();               // SDK create
-    const seed = w.export().phrase;          // seed phrase
+    const w = Wallet.create();
+    const seed = w.export().phrase;
     await enc(pass, JSON.stringify({ seed, net }));
     await bootFromSeed(seed, net);
     alert('New wallet created. Write down your seed!');
   });
 
-  btnImport.addEventListener('click', () => importArea.hidden = !importArea.hidden);
-  btnDoImport.addEventListener('click', async () => {
+  btnImport?.addEventListener('click', () => { importArea.hidden = !importArea.hidden; });
+  btnDoImport?.addEventListener('click', async () => {
     const pass = passEl.value || '';
     const net  = netSel.value;
     const seed = (seedIn.value || '').trim();
@@ -79,10 +79,10 @@ async function init() {
     alert('Imported wallet. Seed stored encrypted locally.');
   });
 
-  btnLink.addEventListener('click', async () => {
+  btnLink?.addEventListener('click', async () => {
     const res = await fetch('/api/wallet/link', {
       method:'POST',
-      headers: { 'Content-Type':'application/json', 'CSRF-Token': window.csrfToken || '' },
+      headers: { 'Content-Type':'application/json', 'CSRF-Token': (window as any).csrfToken || '' },
       body: JSON.stringify({ address, network: netSel.value })
     });
     const j = await res.json();
@@ -91,9 +91,7 @@ async function init() {
     location.href = '/play.html';
   });
 
-  // Optional: auto-load from storage if present
-  // Player enters pass → we decrypt & show address
-  passEl.addEventListener('change', async () => {
+  passEl?.addEventListener('change', async () => {
     try {
       if (!localStorage.getItem(KEY)) return;
       const { seed, net } = JSON.parse(await dec(passEl.value || ''));
@@ -102,15 +100,4 @@ async function init() {
     } catch {}
   });
 }
-passEl.addEventListener('change', async () => {
-  try {
-    if (!localStorage.getItem(KEY)) return;
-    const { seed, net } = JSON.parse(await dec(passEl.value || ''));
-    netSel.value = net;
-    await bootFromSeed(seed, net);
-  } catch (e) {
-    alert('Could not unlock local wallet. Check your passphrase.');
-  }
-});
-
 addEventListener('DOMContentLoaded', init);
