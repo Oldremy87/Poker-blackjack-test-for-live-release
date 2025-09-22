@@ -11,6 +11,32 @@ async function sdk() {
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
 
+async function ensureCsrf(): Promise<string> {
+  if ((window as any).csrfToken) return (window as any).csrfToken;
+  const r = await fetch('/api/csrf', { credentials: 'include' }); // sets _csrf cookie + returns token
+  if (!r.ok) throw new Error(`CSRF fetch failed: ${r.status}`);
+  const { csrfToken } = await r.json();
+  (window as any).csrfToken = csrfToken;
+  return csrfToken;
+}
+
+async function postJSON(url: string, body: any) {
+  const csrf = await ensureCsrf();
+  const r = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+    body: JSON.stringify(body),
+  });
+  let j: any = null;
+  try { j = await r.json(); } catch {}
+  if (!r.ok || (j && j.ok === false)) {
+    const msg = j?.error || `HTTP ${r.status}`;
+    throw new Error(msg);
+  }
+  return j;
+}
+
 function normalizeSeed(raw: string): string {
   // lowercase, strip non-letters, collapse whitespace
   return (raw || '')
@@ -118,22 +144,20 @@ async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
     }
   });
 
-  btnLink?.addEventListener('click', async () => {
-    try {
-      const res = await fetch('/api/wallet/link', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'CSRF-Token': (window as any).csrfToken || '' },
-        body: JSON.stringify({ address, network: netSel.value })
-      });
-      const j = await res.json();
-      if (!j.ok) return alert('Link failed: ' + (j.error || 'unknown'));
-      alert('Wallet linked!');
-      location.href = '/play.html';
-    } catch (e:any) {
-      alert(e?.message || 'Link failed.');
-    }
-  });
+btnLink?.addEventListener('click', async () => {
+  try {
+    if (!address) return alert('No address yet.');
+    const net = (netSel.value === 'mainnet' ? 'mainnet' : 'testnet');
+    const j = await postJSON('/api/wallet/link', { address, network: net });
+    alert('Wallet linked!');
+    location.href = '/play.html';
+  } catch (e:any) {
+    alert('Link failed: ' + (e?.message || 'unknown'));
+  }
+});
 
+// and on load, prime CSRF (optional but nice)
+addEventListener('DOMContentLoaded', () => { ensureCsrf().catch(()=>{}); });
   // auto-load from storage on pass change
   passEl?.addEventListener('change', async () => {
     try {

@@ -6,6 +6,33 @@ async function sdk() {
 }
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";
+async function ensureCsrf() {
+  if (window.csrfToken) return window.csrfToken;
+  const r = await fetch("/api/csrf", { credentials: "include" });
+  if (!r.ok) throw new Error(`CSRF fetch failed: ${r.status}`);
+  const { csrfToken } = await r.json();
+  window.csrfToken = csrfToken;
+  return csrfToken;
+}
+async function postJSON(url, body) {
+  const csrf = await ensureCsrf();
+  const r = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "CSRF-Token": csrf },
+    body: JSON.stringify(body)
+  });
+  let j = null;
+  try {
+    j = await r.json();
+  } catch {
+  }
+  if (!r.ok || j && j.ok === false) {
+    const msg = j?.error || `HTTP ${r.status}`;
+    throw new Error(msg);
+  }
+  return j;
+}
 function normalizeSeed(raw) {
   return (raw || "").toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean).join(" ");
 }
@@ -99,18 +126,18 @@ async function init() {
   });
   btnLink?.addEventListener("click", async () => {
     try {
-      const res = await fetch("/api/wallet/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
-        body: JSON.stringify({ address, network: netSel.value })
-      });
-      const j = await res.json();
-      if (!j.ok) return alert("Link failed: " + (j.error || "unknown"));
+      if (!address) return alert("No address yet.");
+      const net = netSel.value === "mainnet" ? "mainnet" : "testnet";
+      const j = await postJSON("/api/wallet/link", { address, network: net });
       alert("Wallet linked!");
       location.href = "/play.html";
     } catch (e) {
-      alert(e?.message || "Link failed.");
+      alert("Link failed: " + (e?.message || "unknown"));
     }
+  });
+  addEventListener("DOMContentLoaded", () => {
+    ensureCsrf().catch(() => {
+    });
   });
   passEl?.addEventListener("change", async () => {
     try {
