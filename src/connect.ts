@@ -61,11 +61,13 @@ async function aesKey(pass: string) {
   return crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['encrypt','decrypt']);
 }
 async function enc(pass: string, data: string) {
+    if (!pass || pass.length < 8) throw new Error('Password must be 8+ characters.');
   const key = await aesKey(pass);
   const iv  = crypto.getRandomValues(new Uint8Array(12));
   const ct  = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(data));
   localStorage.setItem(IV,  btoa(String.fromCharCode(...iv)));
   localStorage.setItem(KEY, btoa(String.fromCharCode(...new Uint8Array(ct))));
+   localStorage.setItem('kk_has_pass', '1');
 }
 async function dec(pass: string) {
   const key = await aesKey(pass);
@@ -171,5 +173,39 @@ addEventListener('DOMContentLoaded', () => { ensureCsrf().catch(()=>{}); });
     } catch {}
   });
 }
+function passOk(p: string, p2: string) {
+  return (p?.length ?? 0) >= 8 && p === p2;
+}
+async function loadKiblBalance(address: string, net: string) {
+  const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}&network=${encodeURIComponent(net)}`, { credentials:'include' });
+  if (!r.ok) throw new Error('balance_http');
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'balance_api');
+  return j; // { kiblMinor, kibl, ... }
+}
+
+// after you set addrText & linked.hidden=false:
+try {
+  const bal = await loadKiblBalance(address!, 'mainnet');
+  const balEl = document.getElementById('kiblBalance');
+  if (balEl) balEl.textContent = `KIBL: ${bal.kibl} (${bal.kiblMinor} minor)`;
+} catch { /* ignore; can retry with a refresh button */ }
+
+
+const passEl  = document.getElementById('pass')  as HTMLInputElement;
+const pass2El = document.getElementById('pass2') as HTMLInputElement;
+const btnCreate = document.getElementById('btnCreate') as HTMLButtonElement;
+const btnImport = document.getElementById('btnImport') as HTMLButtonElement;
+const passHint  = document.getElementById('passHint')  as HTMLElement;
+
+function refreshPassUI() {
+  const ok = passOk(passEl.value, pass2El.value);
+  btnCreate.disabled = btnImport.disabled = !ok;
+  passHint.hidden = ok;
+}
+passEl.addEventListener('input', refreshPassUI);
+pass2El.addEventListener('input', refreshPassUI);
+refreshPassUI();
+
 
 addEventListener('DOMContentLoaded', init);

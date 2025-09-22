@@ -108,7 +108,11 @@ nav.kk-nav a:hover{ background:#2a2a2a; }
       <select id="net">
         <option value="mainnet">Mainnet</option>
       </select>
-      <input id="pass" type="password"/>
+      <label>Password (min 8)</label>
+<input id="pass" type="password" minlength="8" required />
+<label>Confirm password</label>
+<input id="pass2" type="password" minlength="8" required />
+<small id="passHint" hidden>Passwords must match and be 8+ chars</small>
     </div>
 
     <div class="controls">

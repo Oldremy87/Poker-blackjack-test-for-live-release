@@ -674,6 +674,7 @@ body.compact {
     <a class="btn btn-ghost" href="achievements.html">Achievements</a>
      <a class="btn btn-ghost" href="pointstable.html">Point Table</Table></a>
      <p id="payoutTotal">Total Payout: 0 KIBL</p>
+     <p id="kiblBalance">KIBL: —</p>
   </div>
 
   <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
@@ -1490,6 +1491,7 @@ async function onClaimPayout() {
 </script>
  <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
+  window.placeBet = placeBet;
   // bootstrap CSRF once
   fetch('/api/csrf', { credentials: 'include' })
     .then(r => r.json())

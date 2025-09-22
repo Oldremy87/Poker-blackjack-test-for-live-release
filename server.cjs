@@ -604,6 +604,34 @@ function ensureBank(req) {
   if (!req.session.currentHand) req.session.currentHand = null;
 }
 // Wallet functions
+app.get('/api/wallet/balance', async (req, res) => {
+  try {
+    const address = (req.query.address || '').toString();
+    const net     = (req.query.network === 'mainnet');
+    const tokenId = process.env.KIBL_TOKEN_ID_HEX;
+    if (!address || !/^nexa:/.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
+    if (!tokenId) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
+
+    const w = new WatchOnlyWallet([{ address }], net);
+    // fetch UTXOs and sum the token amounts for KIBL
+    const utxos = await w.getUtxos(); // <-- SDK provides this on WatchOnlyWallet
+    let tokenMinor = 0n;
+    for (const u of utxos) {
+      for (const t of (u.tokens || [])) {
+        if ((t.tokenId || t.group || '').toLowerCase() === tokenId.toLowerCase()) {
+          tokenMinor += BigInt(t.amount || 0);
+        }
+      }
+    }
+    // respond in both minor and whole units
+    const minor = tokenMinor.toString();
+    const whole = (Number(tokenMinor) / 100).toFixed(2);
+    res.json({ ok:true, address, network: net, tokenId, kiblMinor: minor, kibl: whole });
+  } catch (e) {
+    console.error('balance_error', e);
+    res.status(500).json({ ok:false, error:'balance_error' });
+  }
+});
 // /api/wallet/link  (server)
 app.post('/api/wallet/link', async (req, res) => {
   try {

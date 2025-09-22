@@ -49,11 +49,13 @@ async function aesKey(pass) {
   return crypto.subtle.importKey("raw", h, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 async function enc(pass, data) {
+  if (!pass || pass.length < 8) throw new Error("Password must be 8+ characters.");
   const key = await aesKey(pass);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
   localStorage.setItem(IV, btoa(String.fromCharCode(...iv)));
   localStorage.setItem(KEY, btoa(String.fromCharCode(...new Uint8Array(ct))));
+  localStorage.setItem("kk_has_pass", "1");
 }
 async function dec(pass) {
   const key = await aesKey(pass);
@@ -66,16 +68,16 @@ async function dec(pass) {
 }
 async function init() {
   const netSel = document.getElementById("net");
-  const passEl = document.getElementById("pass");
-  const btnCreate = document.getElementById("btnCreate");
-  const btnImport = document.getElementById("btnImport");
+  const passEl2 = document.getElementById("pass");
+  const btnCreate2 = document.getElementById("btnCreate");
+  const btnImport2 = document.getElementById("btnImport");
   const importArea = document.getElementById("importArea");
   const seedIn = document.getElementById("seedIn");
   const btnDoImport = document.getElementById("btnDoImport");
   const linked = document.getElementById("linked");
   const addrText = document.getElementById("addr");
   const btnLink = document.getElementById("btnLink");
-  let address = null;
+  let address2 = null;
   async function connectNetwork(net) {
     const { rostrumProvider } = await sdk();
     await rostrumProvider.connect(net);
@@ -89,35 +91,35 @@ async function init() {
     const k = account2.getPrimaryAddressKey();
     return { wallet: wallet2, account: account2, address: k.address };
   }
-  btnCreate?.addEventListener("click", async () => {
+  btnCreate2?.addEventListener("click", async () => {
     try {
-      const pass = passEl.value || "";
+      const pass = passEl2.value || "";
       const net = netSel.value === "mainnet";
       const { Wallet } = await sdk();
       const w = Wallet.create();
       const seed = w.export().phrase;
       await enc(pass, JSON.stringify({ seed, net }));
       const r = await bootFromSeed(seed, "mainnet");
-      address = r.address;
-      addrText.textContent = `Linked address (${net}): ${address}`;
+      address2 = r.address;
+      addrText.textContent = `Linked address (${net}): ${address2}`;
       linked.hidden = false;
       alert("New wallet created. Write down your seed!");
     } catch (e) {
       alert(e?.message || "Failed to create wallet.");
     }
   });
-  btnImport?.addEventListener("click", () => {
+  btnImport2?.addEventListener("click", () => {
     importArea.hidden = !importArea.hidden;
   });
   btnDoImport?.addEventListener("click", async () => {
     try {
-      const pass = passEl.value || "";
+      const pass = passEl2.value || "";
       const net = netSel.value === "mainnet";
       const seed = require12Words(normalizeSeed(seedIn.value));
       await enc(pass, JSON.stringify({ seed, net }));
       const r = await bootFromSeed(seed, "mainnet");
-      address = r.address;
-      addrText.textContent = `Linked address (${net}): ${address}`;
+      address2 = r.address;
+      addrText.textContent = `Linked address (${net}): ${address2}`;
       linked.hidden = false;
       alert("Imported wallet. Seed stored encrypted locally.");
     } catch (e) {
@@ -126,9 +128,9 @@ async function init() {
   });
   btnLink?.addEventListener("click", async () => {
     try {
-      if (!address) return alert("No address yet.");
+      if (!address2) return alert("No address yet.");
       const net = netSel.value === "mainnet" ? "mainnet" : "testnet";
-      const j = await postJSON("/api/wallet/link", { address, network: net });
+      const j = await postJSON("/api/wallet/link", { address: address2, network: net });
       alert("Wallet linked!");
       location.href = "/play.html";
     } catch (e) {
@@ -139,18 +141,47 @@ async function init() {
     ensureCsrf().catch(() => {
     });
   });
-  passEl?.addEventListener("change", async () => {
+  passEl2?.addEventListener("change", async () => {
     try {
       if (!localStorage.getItem(KEY)) return;
-      const { seed, net } = JSON.parse(await dec(passEl.value || ""));
+      const { seed, net } = JSON.parse(await dec(passEl2.value || ""));
       netSel.value = net;
       const r = await bootFromSeed(seed, net);
-      address = r.address;
-      addrText.textContent = `Linked address (${net}): ${address}`;
+      address2 = r.address;
+      addrText.textContent = `Linked address (${net}): ${address2}`;
       linked.hidden = false;
     } catch {
     }
   });
 }
+function passOk(p, p2) {
+  return (p?.length ?? 0) >= 8 && p === p2;
+}
+async function loadKiblBalance(address2, net) {
+  const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address2)}&network=${encodeURIComponent(net)}`, { credentials: "include" });
+  if (!r.ok) throw new Error("balance_http");
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "balance_api");
+  return j;
+}
+try {
+  const bal = await loadKiblBalance(address, "mainnet");
+  const balEl = document.getElementById("kiblBalance");
+  if (balEl) balEl.textContent = `KIBL: ${bal.kibl} (${bal.kiblMinor} minor)`;
+} catch {
+}
+const passEl = document.getElementById("pass");
+const pass2El = document.getElementById("pass2");
+const btnCreate = document.getElementById("btnCreate");
+const btnImport = document.getElementById("btnImport");
+const passHint = document.getElementById("passHint");
+function refreshPassUI() {
+  const ok = passOk(passEl.value, pass2El.value);
+  btnCreate.disabled = btnImport.disabled = !ok;
+  passHint.hidden = ok;
+}
+passEl.addEventListener("input", refreshPassUI);
+pass2El.addEventListener("input", refreshPassUI);
+refreshPassUI();
 addEventListener("DOMContentLoaded", init);
 //# sourceMappingURL=connect.bundle.js.map

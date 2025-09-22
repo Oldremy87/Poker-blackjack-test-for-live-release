@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PixelPup Blackjack</title>
   <script src="https://hcaptcha.com/1/api.js" async defer></script>
+    <script>
+  // Make CSRF available to modules early
+  (async () => {
+    try {
+      const r = await fetch('/api/csrf', { credentials: 'include' });
+      const j = await r.json();
+      window.csrfToken = j.csrfToken;
+    } catch {}
+  })();
+</script>
  
 
   <style>
@@ -734,10 +744,12 @@ body.compact {
 
         <div class="readout">You</div>
         <p id="payoutTotal">Total Payout: 0 KIBL</p>
+        <p id="kiblBalance">KIBL: —</p>
         <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
 
         <div class="controls">
           <button id="betBtn" class="btn">Place 100 KIBL bet</button>
+          
           <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
           <button id="bjHit"    class="btn" disabled>Hit</button>
           <button id="bjStand"  class="btn" disabled>Stand</button>
@@ -1498,6 +1510,7 @@ async function onPayout(){
   </script>
   <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
+  window.placeBet = placeBet;
   // bootstrap CSRF once
   fetch('/api/csrf', { credentials: 'include' })
     .then(r => r.json())
