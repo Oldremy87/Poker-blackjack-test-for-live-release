@@ -34,7 +34,7 @@ export default defineConfig({
     alias: {
       // ✅ force crypto to our ESM shim that guarantees createHash etc.
       crypto: path.resolve(__dirname, 'src/shims/crypto.ts'),
-
+      'nexa-wallet-sdk': path.resolve(__dirname, 'node_modules/nexa-wallet-sdk/dist/index.web.mjs'),
       // ✅ browser shims for other Node built-ins
       stream: 'stream-browserify',
       buffer: 'buffer',
