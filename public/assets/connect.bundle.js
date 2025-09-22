@@ -1,4 +1,4 @@
-import { b as h, p as I, $ as f, a as v } from "./chunks/index.web-CQ47b9dX.js";
+import { b as h, p as I, $ as f, a as v } from "./chunks/index.web-DZmOQ3qa.js";
 globalThis.Buffer ||= h.Buffer;
 globalThis.process ||= I;
 const w = "kk_wallet_v1", k = "kk_wallet_iv_v1";
