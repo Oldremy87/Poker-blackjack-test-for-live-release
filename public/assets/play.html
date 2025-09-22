@@ -1489,7 +1489,7 @@ async function onClaimPayout() {
 })();
 </script>
  <script type="module">
-  import { placeBet } from '/wallet-bet.js';
+  import { placeBet } from '/assets/walletBet.bundle.js';
 
 fetch('/api/csrf').then(r=>r.json()).then(j => window.csrfToken = j.csrfToken);
 
