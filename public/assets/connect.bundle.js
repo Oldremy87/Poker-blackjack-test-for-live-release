@@ -1,37 +1,40 @@
-import { $ as k, a as h } from "./chunks/polyfills-C-FrwHBI.js";
-const w = "kk_wallet_v1", E = "kk_wallet_iv_v1";
-async function b(t) {
+import { b as S, $ as f, a as C } from "./chunks/polyfills-LAyUubzC.js";
+globalThis.Buffer || (globalThis.Buffer = S.Buffer);
+globalThis.global || (globalThis.global = globalThis);
+globalThis.process || (globalThis.process = { env: {} });
+const w = "kk_wallet_v1", k = "kk_wallet_iv_v1";
+async function E(t) {
   const n = new TextEncoder().encode(t), o = await crypto.subtle.digest("SHA-256", n);
   return crypto.subtle.importKey("raw", o, "AES-GCM", !1, ["encrypt", "decrypt"]);
 }
-async function f(t, n) {
-  const o = await b(t), c = crypto.getRandomValues(new Uint8Array(12)), r = await crypto.subtle.encrypt({ name: "AES-GCM", iv: c }, o, new TextEncoder().encode(n));
-  localStorage.setItem(E, btoa(String.fromCharCode(...c))), localStorage.setItem(w, btoa(String.fromCharCode(...new Uint8Array(r))));
+async function b(t, n) {
+  const o = await E(t), c = crypto.getRandomValues(new Uint8Array(12)), r = await crypto.subtle.encrypt({ name: "AES-GCM", iv: c }, o, new TextEncoder().encode(n));
+  localStorage.setItem(k, btoa(String.fromCharCode(...c))), localStorage.setItem(w, btoa(String.fromCharCode(...new Uint8Array(r))));
 }
-async function C(t) {
-  const n = await b(t), o = atob(localStorage.getItem(E) || ""), c = new Uint8Array([...o].map((s) => s.charCodeAt(0))), r = atob(localStorage.getItem(w) || ""), i = new Uint8Array([...r].map((s) => s.charCodeAt(0))), l = await crypto.subtle.decrypt({ name: "AES-GCM", iv: c }, n, i);
-  return new TextDecoder().decode(l);
+async function T(t) {
+  const n = await E(t), o = atob(localStorage.getItem(k) || ""), c = new Uint8Array([...o].map((s) => s.charCodeAt(0))), r = atob(localStorage.getItem(w) || ""), d = new Uint8Array([...r].map((s) => s.charCodeAt(0))), i = await crypto.subtle.decrypt({ name: "AES-GCM", iv: c }, n, d);
+  return new TextDecoder().decode(i);
 }
 async function A() {
-  const t = document.getElementById("net"), n = document.getElementById("pass"), o = document.getElementById("btnCreate"), c = document.getElementById("btnImport"), r = document.getElementById("importArea"), i = document.getElementById("seedIn"), l = document.getElementById("btnDoImport"), s = document.getElementById("linked"), I = document.getElementById("addr"), v = document.getElementById("btnLink");
+  const t = document.getElementById("net"), n = document.getElementById("pass"), o = document.getElementById("btnCreate"), c = document.getElementById("btnImport"), r = document.getElementById("importArea"), d = document.getElementById("seedIn"), i = document.getElementById("btnDoImport"), s = document.getElementById("linked"), h = document.getElementById("addr"), I = document.getElementById("btnLink");
   let m = null, p = null, y = null;
-  async function S() {
+  async function v() {
     const a = t.value === "mainnet" ? "mainnet" : "testnet";
-    await h.connect(a);
+    await C.connect(a);
   }
   async function u(a, e) {
-    await S(), m = new k(a, e), await m.initialize(), p = m.accountStore.getAccount("2.0"), y = p.getPrimaryAddressKey().address, I.textContent = `Linked address (${e}): ${y}`, s.hidden = !1;
+    await v(), m = new f(a, e), await m.initialize(), p = m.accountStore.getAccount("2.0"), y = p.getPrimaryAddressKey().address, h.textContent = `Linked address (${e}): ${y}`, s.hidden = !1;
   }
   o?.addEventListener("click", async () => {
-    const a = n.value || "", e = t.value, g = k.create().export().phrase;
-    await f(a, JSON.stringify({ seed: g, net: e })), await u(g, e), alert("New wallet created. Write down your seed!");
+    const a = n.value || "", e = t.value, g = f.create().export().phrase;
+    await b(a, JSON.stringify({ seed: g, net: e })), await u(g, e), alert("New wallet created. Write down your seed!");
   }), c?.addEventListener("click", () => {
     r.hidden = !r.hidden;
-  }), l?.addEventListener("click", async () => {
-    const a = n.value || "", e = t.value, d = (i.value || "").trim();
-    if (!d) return alert("Enter a 12-word seed");
-    await f(a, JSON.stringify({ seed: d, net: e })), await u(d, e), alert("Imported wallet. Seed stored encrypted locally.");
-  }), v?.addEventListener("click", async () => {
+  }), i?.addEventListener("click", async () => {
+    const a = n.value || "", e = t.value, l = (d.value || "").trim();
+    if (!l) return alert("Enter a 12-word seed");
+    await b(a, JSON.stringify({ seed: l, net: e })), await u(l, e), alert("Imported wallet. Seed stored encrypted locally.");
+  }), I?.addEventListener("click", async () => {
     const e = await (await fetch("/api/wallet/link", {
       method: "POST",
       headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
@@ -42,7 +45,7 @@ async function A() {
   }), n?.addEventListener("change", async () => {
     try {
       if (!localStorage.getItem(w)) return;
-      const { seed: a, net: e } = JSON.parse(await C(n.value || ""));
+      const { seed: a, net: e } = JSON.parse(await T(n.value || ""));
       t.value = e, await u(a, e);
     } catch {
     }

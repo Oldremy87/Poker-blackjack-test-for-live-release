@@ -4,6 +4,7 @@ import path from 'node:path';
 
 export default defineConfig({
   // We only bundle JS; HTML is served by your Express app.
+  publicDir: false,            // 👈 STOP copying public/ into outDir
   build: {
     outDir: 'public/assets',     // final files at /public/assets/*.js
     emptyOutDir: false,
