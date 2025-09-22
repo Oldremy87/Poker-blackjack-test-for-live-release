@@ -1,8 +1,8 @@
-import { b as bufferExports, p as process } from "./chunks/browser-CUtw8GvZ.js";
-globalThis.Buffer ||= bufferExports.Buffer;
-globalThis.process ||= process;
+import { B as Buffer$1, p as process$1 } from "./chunks/index-HBvxpDpP.js";
+globalThis.Buffer ||= Buffer$1;
+globalThis.process ||= process$1;
 async function sdk() {
-  return await import("./chunks/index.web-OeWYP58i.js");
+  return await import("./chunks/index.web-Dgt6Mupw.js");
 }
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";

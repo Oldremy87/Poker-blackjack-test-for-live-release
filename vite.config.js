@@ -1,15 +1,22 @@
 // vite.config.js
 import { defineConfig } from 'vite';
 import path from 'node:path';
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 export default defineConfig({
-  publicDir: false,                // don't copy /public into /public/assets
+  publicDir: false,                 // do not copy /public/ into /public/assets
+  plugins: [
+    nodePolyfills({
+      protocolImports: true,
+      // leave defaults; plugin injects crypto, stream, util, events, buffer, process, etc.
+    }),
+  ],
   build: {
     outDir: 'public/assets',
     emptyOutDir: false,
     target: 'es2022',
-    sourcemap: true,               // turn on for readable stack traces in dev
-    minify: false,                 // TEMP: avoid TDZ-obscuring minification while we verify
+    sourcemap: true,                // keep on while we verify
+    minify: false,                  // TEMP: avoid TDZ-obscuring minification
     lib: {
       entry: {
         'connect.bundle':   path.resolve(__dirname, 'src/connect.ts'),
@@ -32,47 +39,29 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // ✅ force crypto to our ESM shim that guarantees createHash etc.
-      crypto: path.resolve(__dirname, 'src/shims/crypto.ts'),
-      'nexa-wallet-sdk': path.resolve(__dirname, 'node_modules/nexa-wallet-sdk/dist/index.web.mjs'),
-      // ✅ browser shims for other Node built-ins
-      stream: 'stream-browserify',
+      // Force the SDK to its browser ESM build
+      'nexa-wallet-sdk': path.resolve(
+        __dirname,
+        'node_modules/nexa-wallet-sdk/dist/index.web.mjs'
+      ),
+      // don't alias "crypto" anymore — plugin will polyfill it
       buffer: 'buffer',
       events: 'events/',
       util: 'util/',
+      stream: 'stream-browserify', // plugin covers stream; this keeps resolution explicit
     },
-    dedupe: ['nexa-wallet-sdk', 'libnexa-ts', '@vgrunner/electrum-cash'], // avoid double instances
+    dedupe: ['nexa-wallet-sdk', 'libnexa-ts', '@vgrunner/electrum-cash'],
     mainFields: ['browser', 'module', 'jsnext:main', 'main'],
     conditions: ['browser', 'import', 'module', 'default'],
   },
   define: {
     global: 'globalThis',
-    'process.env': {},
+    'process.env': {}, // harmless probe target
   },
   optimizeDeps: {
-    // ✅ prebundle every crypto/elliptic dependency so no raw `require()` reaches the browser
-    include: [
-      'nexa-wallet-sdk',
-      'libnexa-ts',
-      '@vgrunner/electrum-cash',
-      'buffer',
-      'process',
-      'stream-browserify',
-      'events',
-      'util',
-      'crypto-browserify',
-      'create-hash',
-      'create-hmac',
-      'sha.js',
-      'ripemd160',
-      'hash.js',
-      'bn.js',
-      'elliptic',
-      'hmac-drbg',
-      'inherits',
-      'safe-buffer',
-      'randombytes',
-    ],
-    force: true,
+    // Let the plugin handle polyfills during prebundle too
+    esbuildOptions: {
+      define: { global: 'globalThis' },
+    },
   },
 });
