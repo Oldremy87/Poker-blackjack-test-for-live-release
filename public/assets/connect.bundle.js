@@ -1,65 +1,108 @@
-import { b as h, p as I, $ as f, a as v } from "./chunks/index.web-DZmOQ3qa.js";
-globalThis.Buffer ||= h.Buffer;
-globalThis.process ||= I;
-const w = "kk_wallet_v1", k = "kk_wallet_iv_v1";
-function C(e) {
-  return (e || "").toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean).join(" ");
+import { b as bufferExports, p as process, $ as $8265cc68049fe82c$export$2e2bcd8739ae039, a as $884ce55f1db7e177$export$eaa49f0478d81b9d } from "./chunks/index.web-CiXhaaXU.js";
+globalThis.Buffer ||= bufferExports.Buffer;
+globalThis.process ||= process;
+const KEY = "kk_wallet_v1";
+const IV = "kk_wallet_iv_v1";
+function normalizeSeed(raw) {
+  return (raw || "").toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean).join(" ");
 }
-function A(e) {
-  const n = e.split(" ");
-  if (n.length !== 12)
-    throw new Error(`Seed must be exactly 12 words (got ${n.length}).`);
-  return e;
-}
-async function E(e) {
-  const n = new TextEncoder().encode(e), o = await crypto.subtle.digest("SHA-256", n);
-  return crypto.subtle.importKey("raw", o, "AES-GCM", !1, ["encrypt", "decrypt"]);
-}
-async function b(e, n) {
-  const o = await E(e), c = crypto.getRandomValues(new Uint8Array(12)), r = await crypto.subtle.encrypt({ name: "AES-GCM", iv: c }, o, new TextEncoder().encode(n));
-  localStorage.setItem(k, btoa(String.fromCharCode(...c))), localStorage.setItem(w, btoa(String.fromCharCode(...new Uint8Array(r))));
-}
-async function B(e) {
-  const n = await E(e), o = atob(localStorage.getItem(k) || ""), c = new Uint8Array([...o].map((s) => s.charCodeAt(0))), r = atob(localStorage.getItem(w) || ""), d = new Uint8Array([...r].map((s) => s.charCodeAt(0))), i = await crypto.subtle.decrypt({ name: "AES-GCM", iv: c }, n, d);
-  return new TextDecoder().decode(i);
-}
-async function L() {
-  const e = document.getElementById("net"), n = document.getElementById("pass"), o = document.getElementById("btnCreate");
-  document.getElementById("btnImport"), document.getElementById("importArea");
-  const c = document.getElementById("seedIn"), r = document.getElementById("btnDoImport"), d = document.getElementById("linked"), i = document.getElementById("addr"), s = document.getElementById("btnLink");
-  let y = null, p = null, u = null;
-  async function S() {
-    const a = e.value === "mainnet" ? "mainnet" : "testnet";
-    await v.connect(a);
+function require12Words(seed) {
+  const words = seed.split(" ");
+  if (words.length !== 12) {
+    throw new Error(`Seed must be exactly 12 words (got ${words.length}).`);
   }
-  async function m(a, t) {
-    await S(), y = new f(a, t), await y.initialize(), p = y.accountStore.getAccount("2.0"), u = p.getPrimaryAddressKey().address, i.textContent = `Linked address (${t}): ${u}`, d.hidden = !1;
+  return seed;
+}
+async function aesKey(pass) {
+  const raw = new TextEncoder().encode(pass);
+  const h = await crypto.subtle.digest("SHA-256", raw);
+  return crypto.subtle.importKey("raw", h, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+async function enc(pass, data) {
+  const key = await aesKey(pass);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
+  localStorage.setItem(IV, btoa(String.fromCharCode(...iv)));
+  localStorage.setItem(KEY, btoa(String.fromCharCode(...new Uint8Array(ct))));
+}
+async function dec(pass) {
+  const key = await aesKey(pass);
+  const ivb = atob(localStorage.getItem(IV) || "");
+  const iv = new Uint8Array([...ivb].map((c) => c.charCodeAt(0)));
+  const ctb = atob(localStorage.getItem(KEY) || "");
+  const ct = new Uint8Array([...ctb].map((c) => c.charCodeAt(0)));
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+async function init() {
+  const netSel = document.getElementById("net");
+  const passEl = document.getElementById("pass");
+  const btnCreate = document.getElementById("btnCreate");
+  document.getElementById("btnImport");
+  document.getElementById("importArea");
+  const seedIn = document.getElementById("seedIn");
+  const btnDoImport = document.getElementById("btnDoImport");
+  const linked = document.getElementById("linked");
+  const addrText = document.getElementById("addr");
+  const btnLink = document.getElementById("btnLink");
+  let wallet = null;
+  let account = null;
+  let address = null;
+  async function connectNetwork() {
+    const net = netSel.value === "mainnet" ? "mainnet" : "testnet";
+    await $884ce55f1db7e177$export$eaa49f0478d81b9d.connect(net);
   }
-  o?.addEventListener("click", async () => {
-    const a = n.value || "", t = e.value, g = f.create().export().phrase;
-    await b(a, JSON.stringify({ seed: g, net: t })), await m(g, t), alert("New wallet created. Write down your seed!");
-  }), r?.addEventListener("click", async () => {
+  async function bootFromSeed(seed, net) {
+    await connectNetwork();
+    wallet = new $8265cc68049fe82c$export$2e2bcd8739ae039(seed, net);
+    await wallet.initialize();
+    account = wallet.accountStore.getAccount("2.0");
+    const k = account.getPrimaryAddressKey();
+    address = k.address;
+    addrText.textContent = `Linked address (${net}): ${address}`;
+    linked.hidden = false;
+  }
+  btnCreate?.addEventListener("click", async () => {
+    const pass = passEl.value || "";
+    const net = netSel.value;
+    const w = $8265cc68049fe82c$export$2e2bcd8739ae039.create();
+    const seed = w.export().phrase;
+    await enc(pass, JSON.stringify({ seed, net }));
+    await bootFromSeed(seed, net);
+    alert("New wallet created. Write down your seed!");
+  });
+  btnDoImport?.addEventListener("click", async () => {
     try {
-      const a = n.value || "", t = e.value, l = A(C(c.value));
-      await b(a, JSON.stringify({ seed: l, net: t })), await m(l, t), alert("Imported wallet. Seed stored encrypted locally.");
-    } catch (a) {
-      alert(a?.message || "Failed to import seed. Please check the 12 words and try again.");
+      const pass = passEl.value || "";
+      const net = netSel.value;
+      const seed = require12Words(normalizeSeed(seedIn.value));
+      await enc(pass, JSON.stringify({ seed, net }));
+      await bootFromSeed(seed, net);
+      alert("Imported wallet. Seed stored encrypted locally.");
+    } catch (e) {
+      alert(e?.message || "Failed to import seed. Please check the 12 words and try again.");
     }
-  }), s?.addEventListener("click", async () => {
-    const t = await (await fetch("/api/wallet/link", {
+  });
+  btnLink?.addEventListener("click", async () => {
+    const res = await fetch("/api/wallet/link", {
       method: "POST",
       headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
-      body: JSON.stringify({ address: u, network: e.value })
-    })).json();
-    if (!t.ok) return alert("Link failed: " + (t.error || "unknown"));
-    alert("Wallet linked!"), location.href = "/play.html";
-  }), n?.addEventListener("change", async () => {
+      body: JSON.stringify({ address, network: netSel.value })
+    });
+    const j = await res.json();
+    if (!j.ok) return alert("Link failed: " + (j.error || "unknown"));
+    alert("Wallet linked!");
+    location.href = "/play.html";
+  });
+  passEl?.addEventListener("change", async () => {
     try {
-      if (!localStorage.getItem(w)) return;
-      const { seed: a, net: t } = JSON.parse(await B(n.value || ""));
-      e.value = t, await m(a, t);
+      if (!localStorage.getItem(KEY)) return;
+      const { seed, net } = JSON.parse(await dec(passEl.value || ""));
+      netSel.value = net;
+      await bootFromSeed(seed, net);
     } catch {
     }
   });
 }
-addEventListener("DOMContentLoaded", L);
+addEventListener("DOMContentLoaded", init);
+//# sourceMappingURL=connect.bundle.js.map

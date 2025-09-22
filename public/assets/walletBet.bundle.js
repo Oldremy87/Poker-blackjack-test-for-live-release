@@ -1,29 +1,41 @@
-import { b as y, p as g, a as h, $ as m } from "./chunks/index.web-DZmOQ3qa.js";
-globalThis.Buffer ||= y.Buffer;
-globalThis.process ||= g;
-const A = "kk_wallet_v1", T = "kk_wallet_iv_v1";
-async function k(r) {
-  const e = localStorage.getItem(A) || "";
-  if (!e) throw new Error("No local wallet. Visit Connect.");
-  const c = localStorage.getItem(T) || "", s = atob(e), o = atob(c), i = new Uint8Array([...o].map((u) => u.charCodeAt(0))), a = new Uint8Array([...s].map((u) => u.charCodeAt(0))), d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(r)), f = await crypto.subtle.importKey("raw", d, "AES-GCM", !1, ["decrypt"]), t = await crypto.subtle.decrypt({ name: "AES-GCM", iv: i }, f, a), { seed: l, net: n } = JSON.parse(new TextDecoder().decode(t));
-  await h.connect(n);
-  const w = new m(l, n);
+import { b as bufferExports, p as process, a as $884ce55f1db7e177$export$eaa49f0478d81b9d, $ as $8265cc68049fe82c$export$2e2bcd8739ae039 } from "./chunks/index.web-CiXhaaXU.js";
+globalThis.Buffer ||= bufferExports.Buffer;
+globalThis.process ||= process;
+const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
+async function loadWallet(pass) {
+  const rawB64 = localStorage.getItem(KEY) || "";
+  if (!rawB64) throw new Error("No local wallet. Visit Connect.");
+  const ivB64 = localStorage.getItem(IV) || "";
+  const raw = atob(rawB64);
+  const ivb = atob(ivB64);
+  const iv = new Uint8Array([...ivb].map((c) => c.charCodeAt(0)));
+  const ct = new Uint8Array([...raw].map((c) => c.charCodeAt(0)));
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pass));
+  const key = await crypto.subtle.importKey("raw", h, "AES-GCM", false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
+  await $884ce55f1db7e177$export$eaa49f0478d81b9d.connect(net);
+  const w = new $8265cc68049fe82c$export$2e2bcd8739ae039(seed, net);
   await w.initialize();
-  const p = w.accountStore.getAccount("2.0");
-  if (!p) throw new Error("DApp account (2.0) not found. Open Connect and (re)create/import your wallet.");
-  const b = p.getPrimaryAddressKey().address;
-  return { wallet: w, account: p, address: b, network: n };
+  const acct = w.accountStore.getAccount("2.0");
+  if (!acct) throw new Error("DApp account (2.0) not found. Open Connect and (re)create/import your wallet.");
+  const addr = acct.getPrimaryAddressKey().address;
+  return { wallet: w, account: acct, address: addr, network: net };
 }
-async function x({ passphrase: r, kiblAmount: e, tokenIdHex: c, feeNexa: s }) {
-  const { wallet: o, account: i, address: a, network: d } = await k(r), t = await (await fetch("/api/bet/build-unsigned", {
+async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
+  const { wallet, account, address, network } = await loadWallet(passphrase);
+  const r = await fetch("/api/bet/build-unsigned", {
     method: "POST",
     headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
-    body: JSON.stringify({ fromAddress: a, kiblAmount: e, tokenIdHex: c, feeNexa: s })
-  })).json();
-  if (!t.ok) throw new Error(t.error || "build_unsigned_failed");
-  const l = await o.newTransaction(i, t.unsignedTx).sign().build();
-  return { txId: await o.sendTransaction(l), network: d, address: a, house: t.house };
+    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "build_unsigned_failed");
+  const signed = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  const txId = await wallet.sendTransaction(signed);
+  return { txId, network, address, house: j.house };
 }
 export {
-  x as placeBet
+  placeBet
 };
+//# sourceMappingURL=walletBet.bundle.js.map

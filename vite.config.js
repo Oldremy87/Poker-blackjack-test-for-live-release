@@ -1,12 +1,15 @@
+// vite.config.js
 import { defineConfig } from 'vite';
 import path from 'node:path';
 
 export default defineConfig({
-  publicDir: false,
+  publicDir: false,                // don't copy /public into /public/assets
   build: {
     outDir: 'public/assets',
     emptyOutDir: false,
     target: 'es2022',
+    sourcemap: true,               // turn on for readable stack traces in dev
+    minify: false,                 // TEMP: avoid TDZ-obscuring minification while we verify
     lib: {
       entry: {
         'connect.bundle':   path.resolve(__dirname, 'src/connect.ts'),
@@ -20,23 +23,25 @@ export default defineConfig({
         chunkFileNames: 'chunks/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
       },
-      // ✅ aggressively convert CJS (even in ESM files)
-      //    and allow Rollup to rewrite dynamic requires.
-      // (Vite includes commonjs internally; these options help edge cases.)
       commonjsOptions: {
         transformMixedEsModules: true,
         requireReturnsDefault: 'auto',
+        strictRequires: false,
       },
     },
   },
   resolve: {
     alias: {
-      crypto: path.resolve(__dirname, 'src/shims/crypto.ts'), // our ESM shim
+      // ✅ force crypto to our ESM shim that guarantees createHash etc.
+      crypto: path.resolve(__dirname, 'src/shims/crypto.ts'),
+
+      // ✅ browser shims for other Node built-ins
       stream: 'stream-browserify',
       buffer: 'buffer',
       events: 'events/',
       util: 'util/',
     },
+    dedupe: ['nexa-wallet-sdk', 'libnexa-ts', '@vgrunner/electrum-cash'], // avoid double instances
     mainFields: ['browser', 'module', 'jsnext:main', 'main'],
     conditions: ['browser', 'import', 'module', 'default'],
   },
@@ -45,8 +50,11 @@ export default defineConfig({
     'process.env': {},
   },
   optimizeDeps: {
-    // ✅ prebundle the usual crypto stack so `require` never reaches the browser
+    // ✅ prebundle every crypto/elliptic dependency so no raw `require()` reaches the browser
     include: [
+      'nexa-wallet-sdk',
+      'libnexa-ts',
+      '@vgrunner/electrum-cash',
       'buffer',
       'process',
       'stream-browserify',
