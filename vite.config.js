@@ -28,7 +28,7 @@ export default defineConfig({
   },
  resolve: {
     alias: {
-      crypto: 'crypto-browserify',
+     crypto: path.resolve(__dirname, 'src/shims/crypto.ts'),
       stream: 'stream-browserify',
       buffer: 'buffer',
       events: 'events/',
