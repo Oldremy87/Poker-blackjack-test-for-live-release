@@ -1,4 +1,4 @@
-import { b as S, $ as f, a as C } from "./chunks/polyfills-LAyUubzC.js";
+import { b as S, $ as f, a as C } from "./chunks/index.web-B-xBYMtd.js";
 globalThis.Buffer || (globalThis.Buffer = S.Buffer);
 globalThis.global || (globalThis.global = globalThis);
 globalThis.process || (globalThis.process = { env: {} });
