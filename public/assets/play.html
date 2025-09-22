@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>PixelPup Video Poker</title>
   <script src="https://hcaptcha.com/1/api.js" async defer></script>
-<script type="module" src="/assets/walletBet.bundle.js"></script>
+
   <style>
     /* ===== Retro PixelPup theme (CSP-safe, no external fonts) ===== */
     :root{
@@ -1490,16 +1490,10 @@ async function onClaimPayout() {
 </script>
  <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
-
-fetch('/api/csrf').then(r=>r.json()).then(j => window.csrfToken = j.csrfToken);
-
-  async function ensureCsrf() {
-    if (!window.csrfToken) {
-      const r = await fetch('/api/csrf', { credentials:'include' });
-      const j = await r.json().catch(()=>null);
-      if (j?.csrfToken) window.csrfToken = j.csrfToken;
-    }
-  }
+  // bootstrap CSRF once
+  fetch('/api/csrf', { credentials: 'include' })
+    .then(r => r.json())
+    .then(j => { window.csrfToken = j.csrfToken; });
 
   async function ensureLinked() {
     const r = await fetch('/api/wallet/status', { credentials:'include' });

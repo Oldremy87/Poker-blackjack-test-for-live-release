@@ -1,6 +1,6 @@
 // src/walletBet.ts
 import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
-
+import './polyfills';
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
 async function loadWallet(pass: string){

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PixelPup Blackjack</title>
   <script src="https://hcaptcha.com/1/api.js" async defer></script>
-  <script type="module" src="/assets/walletBet.bundle.js"></script>
+  <script type="module" src="/wallet-bet.js"></script>
 
   <style>
       /* ===== Retro PixelPup theme (CSP-safe, no external fonts) ===== */
@@ -1497,7 +1497,7 @@ async function onPayout(){
 
   </script>
   <script type="module">
-  import { placeBet } from '/assets/walletBet.bundle.js';
+  import { placeBet } from '/wallet-bet.cjs';
 fetch('/api/csrf').then(r=>r.json()).then(j => window.csrfToken = j.csrfToken);
 
   async function ensureCsrf() {

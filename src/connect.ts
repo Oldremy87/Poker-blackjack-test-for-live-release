@@ -1,6 +1,6 @@
 // src/connect.ts
 import { Wallet, rostrumProvider } from 'nexa-wallet-sdk';
-
+import './polyfills';
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
 

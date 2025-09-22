@@ -1,1 +1,51 @@
-import{$ as k,a as h}from"./walletBet.bundle.js";import"./chunks/_commonjsHelpers-D6-XlEtG.js";const w="kk_wallet_v1",E="kk_wallet_iv_v1";async function b(t){const n=new TextEncoder().encode(t),o=await crypto.subtle.digest("SHA-256",n);return crypto.subtle.importKey("raw",o,"AES-GCM",!1,["encrypt","decrypt"])}async function f(t,n){const o=await b(t),c=crypto.getRandomValues(new Uint8Array(12)),r=await crypto.subtle.encrypt({name:"AES-GCM",iv:c},o,new TextEncoder().encode(n));localStorage.setItem(E,btoa(String.fromCharCode(...c))),localStorage.setItem(w,btoa(String.fromCharCode(...new Uint8Array(r))))}async function C(t){const n=await b(t),o=atob(localStorage.getItem(E)||""),c=new Uint8Array([...o].map(s=>s.charCodeAt(0))),r=atob(localStorage.getItem(w)||""),i=new Uint8Array([...r].map(s=>s.charCodeAt(0))),l=await crypto.subtle.decrypt({name:"AES-GCM",iv:c},n,i);return new TextDecoder().decode(l)}async function A(){const t=document.getElementById("net"),n=document.getElementById("pass"),o=document.getElementById("btnCreate"),c=document.getElementById("btnImport"),r=document.getElementById("importArea"),i=document.getElementById("seedIn"),l=document.getElementById("btnDoImport"),s=document.getElementById("linked"),I=document.getElementById("addr"),v=document.getElementById("btnLink");let m=null,p=null,y=null;async function S(){const a=t.value==="mainnet"?"mainnet":"testnet";await h.connect(a)}async function u(a,e){await S(),m=new k(a,e),await m.initialize(),p=m.accountStore.getAccount("2.0"),y=p.getPrimaryAddressKey().address,I.textContent=`Linked address (${e}): ${y}`,s.hidden=!1}o?.addEventListener("click",async()=>{const a=n.value||"",e=t.value,g=k.create().export().phrase;await f(a,JSON.stringify({seed:g,net:e})),await u(g,e),alert("New wallet created. Write down your seed!")}),c?.addEventListener("click",()=>{r.hidden=!r.hidden}),l?.addEventListener("click",async()=>{const a=n.value||"",e=t.value,d=(i.value||"").trim();if(!d)return alert("Enter a 12-word seed");await f(a,JSON.stringify({seed:d,net:e})),await u(d,e),alert("Imported wallet. Seed stored encrypted locally.")}),v?.addEventListener("click",async()=>{const e=await(await fetch("/api/wallet/link",{method:"POST",headers:{"Content-Type":"application/json","CSRF-Token":window.csrfToken||""},body:JSON.stringify({address:y,network:t.value})})).json();if(!e.ok)return alert("Link failed: "+(e.error||"unknown"));alert("Wallet linked!"),location.href="/play.html"}),n?.addEventListener("change",async()=>{try{if(!localStorage.getItem(w))return;const{seed:a,net:e}=JSON.parse(await C(n.value||""));t.value=e,await u(a,e)}catch{}})}addEventListener("DOMContentLoaded",A);
+import { $ as k, a as h } from "./chunks/polyfills-C-FrwHBI.js";
+const w = "kk_wallet_v1", E = "kk_wallet_iv_v1";
+async function b(t) {
+  const n = new TextEncoder().encode(t), o = await crypto.subtle.digest("SHA-256", n);
+  return crypto.subtle.importKey("raw", o, "AES-GCM", !1, ["encrypt", "decrypt"]);
+}
+async function f(t, n) {
+  const o = await b(t), c = crypto.getRandomValues(new Uint8Array(12)), r = await crypto.subtle.encrypt({ name: "AES-GCM", iv: c }, o, new TextEncoder().encode(n));
+  localStorage.setItem(E, btoa(String.fromCharCode(...c))), localStorage.setItem(w, btoa(String.fromCharCode(...new Uint8Array(r))));
+}
+async function C(t) {
+  const n = await b(t), o = atob(localStorage.getItem(E) || ""), c = new Uint8Array([...o].map((s) => s.charCodeAt(0))), r = atob(localStorage.getItem(w) || ""), i = new Uint8Array([...r].map((s) => s.charCodeAt(0))), l = await crypto.subtle.decrypt({ name: "AES-GCM", iv: c }, n, i);
+  return new TextDecoder().decode(l);
+}
+async function A() {
+  const t = document.getElementById("net"), n = document.getElementById("pass"), o = document.getElementById("btnCreate"), c = document.getElementById("btnImport"), r = document.getElementById("importArea"), i = document.getElementById("seedIn"), l = document.getElementById("btnDoImport"), s = document.getElementById("linked"), I = document.getElementById("addr"), v = document.getElementById("btnLink");
+  let m = null, p = null, y = null;
+  async function S() {
+    const a = t.value === "mainnet" ? "mainnet" : "testnet";
+    await h.connect(a);
+  }
+  async function u(a, e) {
+    await S(), m = new k(a, e), await m.initialize(), p = m.accountStore.getAccount("2.0"), y = p.getPrimaryAddressKey().address, I.textContent = `Linked address (${e}): ${y}`, s.hidden = !1;
+  }
+  o?.addEventListener("click", async () => {
+    const a = n.value || "", e = t.value, g = k.create().export().phrase;
+    await f(a, JSON.stringify({ seed: g, net: e })), await u(g, e), alert("New wallet created. Write down your seed!");
+  }), c?.addEventListener("click", () => {
+    r.hidden = !r.hidden;
+  }), l?.addEventListener("click", async () => {
+    const a = n.value || "", e = t.value, d = (i.value || "").trim();
+    if (!d) return alert("Enter a 12-word seed");
+    await f(a, JSON.stringify({ seed: d, net: e })), await u(d, e), alert("Imported wallet. Seed stored encrypted locally.");
+  }), v?.addEventListener("click", async () => {
+    const e = await (await fetch("/api/wallet/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
+      body: JSON.stringify({ address: y, network: t.value })
+    })).json();
+    if (!e.ok) return alert("Link failed: " + (e.error || "unknown"));
+    alert("Wallet linked!"), location.href = "/play.html";
+  }), n?.addEventListener("change", async () => {
+    try {
+      if (!localStorage.getItem(w)) return;
+      const { seed: a, net: e } = JSON.parse(await C(n.value || ""));
+      t.value = e, await u(a, e);
+    } catch {
+    }
+  });
+}
+addEventListener("DOMContentLoaded", A);
