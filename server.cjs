@@ -219,7 +219,6 @@ app.use((req, _res, next) => {
     method: req.method, url: req.url,
     ip: getClientIp(req),
     uid: req.uid,
-    uaHash: uaHash(req),
     ua: (req.headers['user-agent'] || '').slice(0,120)
   });
   next();
@@ -236,7 +235,6 @@ const HANDS_LIMIT_BJ    = Number(process.env.IP_HANDS_PER_6H_BJ    || HANDS_LIMI
 const WINDOW_MS   = 6 * 60 * 60 * 1000;
 const handsByUid = new Map(); 
 const handsByIp  = new Map(); 
-const handsByUA  = new Map(); 
 function touch(rec, now) {
   return (!rec || (now - rec.windowStart) >= WINDOW_MS)
     ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
@@ -726,13 +724,13 @@ function gateStartHand(req, game = 'poker') {
   // Strict user limit first (changing IP won't help)
   if (usedUid >= limit) {
     const retryMs = Math.max(0, WINDOW_MS - (now - rUid.windowStart));
-    logger.warn('gate/limit', { reason:'user', uid, ip, uah, game, used:usedUid, limit, retryMs });
+    logger.warn('gate/limit', { reason:'user', uid, ip, game, used:usedUid, limit, retryMs });
     return { ok:false, error:'user_limit', retryMs, limit };
   }
   // Then IP (stops many UIDs from one IP)
   if (usedIp >= limit) {
     const retryMs = Math.max(0, WINDOW_MS - (now - rIp.windowStart));
-    logger.warn('gate/limit', { reason:'ip', uid, ip, uah, game, used:usedIp, limit, retryMs });
+    logger.warn('gate/limit', { reason:'ip', uid, ip, game, used:usedIp, limit, retryMs });
     return { ok:false, error:'ip_limit', retryMs, limit };
   }
 
@@ -752,7 +750,7 @@ function gateStartHand(req, game = 'poker') {
 
 setInterval(() => {
   const now = Date.now();
-  for (const m of [handsByUid, handsByIp, handsByUA]) {
+  for (const m of [handsByUid, handsByIp]) {
     for (const [k, rec] of m) if (now - rec.windowStart >= WINDOW_MS) m.delete(k);
   }
 }, 6 * 60 * 1000);
