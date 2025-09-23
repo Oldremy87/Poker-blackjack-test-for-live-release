@@ -44,7 +44,7 @@ export default defineConfig({
         __dirname,
         'node_modules/nexa-wallet-sdk/dist/index.web.mjs'
       ),
-      // don't alias "crypto" anymore — plugin will polyfill it
+      crypto: 'crypto-browserify',  
       buffer: 'buffer',
       events: 'events/',
       util: 'util/',
