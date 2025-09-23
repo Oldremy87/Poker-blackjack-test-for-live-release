@@ -224,7 +224,6 @@ app.use((req, _res, next) => {
   });
   next();
 });
-let rostrumProvider = null;
 let _rostrumConnected = false;
 
 async function _connectRostrum(net = process.env.NEXA_NET || 'mainnet') {
