@@ -133,7 +133,7 @@ app.use('/api', (req, res, next) => {
   }
   return csrfProtection(req, res, next);
 });
-await rostrumProvider.connect('mainnet'); 
+
 // =================== Config ===================
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const ONE_DAY_MS   = 24 * 60 * 60 * 1000;
@@ -244,12 +244,6 @@ function touch(rec, now) {
     ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
     : rec;
 }
-
-function uaHash(req) {
-  const ua = (req.headers['user-agent'] || '').slice(0, 200);
-  return createHash('sha256').update(ua).digest('hex').slice(0, 16);
-}
-
 
 app.get('/api/profile', async (req, res) => {
   try {
