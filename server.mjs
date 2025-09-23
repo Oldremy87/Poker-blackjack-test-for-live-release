@@ -15,7 +15,7 @@ const {randomBytes, createHash, randomUUID } = require('crypto');
 const { WatchOnlyWallet, rostrumProvider } = require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
-
+await rostrumProvider.connect('mainnet'); 
 // ----- ENV / MODE -----
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
 function must(name) {
