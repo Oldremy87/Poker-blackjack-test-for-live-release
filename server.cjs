@@ -225,7 +225,6 @@ app.use((req, _res, next) => {
   next();
 });
 let rostrumProvider = null;
-let _rostrumReady = null;     // Promise that resolves once connected
 let _rostrumConnected = false;
 
 async function _connectRostrum(net = process.env.NEXA_NET || 'mainnet') {
@@ -239,30 +238,6 @@ async function _connectRostrum(net = process.env.NEXA_NET || 'mainnet') {
   console.log(`[rostrum] connected to ${net}`);
 }
 
-// Public helper: await this anywhere you need Rostrum ready.
-function rostrumReady(net = process.env.NEXA_NET || 'mainnet') {
-  if (_rostrumConnected) return Promise.resolve();
-  if (!_rostrumReady) _rostrumReady = _connectRostrum(net);
-  return _rostrumReady;
-}
-
-// Start it immediately on server boot, with retry/backoff:
-(function startRostrumBackground(net = process.env.NEXA_NET || 'mainnet') {
-  (async () => {
-    let attempt = 0;
-    // retry forever with capped backoff
-    while (!_rostrumConnected) {
-      try {
-        await _connectRostrum(net);
-      } catch (e) {
-        attempt++;
-        const delay = Math.min(30000, 1000 * attempt); // 1s, 2s, ... up to 30s
-        console.error(`[rostrum] connect failed (attempt ${attempt}):`, String(e));
-        await new Promise(r => setTimeout(r, delay));
-      }
-    }
-  })();
-})();
 
 
 // =================== Hand/IP limiting ===================
@@ -750,17 +725,17 @@ function gateStartHand(req, game = 'poker') {
   const now  = Date.now();
   const uid  = req.uid || 'nouid';
   const ip   = getClientIp(req) || 'unknown';
-  const uah  = uaHash(req);
+  
 
   const limit = (game === 'blackjack') ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
 
   const rUid = touch(handsByUid.get(uid), now);
   const rIp  = touch(handsByIp.get(ip), now);
-  const rUA  = touch(handsByUA.get(uah), now);
+  
 
   const usedUid = rUid.counts[game] || 0;
   const usedIp  = rIp.counts[game]  || 0;
-  const usedUA  = rUA.counts[game]  || 0;
+ 
 
   // Strict user limit first (changing IP won't help)
   if (usedUid >= limit) {
@@ -774,21 +749,15 @@ function gateStartHand(req, game = 'poker') {
     logger.warn('gate/limit', { reason:'ip', uid, ip, uah, game, used:usedIp, limit, retryMs });
     return { ok:false, error:'ip_limit', retryMs, limit };
   }
-  // Optional: per-device-ish via UA
-  if (usedUA >= limit) {
-    const retryMs = Math.max(0, WINDOW_MS - (now - rUA.windowStart));
-    logger.warn('gate/limit', { reason:'device', uid, ip, uah, game, used:usedUA, limit, retryMs });
-    return { ok:false, error:'device_limit', retryMs, limit };
-  }
 
   // Allowed → increment all three buckets
   rUid.counts[game] = usedUid + 1;
   rIp.counts[game]  = usedIp + 1;
-  rUA.counts[game]  = usedUA + 1;
+ 
 
   handsByUid.set(uid, rUid);
   handsByIp.set(ip, rIp);
-  handsByUA.set(uah, rUA);
+  
 
   const remaining = Math.max(0, limit - rUid.counts[game]);
   return { ok:true, remaining, windowMs: WINDOW_MS };
