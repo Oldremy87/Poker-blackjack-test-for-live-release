@@ -12,7 +12,7 @@ const { Pool } = require('pg');
 const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
-const { WatchOnlyWallet } = require('nexa-wallet-sdk');
+const { WatchOnlyWallet, rostrumProvider } = require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 
@@ -133,7 +133,7 @@ app.use('/api', (req, res, next) => {
   }
   return csrfProtection(req, res, next);
 });
-
+await rostrumProvider.connect('mainnet'); 
 // =================== Config ===================
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const ONE_DAY_MS   = 24 * 60 * 60 * 1000;

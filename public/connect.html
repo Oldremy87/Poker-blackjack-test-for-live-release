@@ -108,18 +108,17 @@ nav.kk-nav a:hover{ background:#2a2a2a; }
       <select id="net">
         <option value="mainnet">Mainnet</option>
       </select>
-   <!-- Connect: add these fields near your existing password input -->
-<label>Password (min 8)</label>
+      <label>Password (min 8)</label>
 <input id="pass" type="password" minlength="8" required />
 <label>Confirm password</label>
 <input id="pass2" type="password" minlength="8" required />
-<small id="passHint" hidden>Passwords must match and be 8+ chars.</small>
+<small id="passHint" hidden>Passwords must match and be 8+ chars</small>
+    </div>
 
-<button id="btnCreate" disabled>Create Wallet</button>
-<button id="btnImport" disabled>Import Wallet</button>
-
-<p id="kiblBalance">KIBL: —</p> <!-- spot to show KIBL balance -->
-
+    <div class="controls">
+      <button id="btnCreate" class="btn btn-primary">Create Wallet</button>
+      <button id="btnImport" class="btn">Import Seed (12 words)</button>
+    </div>
 
     <div id="importArea" class="panel" hidden>
       <textarea id="seedIn" rows="3" placeholder="twelve words..." style="width:100%"></textarea>
