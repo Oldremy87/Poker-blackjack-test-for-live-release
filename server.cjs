@@ -224,7 +224,45 @@ app.use((req, _res, next) => {
   });
   next();
 });
+let rostrumProvider = null;
+let _rostrumReady = null;     // Promise that resolves once connected
+let _rostrumConnected = false;
 
+async function _connectRostrum(net = process.env.NEXA_NET || 'mainnet') {
+  if (_rostrumConnected) return;
+  // Import ESM SDK from CJS via dynamic import:
+  if (!rostrumProvider) {
+    ({ rostrumProvider } = await import('nexa-wallet-sdk')); // ESM import in CJS
+  }
+  await rostrumProvider.connect(net);
+  _rostrumConnected = true;
+  console.log(`[rostrum] connected to ${net}`);
+}
+
+// Public helper: await this anywhere you need Rostrum ready.
+function rostrumReady(net = process.env.NEXA_NET || 'mainnet') {
+  if (_rostrumConnected) return Promise.resolve();
+  if (!_rostrumReady) _rostrumReady = _connectRostrum(net);
+  return _rostrumReady;
+}
+
+// Start it immediately on server boot, with retry/backoff:
+(function startRostrumBackground(net = process.env.NEXA_NET || 'mainnet') {
+  (async () => {
+    let attempt = 0;
+    // retry forever with capped backoff
+    while (!_rostrumConnected) {
+      try {
+        await _connectRostrum(net);
+      } catch (e) {
+        attempt++;
+        const delay = Math.min(30000, 1000 * attempt); // 1s, 2s, ... up to 30s
+        console.error(`[rostrum] connect failed (attempt ${attempt}):`, String(e));
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  })();
+})();
 
 
 // =================== Hand/IP limiting ===================
