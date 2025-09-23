@@ -12,7 +12,7 @@ const { Pool } = require('pg');
 const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
-const { WatchOnlyWallet, rostrumProvider } = require('nexa-wallet-sdk');
+const { WatchOnlyWallet}= require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
@@ -224,19 +224,6 @@ app.use((req, _res, next) => {
   });
   next();
 });
-let _rostrumConnected = false;
-
-async function _connectRostrum(net = process.env.NEXA_NET || 'mainnet') {
-  if (_rostrumConnected) return;
-  // Import ESM SDK from CJS via dynamic import:
-  if (!rostrumProvider) {
-    ({ rostrumProvider } = await import('nexa-wallet-sdk')); // ESM import in CJS
-  }
-  await rostrumProvider.connect(net);
-  _rostrumConnected = true;
-  console.log(`[rostrum] connected to ${net}`);
-}
-
 
 
 // =================== Hand/IP limiting ===================
