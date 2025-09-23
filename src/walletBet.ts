@@ -1,9 +1,10 @@
 // src/walletBet.ts
 import { Buffer } from 'buffer';
 import process from 'process';
+import * as nodeCrypto from 'crypto-browserify';
 (globalThis as any).Buffer  ||= Buffer;
 (globalThis as any).process ||= process;
-
+(globalThis as any).__nodeCrypto = nodeCrypto;
 async function sdk() {
   return await import('nexa-wallet-sdk'); // aliased to browser ESM
 }
