@@ -240,7 +240,12 @@ function touch(rec, now) {
     ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
     : rec;
 }
-
+async function sdk() {
+  // thanks to the alias, this resolves to dist/index.web.mjs
+  return await import('nexa-wallet-sdk');}
+ const {rostrumProvider} =await sdk();
+  await rostrumProvider.connect('mainnet');
+  
 app.get('/api/profile', async (req, res) => {
   try {
     ensureBank(req);

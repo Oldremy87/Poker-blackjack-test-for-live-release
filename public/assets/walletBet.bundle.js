@@ -29,8 +29,6 @@ async function loadWallet(pass) {
 }
 async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   const { wallet, account, address, network } = await loadWallet(passphrase);
-  const { rostrumProvider } = await sdk();
-  await rostrumProvider.connect("mainnet");
   const r = await fetch("/api/bet/build-unsigned", {
     method: "POST",
     headers: { "Content-Type": "application/json", "CSRF-Token": window.csrfToken || "" },
