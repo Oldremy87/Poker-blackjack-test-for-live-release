@@ -12,7 +12,7 @@ const { Pool } = require('pg');
 const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
-const { WatchOnlyWallet}= require('nexa-wallet-sdk');
+const { WatchOnlyWallet ,rostrumProvider}= require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
@@ -242,10 +242,10 @@ function touch(rec, now) {
 }
 async function sdk() {
   // thanks to the alias, this resolves to dist/index.web.mjs
-  return await import('nexa-wallet-sdk');}
+   import('nexa-wallet-sdk');
  const {rostrumProvider} =await sdk();
   await rostrumProvider.connect('mainnet');
-  
+}
 app.get('/api/profile', async (req, res) => {
   try {
     ensureBank(req);
