@@ -47,9 +47,21 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }:{
   });
   const j = await r.json();
   if (!j.ok) throw new Error(j.error || 'build_unsigned_failed');
+   const signed = await wallet.newTransaction(account, j.unsignedTx).sign().build();
 
-  const signed = await wallet.newTransaction(account, j.unsignedTx).sign().build();
-  const txId   = await wallet.sendTransaction(signed);
-
-  return { txId, network, address, house: j.house };
+  // Relay via server so the browser never opens WS:
+  const br = await fetch('/api/tx/broadcast', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'CSRF-Token': (window as any).csrfToken || ''
+    },
+    body: JSON.stringify({ hex: signed })
+  });
+  const bj = await br.json().catch(() => ({}));
+  if (!br.ok || !bj.ok) {
+    const errMsg = bj?.error || 'broadcast_failed';
+    throw new Error(errMsg);
+  }
+  return { txId: bj.txid, network, address, house: j.house };
 }
