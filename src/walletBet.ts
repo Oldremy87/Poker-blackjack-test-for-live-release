@@ -25,8 +25,8 @@ async function loadWallet(pass: string){
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
 
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  const { Wallet, rostrumProvider } = await sdk();
-  await rostrumProvider.connect(net);
+  const { Wallet } = await sdk();
+  
   const w = new Wallet(seed, net);
   await w.initialize();
   const acct = w.accountStore.getAccount('2.0');

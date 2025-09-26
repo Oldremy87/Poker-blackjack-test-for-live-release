@@ -12,10 +12,40 @@ const { Pool } = require('pg');
 const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
-const { WatchOnlyWallet ,rostrumProvider}= require('nexa-wallet-sdk');
+const { WatchOnlyWallet ,rostrumProvider, Wallet}= require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
+// Use a real WSS hostname if you have one; otherwise many hosts accept "mainnet".
+const ROSTRUM_URL = process.env.ROSTRUM_URL || 'mainnet';
+
+// Connect once (and log status)
+(async () => {
+  try {
+    await rostrumProvider.connect(ROSTRUM_URL);
+    console.log('[rostrum] connected ->', ROSTRUM_URL);
+  } catch (e) {
+    console.error('[rostrum] initial connect failed:', e?.message || e);
+  }
+})();
+
+// Optional: simple keepalive / reconnect nudge
+setInterval(async () => {
+  try {
+    await rostrumProvider.ping?.();
+  } catch {
+    try {
+      await rostrumProvider.connect(ROSTRUM_URL);
+      console.log('[rostrum] reconnected');
+    } catch (e) {
+      console.error('[rostrum] reconnect failed:', e?.message || e);
+    }
+  }
+}, 30_000);
+
+
+
+
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
 function must(name) {
   const v = process.env[name];
@@ -601,32 +631,54 @@ function ensureBank(req) {
 // Wallet functions
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-    const address = (req.query.address || '').toString();
-    const net     = (req.query.network === 'mainnet');
-    const tokenId = process.env.KIBL_TOKEN_ID_HEX;
-    if (!address || !/^nexa:/.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
-    if (!tokenId) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
+    const address = String(req.query.address || '');
+    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
+    if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
+    if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
 
-    const w = new WatchOnlyWallet([{ address }], net);
-    // fetch UTXOs and sum the token amounts for KIBL
-    const utxos = await w.getUtxos(); // <-- SDK provides this on WatchOnlyWallet
+    const [tokenUtxos, nexaUtxos] = await Promise.all([
+      rostrumProvider.getTokenUtxos(address, tokenIdHex),
+      rostrumProvider.getNexaUtxos(address)
+    ]);
+
     let tokenMinor = 0n;
-    for (const u of utxos) {
-      for (const t of (u.tokens || [])) {
-        if ((t.tokenId || t.group || '').toLowerCase() === tokenId.toLowerCase()) {
-          tokenMinor += BigInt(t.amount || 0);
-        }
-      }
-    }
-    // respond in both minor and whole units
-    const minor = tokenMinor.toString();
-    const whole = (Number(tokenMinor) / 100).toFixed(2);
-    res.json({ ok:true, address, network: net, tokenId, kiblMinor: minor, kibl: whole });
+    for (const u of tokenUtxos || []) tokenMinor += BigInt(u?.value || 0);
+
+    res.json({
+      ok: true,
+      address,
+      tokenId: tokenIdHex,
+      kiblMinor: tokenMinor.toString(),
+      kibl: (Number(tokenMinor) / 100).toFixed(2),
+      nexaUtxoCount: (nexaUtxos || []).length,
+      tokenUtxoCount: (tokenUtxos || []).length
+    });
   } catch (e) {
     console.error('balance_error', e);
     res.status(500).json({ ok:false, error:'balance_error' });
   }
 });
+
+// (optional) raw UTXOs for local signing in the browser
+// GET /api/rostrum/utxos?address=nexa:...
+app.get('/api/rostrum/utxos', async (req, res) => {
+  try {
+    const address = String(req.query.address || '');
+    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
+    if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
+    if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
+
+    const [tokenUtxos, nexaUtxos] = await Promise.all([
+      rostrumProvider.getTokenUtxos(address, tokenIdHex),
+      rostrumProvider.getNexaUtxos(address)
+    ]);
+
+    res.json({ ok:true, address, tokenId: tokenIdHex, tokenUtxos, nexaUtxos });
+  } catch (e) {
+    res.status(500).json({ ok:false, error:'utxos_error' });
+  }
+});
+
 // /api/wallet/link  (server)
 app.post('/api/wallet/link', async (req, res) => {
   try {
