@@ -16,18 +16,36 @@ const { WatchOnlyWallet ,rostrumProvider, Wallet}= require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
-// Use a real WSS hostname if you have one; otherwise many hosts accept "mainnet".
-const ROSTRUM_URL = process.env.ROSTRUM_URL || 'mainnet';
+const _sdkCjs = require('nexa-wallet-sdk');
+const _sdk = _sdkCjs && _sdkCjs.rostrumProvider ? _sdkCjs : (_sdkCjs.default || _sdkCjs);
 
-// Connect once (and log status)
-(async () => {
+let _rpConnected = null;
+
+async function rostrumReady() {
+  if (_rpConnected) return _rpConnected;
+  const rp = _sdk.rostrumProvider;               // <-- always defined now
+  const url = process.env.ROSTRUM_URL || 'mainnet';
+  await rp.connect(url);
+  console.log('[rostrum] connected ->', url);
+  _rpConnected = rp;
+  return rp;
+}
+
+// optional keepalive
+setInterval(async () => {
   try {
-    await rostrumProvider.connect(ROSTRUM_URL);
-    console.log('[rostrum] connected ->', ROSTRUM_URL);
+    const rp = await rostrumReady();
+    await rp.ping?.();
   } catch (e) {
-    console.error('[rostrum] initial connect failed:', e?.message || e);
+    try {
+      _rpConnected = null;
+      await rostrumReady();
+      console.log('[rostrum] reconnected');
+    } catch (err) {
+      console.error('[rostrum] reconnect failed:', err?.message || err);
+    }
   }
-})();
+}, 30_000);
 
 // Optional: simple keepalive / reconnect nudge
 setInterval(async () => {
@@ -269,12 +287,6 @@ function touch(rec, now) {
   return (!rec || (now - rec.windowStart) >= WINDOW_MS)
     ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
     : rec;
-}
-async function sdk() {
-  // thanks to the alias, this resolves to dist/index.web.mjs
-   import('nexa-wallet-sdk');
- const {rostrumProvider} =await sdk();
-  await rostrumProvider.connect('mainnet');
 }
 app.get('/api/profile', async (req, res) => {
   try {
@@ -713,38 +725,34 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    await rostrumReady();
+    await rostrumReady(); // ensures connected once
 
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
-      return res.status(400).json({ ok: false, error: 'bad_address' });
+      return res.status(400).json({ ok:false, error:'bad_address' });
     }
 
-    // amounts: accept whole KIBL from client, convert to minor (x100) here
     const toInt = v => Math.max(0, Math.floor(Number(v) || 0));
     const fee    = toInt(feeNexa ?? 600);
-    const kiblW  = toInt(kiblAmount ?? 100);     // whole tokens (e.g., 100 KIBL)
-    const kiblM  = kiblW * 100;                  // minor units
+    const kiblW  = toInt(kiblAmount ?? 100);
+    const kiblM  = kiblW * 100;
 
     const network    = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
-    const house      = process.env.HOUSE_ADDR_MAINNET;      // your receiving address
-    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;       // your KIBL group/token id
+    const house      = process.env.HOUSE_ADDR_MAINNET;
+    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
+    if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
 
-    if (!house || !tokenIdHex) {
-      return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
-    }
-
-    const { WatchOnlyWallet } = await import('nexa-wallet-sdk');
-
+    const { WatchOnlyWallet } = _sdk;
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
+
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
       .sendToToken(house, String(kiblM), tokenIdHex)
-      .populate()     // UTXOs + policy pulled via server-side rostrum connection
-      .build();       // UNSIGNED HEX
+      .populate()
+      .build();
 
-    res.json({ ok: true, unsignedTx, house, network });
+    res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
     res.status(500).json({ ok:false, error:'build_failed' });
@@ -754,7 +762,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 // --- BET: broadcast signed tx (server relays to network) ---------------
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-    await rostrumReady();
+    const rp = await rostrumReady();
 
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
@@ -762,13 +770,15 @@ app.post('/api/tx/broadcast', async (req, res) => {
     }
 
     let txid;
-    if (typeof rostrumProvider.broadcastTransaction === 'function') {
-      txid = await rostrumProvider.broadcastTransaction(hex);
+    if (typeof rp.broadcastTransaction === 'function') {
+      txid = await rp.broadcastTransaction(hex);
+    } else if (typeof rp.request === 'function') {
+      txid = await rp.request('blockchain.transaction.broadcast', [hex]);
     } else {
-      txid = await rostrumProvider.request('blockchain.transaction.broadcast', [hex]);
+      throw new Error('rostrumProvider has no broadcast method');
     }
-    if (!txid) throw new Error('no_txid');
 
+    if (!txid) throw new Error('no_txid');
     res.json({ ok:true, txid });
   } catch (e) {
     console.error('broadcast_error', e);
