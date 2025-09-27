@@ -5,9 +5,6 @@ import * as nodeCrypto from 'crypto-browserify';
 (globalThis as any).Buffer  ||= Buffer;
 (globalThis as any).process ||= process;
 (globalThis as any).__nodeCrypto = nodeCrypto;
-async function sdk() {
-  return await import('nexa-wallet-sdk'); // aliased to browser ESM
-}
 // src/walletBet.ts  (sign-only)
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
@@ -26,7 +23,6 @@ async function loadWallet(pass: string){
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
 
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  const { Wallet } = await import('nexa-wallet-sdk');      // aliased to browser ESM in vite.config
 
   // No provider passed — we are not fetching anything in the browser
   const wallet = new Wallet(seed, net);
