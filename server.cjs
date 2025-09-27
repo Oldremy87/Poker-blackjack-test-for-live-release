@@ -711,7 +711,7 @@ app.get('/api/wallet/status', async (req,res)=>{
 });
 
 
-pp.post('/api/bet/build-unsigned', async (req, res) => {
+app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
     await rostrumReady();
 

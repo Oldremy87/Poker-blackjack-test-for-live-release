@@ -8,12 +8,13 @@ import * as nodeCrypto from 'crypto-browserify';
 async function sdk() {
   return await import('nexa-wallet-sdk'); // aliased to browser ESM
 }
+// src/walletBet.ts  (sign-only)
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
 async function loadWallet(pass: string){
   const rawB64 = localStorage.getItem(KEY) || '';
-  if (!rawB64) throw new Error('No local wallet. Visit Connect.');
   const ivB64  = localStorage.getItem(IV)  || '';
+  if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
 
   const raw = atob(rawB64);
   const ivb = atob(ivB64);
@@ -25,44 +26,56 @@ async function loadWallet(pass: string){
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
 
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  const { Wallet } = await sdk();
-   const nullProvider = { request: async () => { throw new Error('Network disabled in browser'); } };
-  
-  const w = new Wallet(seed, net, );
-  await w.initialize();
-  const acct = w.accountStore.getAccount('2.0');
-  if (!acct) throw new Error('DApp account (2.0) not found. Open Connect and (re)create/import your wallet.');
-  const addr = acct.getPrimaryAddressKey().address;
-  return { wallet: w, account: acct, address: addr, network: net };
+  const { Wallet } = await import('nexa-wallet-sdk');      // aliased to browser ESM in vite.config
+
+  // No provider passed — we are not fetching anything in the browser
+  const wallet = new Wallet(seed, net);
+  await wallet.initialize();
+  const account = wallet.accountStore.getAccount('2.0');
+  if (!account) throw new Error('DApp account (2.0) not found.');
+  const address = account.getPrimaryAddressKey().address;
+
+  return { wallet, account, address, network: net };
 }
 
-export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }:{
+async function csrf() {
+  if ((window as any).csrfToken) return (window as any).csrfToken;
+  const r = await fetch('/api/csrf', { credentials:'include' });
+  const j = await r.json();
+  (window as any).csrfToken = j.csrfToken;
+  return j.csrfToken;
+}
+
+export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: {
   passphrase: string; kiblAmount: number; tokenIdHex: string; feeNexa: number;
-}){
+}) {
+  if (!passphrase || passphrase.length < 8) throw new Error('Password required (8+ chars).');
+
   const { wallet, account, address, network } = await loadWallet(passphrase);
- 
+  const CSRF = await csrf();
+
+  // 1) Build unsigned on the server (uses server rostrum)
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': (window as any).csrfToken || '' },
-    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
+    credentials:'include',
+    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+    body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
   });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'build_unsigned_failed');
-   const signed = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  const j = await r.json().catch(()=> ({} as any));
+  if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
-  // Relay via your server (no browser provider required)
+  // 2) Sign locally
+  const signedHex = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+
+  // 3) Broadcast via server
   const br = await fetch('/api/tx/broadcast', {
-   method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // your server sets CSRF on GET /api/csrf and expects this header on POSTs under /api
-      'CSRF-Token': (window as any).csrfToken || ''
-    },
-    body: JSON.stringify({ hex: signed })
+    method:'POST',
+    credentials:'include',
+    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+    body: JSON.stringify({ hex: signedHex })
   });
-  const bj = await br.json().catch(() => ({}));
-  if (!br.ok || !bj.ok) {
-    throw new Error(bj?.error || 'broadcast_failed');
-  }
+  const bj = await br.json().catch(()=> ({} as any));
+  if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
+
   return { txId: bj.txid, network, address, house: j.house };
 }
