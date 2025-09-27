@@ -1,4 +1,4 @@
-import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-CmEqrHkr.js";
+import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-B2SI0-L8.js";
 globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
@@ -15,6 +15,7 @@ async function loadWallet(pass) {
   const key = await crypto.subtle.importKey("raw", h, "AES-GCM", false, ["decrypt"]);
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
+  const { Wallet } = await import("./chunks/index.web-wporebpY.js");
   const wallet = new Wallet(seed, net);
   await wallet.initialize();
   const account = wallet.accountStore.getAccount("2.0");

@@ -1,7 +1,10 @@
-import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-CmEqrHkr.js";
+import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-B2SI0-L8.js";
 globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
+async function sdk() {
+  return await import("./chunks/index.web-wporebpY.js");
+}
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";
 async function ensureCsrf() {
@@ -77,6 +80,7 @@ async function init() {
   const btnLink = document.getElementById("btnLink");
   let address2 = null;
   async function bootFromSeed(seed, net) {
+    const { Wallet } = await sdk();
     const wallet2 = new Wallet(seed, net);
     await wallet2.initialize();
     const account2 = wallet2.accountStore.getAccount("2.0");
@@ -87,6 +91,7 @@ async function init() {
     try {
       const pass = passEl2.value || "";
       const net = netSel.value === "mainnet";
+      const { Wallet } = await sdk();
       const w = Wallet.create();
       const seed = w.export().phrase;
       await enc(pass, JSON.stringify({ seed, net }));

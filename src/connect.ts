@@ -5,7 +5,9 @@ import * as nodeCrypto from 'crypto-browserify';
 (globalThis as any).Buffer  ||= Buffer;
 (globalThis as any).process ||= process;
 (globalThis as any).__nodeCrypto = nodeCrypto;
-
+async function sdk() {
+  // thanks to the alias, this resolves to dist/index.web.mjs
+  return await import('nexa-wallet-sdk');}
 
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
@@ -95,6 +97,7 @@ async function init() {
   let address: string | null = null;
 
 async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
+  const { Wallet } = await sdk();
   const wallet = new Wallet(seed, net);
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');
@@ -106,6 +109,7 @@ async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
     try {
       const pass = passEl.value || '';
       const net  = (netSel.value === 'mainnet' );
+      const { Wallet } = await sdk();
       const w = Wallet.create();
       const seed = w.export().phrase;
       await enc(pass, JSON.stringify({ seed, net }));
