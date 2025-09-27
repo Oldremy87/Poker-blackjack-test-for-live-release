@@ -79,13 +79,8 @@ async function init() {
   const addrText = document.getElementById("addr");
   const btnLink = document.getElementById("btnLink");
   let address2 = null;
-  async function connectNetwork(net) {
-    const { rostrumProvider } = await sdk();
-    await rostrumProvider.connect(net);
-  }
   async function bootFromSeed(seed, net) {
     const { Wallet } = await sdk();
-    await connectNetwork("mainnet");
     const wallet2 = new Wallet(seed, net);
     await wallet2.initialize();
     const account2 = wallet2.accountStore.getAccount("2.0");

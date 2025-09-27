@@ -711,28 +711,68 @@ app.get('/api/wallet/status', async (req,res)=>{
 });
 
 
-app.post('/api/bet/build-unsigned',  async (req,res)=>{
+pp.post('/api/bet/build-unsigned', async (req, res) => {
   try {
+    await rostrumReady();
+
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
-    if (!fromAddress || !/^nexa:/.test(fromAddress)) return res.status(400).json({ ok:false, error:'bad_address' });
+    if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
+      return res.status(400).json({ ok: false, error: 'bad_address' });
+    }
 
-    const network = 'mainnet'; // you said mainnet only
-    const house   = process.env.HOUSE_ADDR_MAINNET;
-    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX; // <-- enforce KIBL
+    // amounts: accept whole KIBL from client, convert to minor (x100) here
+    const toInt = v => Math.max(0, Math.floor(Number(v) || 0));
+    const fee    = toInt(feeNexa ?? 600);
+    const kiblW  = toInt(kiblAmount ?? 100);     // whole tokens (e.g., 100 KIBL)
+    const kiblM  = kiblW * 100;                  // minor units
 
-    if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
+    const network    = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
+    const house      = process.env.HOUSE_ADDR_MAINNET;      // your receiving address
+    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;       // your KIBL group/token id
+
+    if (!house || !tokenIdHex) {
+      return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
+    }
+
+    const { WatchOnlyWallet } = await import('nexa-wallet-sdk');
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
-      .sendTo(house, String(feeNexa ?? 600))              
-      .sendToToken(house, String(kiblAmount ?? 10000), tokenIdHex) 
-      .populate()
-      .build(); // UNSIGNED hex
+      .sendTo(house, String(fee))
+      .sendToToken(house, String(kiblM), tokenIdHex)
+      .populate()     // UTXOs + policy pulled via server-side rostrum connection
+      .build();       // UNSIGNED HEX
 
-    res.json({ ok:true, unsignedTx, house, network });
+    res.json({ ok: true, unsignedTx, house, network });
   } catch (e) {
+    console.error('build_unsigned_failed', e);
     res.status(500).json({ ok:false, error:'build_failed' });
+  }
+});
+
+// --- BET: broadcast signed tx (server relays to network) ---------------
+app.post('/api/tx/broadcast', async (req, res) => {
+  try {
+    await rostrumReady();
+
+    const { hex } = req.body || {};
+    if (!hex || typeof hex !== 'string') {
+      return res.status(400).json({ ok:false, error:'bad_hex' });
+    }
+
+    let txid;
+    if (typeof rostrumProvider.broadcastTransaction === 'function') {
+      txid = await rostrumProvider.broadcastTransaction(hex);
+    } else {
+      txid = await rostrumProvider.request('blockchain.transaction.broadcast', [hex]);
+    }
+    if (!txid) throw new Error('no_txid');
+
+    res.json({ ok:true, txid });
+  } catch (e) {
+    console.error('broadcast_error', e);
+    res.status(500).json({ ok:false, error:'broadcast_error' });
   }
 });
 

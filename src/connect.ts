@@ -96,14 +96,8 @@ async function init() {
   let account: any = null;
   let address: string | null = null;
 
-async function connectNetwork(net: 'mainnet') {
-  const { rostrumProvider } = await sdk();
-  await rostrumProvider.connect(net);
-}
-
 async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
   const { Wallet } = await sdk();
-  await connectNetwork('mainnet');
   const wallet = new Wallet(seed, net);
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');
