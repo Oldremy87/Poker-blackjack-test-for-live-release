@@ -5,15 +5,21 @@ import * as nodeCrypto from 'crypto-browserify';
 (globalThis as any).Buffer  ||= Buffer;
 (globalThis as any).process ||= process;
 (globalThis as any).__nodeCrypto = nodeCrypto;
-async function sdk() {
-  return await import('nexa-wallet-sdk'); // aliased to browser ESM
-}
-// src/walletBet.ts  (sign-only)
+
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
+async function getSdk() {
+  // thanks to your alias, this resolves to the browser ESM build
+  return await import('nexa-wallet-sdk');
+}
+function getWalletCtor(mod: any) {
+  // handle both named and default-export shapes
+  return mod?.Wallet ?? mod?.default?.Wallet;
+}
+
 async function loadWallet(pass: string){
-  const rawB64 = localStorage.getItem(KEY) || '';
-  const ivB64  = localStorage.getItem(IV)  || '';
+  const rawB64 = localStorage.getItem(KEY);
+  const ivB64  = localStorage.getItem(IV);
   if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
 
   const raw = atob(rawB64);
@@ -24,12 +30,13 @@ async function loadWallet(pass: string){
   const h   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
   const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
-
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  const { Wallet } = await import('nexa-wallet-sdk');      // aliased to browser ESM in vite.config
 
-  // No provider passed — we are not fetching anything in the browser
-  const wallet = new Wallet(seed, net);
+  const sdk = await getSdk();
+  const WalletCtor = getWalletCtor(sdk);
+  if (!WalletCtor) throw new Error('SDK load error: Wallet export missing');
+
+  const wallet  = new WalletCtor(seed, net);   // no provider: we only sign here
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
@@ -54,7 +61,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
 
-  // 1) Build unsigned on the server (uses server rostrum)
+  // 1) Build unsigned on server (server uses its Rostrum)
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
     credentials:'include',

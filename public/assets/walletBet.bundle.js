@@ -3,9 +3,15 @@ globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
+async function getSdk() {
+  return await import("./chunks/index.web-wporebpY.js");
+}
+function getWalletCtor(mod) {
+  return mod?.Wallet ?? mod?.default?.Wallet;
+}
 async function loadWallet(pass) {
-  const rawB64 = localStorage.getItem(KEY) || "";
-  const ivB64 = localStorage.getItem(IV) || "";
+  const rawB64 = localStorage.getItem(KEY);
+  const ivB64 = localStorage.getItem(IV);
   if (!rawB64 || !ivB64) throw new Error("No local wallet. Visit Connect.");
   const raw = atob(rawB64);
   const ivb = atob(ivB64);
@@ -15,8 +21,10 @@ async function loadWallet(pass) {
   const key = await crypto.subtle.importKey("raw", h, "AES-GCM", false, ["decrypt"]);
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  const { Wallet } = await import("./chunks/index.web-wporebpY.js");
-  const wallet = new Wallet(seed, net);
+  const sdk = await getSdk();
+  const WalletCtor = getWalletCtor(sdk);
+  if (!WalletCtor) throw new Error("SDK load error: Wallet export missing");
+  const wallet = new WalletCtor(seed, net);
   await wallet.initialize();
   const account = wallet.accountStore.getAccount("2.0");
   if (!account) throw new Error("DApp account (2.0) not found.");
