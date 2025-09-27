@@ -26,8 +26,9 @@ async function loadWallet(pass: string){
 
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const { Wallet } = await sdk();
+   const nullProvider = { request: async () => { throw new Error('Network disabled in browser'); } };
   
-  const w = new Wallet(seed, net);
+  const w = new Wallet(seed, net, );
   await w.initialize();
   const acct = w.accountStore.getAccount('2.0');
   if (!acct) throw new Error('DApp account (2.0) not found. Open Connect and (re)create/import your wallet.');
@@ -49,19 +50,19 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }:{
   if (!j.ok) throw new Error(j.error || 'build_unsigned_failed');
    const signed = await wallet.newTransaction(account, j.unsignedTx).sign().build();
 
-  // Relay via server so the browser never opens WS:
+  // Relay via your server (no browser provider required)
   const br = await fetch('/api/tx/broadcast', {
-    method: 'POST',
+   method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // your server sets CSRF on GET /api/csrf and expects this header on POSTs under /api
       'CSRF-Token': (window as any).csrfToken || ''
     },
     body: JSON.stringify({ hex: signed })
   });
   const bj = await br.json().catch(() => ({}));
   if (!br.ok || !bj.ok) {
-    const errMsg = bj?.error || 'broadcast_failed';
-    throw new Error(errMsg);
+    throw new Error(bj?.error || 'broadcast_failed');
   }
   return { txId: bj.txid, network, address, house: j.house };
 }

@@ -40,14 +40,14 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      // your server sets CSRF on GET /api/csrf and expects this header on POSTs under /api
       "CSRF-Token": window.csrfToken || ""
     },
     body: JSON.stringify({ hex: signed })
   });
   const bj = await br.json().catch(() => ({}));
   if (!br.ok || !bj.ok) {
-    const errMsg = bj?.error || "broadcast_failed";
-    throw new Error(errMsg);
+    throw new Error(bj?.error || "broadcast_failed");
   }
   return { txId: bj.txid, network, address, house: j.house };
 }
