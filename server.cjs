@@ -12,7 +12,6 @@ const { Pool } = require('pg');
 const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
-const { WatchOnlyWallet ,rostrumProvider, Wallet}= require('nexa-wallet-sdk');
 const app = express();
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
@@ -60,7 +59,40 @@ setInterval(async () => {
     }
   }
 }, 30_000);
+// ── SDK import (CJS compatible) + single provider ────────────────────────────
+const sdkCjs = require('nexa-wallet-sdk');
+const SDK = sdkCjs && sdkCjs.rostrumProvider ? sdkCjs : (sdkCjs.default || sdkCjs);
 
+let rpMemo = null;
+
+async function rostrumReady() {
+  if (rpMemo) return rpMemo;
+
+  const rp = SDK.rostrumProvider; // <- single source of truth
+  if (!rp) throw new Error('SDK.rostrumProvider is undefined');
+
+  const url = process.env.ROSTRUM_URL || 'mainnet';
+  await rp.connect(url);
+  console.log('[rostrum] connected ->', url);
+  rpMemo = rp;
+  return rpMemo;
+}
+
+// Optional keepalive/reconnect using the SAME instance
+setInterval(async () => {
+  try {
+    const rp = await rostrumReady();
+    await rp.ping?.();
+  } catch {
+    try {
+      rpMemo = null;
+      await rostrumReady();
+      console.log('[rostrum] reconnected');
+    } catch (e) {
+      console.error('[rostrum] reconnect failed:', e?.message || e);
+    }
+  }
+}, 30_000);
 
 
 
@@ -648,9 +680,10 @@ app.get('/api/wallet/balance', async (req, res) => {
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
 
+    const rp = await rostrumReady();
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrumProvider.getTokenUtxos(address, tokenIdHex),
-      rostrumProvider.getNexaUtxos(address)
+      rp.getTokenUtxos(address, tokenIdHex),
+      rp.getNexaUtxos(address)
     ]);
 
     let tokenMinor = 0n;
@@ -722,10 +755,9 @@ app.get('/api/wallet/status', async (req,res)=>{
   } catch { res.status(500).json({ ok:false, error:'status_error' }); }
 });
 
-
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    await rostrumReady(); // ensures connected once
+    await rostrumReady(); // ensures provider is connected once
 
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
@@ -740,11 +772,12 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const network    = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
     const house      = process.env.HOUSE_ADDR_MAINNET;
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
-    if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
+    if (!house || !tokenIdHex) {
+      return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
+    }
 
-    const { WatchOnlyWallet } = _sdk;
+    const { WatchOnlyWallet } = SDK;
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
-
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
@@ -758,6 +791,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     res.status(500).json({ ok:false, error:'build_failed' });
   }
 });
+
 
 // --- BET: broadcast signed tx (server relays to network) ---------------
 app.post('/api/tx/broadcast', async (req, res) => {
@@ -775,6 +809,7 @@ app.post('/api/tx/broadcast', async (req, res) => {
     } else if (typeof rp.request === 'function') {
       txid = await rp.request('blockchain.transaction.broadcast', [hex]);
     } else {
+      console.error('rp methods:', Object.keys(rp || {}));
       throw new Error('rostrumProvider has no broadcast method');
     }
 
@@ -785,6 +820,7 @@ app.post('/api/tx/broadcast', async (req, res) => {
     res.status(500).json({ ok:false, error:'broadcast_error' });
   }
 });
+
 
 
 function evalHand(hand) {
