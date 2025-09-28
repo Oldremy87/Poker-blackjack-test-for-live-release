@@ -627,12 +627,11 @@ app.get('/api/wallet/balance', async (req, res) => {
   try {
     const address = String(req.query.address || '');
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
-
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
-
-    // use the already-connected rostrumProvider
-    if (!rostrumProvider) return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    if (!rostrumProvider || typeof rostrumProvider !== 'object') {
+      return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    }
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
       rostrumProvider.getTokenUtxos(address, tokenIdHex),
@@ -657,15 +656,15 @@ app.get('/api/wallet/balance', async (req, res) => {
   }
 });
 
-
 app.get('/api/rostrum/utxos', async (req, res) => {
   try {
     const address = String(req.query.address || '');
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
-
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
-    if (!rostrumProvider) return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    if (!rostrumProvider || typeof rostrumProvider !== 'object') {
+      return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    }
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
       rostrumProvider.getTokenUtxos(address, tokenIdHex),
@@ -678,6 +677,7 @@ app.get('/api/rostrum/utxos', async (req, res) => {
     res.status(500).json({ ok:false, error:'utxos_error' });
   }
 });
+
 
 // /api/wallet/link  (server)
 app.post('/api/wallet/link', async (req, res) => {
@@ -712,7 +712,9 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    if (!rostrumProvider) return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    if (!rostrumProvider || typeof rostrumProvider !== 'object') {
+      return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    }
 
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
@@ -720,24 +722,24 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     }
 
     const toInt = v => Math.max(0, Math.floor(Number(v) || 0));
-    const fee    = toInt(feeNexa ?? 600);
-    const kiblW  = toInt(kiblAmount ?? 100); // whole KIBL
-    const kiblM  = kiblW * 100;              // minor
+    const fee   = toInt(feeNexa ?? 600);
+    const kiblW = toInt(kiblAmount ?? 100);   // whole KIBL
+    const kiblM = kiblW * 100;                // minor units
 
     const network    = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
     const house      = process.env.HOUSE_ADDR_MAINNET;
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
 
-    // If the ctor accepts a provider param, pass it. Otherwise the extra arg is ignored.
+    // Important: pass the server’s connected provider
     const w = new WatchOnlyWallet([{ address: fromAddress }], network, rostrumProvider);
 
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
       .sendToToken(house, String(kiblM), tokenIdHex)
-      .populate()  // uses the SDK’s internal/global provider (already connected above)
-      .build();    // returns UNSIGNED hex
+      .populate()   // uses the provider we passed above
+      .build();     // returns UNSIGNED hex
 
     res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
@@ -748,7 +750,10 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-    if (!rostrumProvider) return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    const rp = rostrumProvider;
+    if (!rp || typeof rp !== 'object') {
+      return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    }
 
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
@@ -756,15 +761,19 @@ app.post('/api/tx/broadcast', async (req, res) => {
     }
 
     let txid;
-    if (typeof rostrumProvider.broadcastTransaction === 'function') {
-      txid = await rostrumProvider.broadcastTransaction(hex);
-    } else if (typeof rostrumProvider.request === 'function') {
-      txid = await rostrumProvider.request('blockchain.transaction.broadcast', [hex]);
+    if (typeof rp.broadcastTransaction === 'function') {
+      txid = await rp.broadcastTransaction(hex);
+    } else if (typeof rp.broadcast === 'function') {
+      txid = await rp.broadcast(hex);
+    } else if (typeof rp.request === 'function') {
+      txid = await rp.request('blockchain.transaction.broadcast', [hex]);
+    } else if (typeof rp.call === 'function') {
+      txid = await rp.call('blockchain.transaction.broadcast', [hex]);
     } else {
-      throw new Error('rostrumProvider has no broadcast method');
+      return res.status(500).json({ ok:false, error:'no_broadcast' });
     }
 
-    if (!txid) throw new Error('no_txid');
+    if (!txid || typeof txid !== 'string') throw new Error('no_txid');
     res.json({ ok:true, txid });
   } catch (e) {
     console.error('broadcast_error', e);

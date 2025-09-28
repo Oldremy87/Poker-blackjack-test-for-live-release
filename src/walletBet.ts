@@ -63,7 +63,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
     credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'x-csrf-token': CSRF },
+    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
     body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
   });
   const j = await r.json().catch(()=> ({} as any));
@@ -76,7 +76,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const br = await fetch('/api/tx/broadcast', {
     method:'POST',
     credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'x-csrf-token': CSRF },
+    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
     body: JSON.stringify({ hex: signedHex })
   });
   const bj = await br.json().catch(()=> ({} as any));
