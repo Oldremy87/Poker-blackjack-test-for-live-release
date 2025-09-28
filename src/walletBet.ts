@@ -9,11 +9,9 @@ import * as nodeCrypto from 'crypto-browserify';
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
 async function getSdk() {
-  // thanks to your alias, this resolves to the browser ESM build
-  return await import('nexa-wallet-sdk');
+  return await import('nexa-wallet-sdk'); // vite alias points to browser ESM build
 }
 function getWalletCtor(mod: any) {
-  // handle both named and default-export shapes
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
 
@@ -34,9 +32,9 @@ async function loadWallet(pass: string){
 
   const sdk = await getSdk();
   const WalletCtor = getWalletCtor(sdk);
-  if (!WalletCtor) throw new Error('SDK load error: Wallet export missing');
+  if (!WalletCtor) throw new Error('Wallet export missing');
 
-  const wallet  = new WalletCtor(seed, net);   // no provider: we only sign here
+  const wallet  = new WalletCtor(seed, net);  // sign-only, no provider
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
@@ -61,24 +59,24 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
 
-  // 1) Build unsigned on server (server uses its Rostrum)
+  // 1) Build unsigned via your server (server talks to Rostrum)
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
     credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+    headers:{ 'Content-Type':'application/json', 'x-csrf-token': CSRF },
     body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
   });
   const j = await r.json().catch(()=> ({} as any));
   if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
-  // 2) Sign locally
+  // 2) Sign in browser
   const signedHex = await wallet.newTransaction(account, j.unsignedTx).sign().build();
 
   // 3) Broadcast via server
   const br = await fetch('/api/tx/broadcast', {
     method:'POST',
     credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+    headers:{ 'Content-Type':'application/json', 'x-csrf-token': CSRF },
     body: JSON.stringify({ hex: signedHex })
   });
   const bj = await br.json().catch(()=> ({} as any));
