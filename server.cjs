@@ -18,7 +18,7 @@ const _sdkCjs = require('nexa-wallet-sdk');
 const _sdk = _sdkCjs && _sdkCjs.rostrumProvider ? _sdkCjs : (_sdkCjs.default || _sdkCjs);
 const { WatchOnlyWallet, Wallet } = _sdk;
 const rostrum = _sdk.rostrumProvider;   // <- the single provider instance we’ll use everywhere
-
+const { WatchOnlyWallet , rostrumProvider, Wallet, TxTokenType } = require('nexa-wallet-sdk');
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
 process.on('unhandledRejection', (reason) => {
@@ -737,12 +737,19 @@ app.get('/api/wallet/status', async (req,res)=>{
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
    console.log('[build-unsigned] body', req.body);
-    console.log('[build-unsigned] rostrum shape', provShape(rostrum));
-
+    const rostrum = rostrumProvider;
+   console.log('[build-unsigned] rostrum shape', {
+     type: typeof rostrum,
+     hasConnect: !!rostrum?.connect,
+     hasBroadcast: !!rostrum?.broadcast,
+     hasRequest: !!rostrum?.request,
+    hasGetUtxos: !!rostrum?.getNexaUtxos && !!rostrum?.getTokenUtxos,
+    });
+   
     if (!rostrum || typeof rostrum !== 'object') {
       return res.status(500).json({ ok:false, error:'rostrum_missing' });
     }
-
+  
 
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
@@ -754,19 +761,19 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const kiblW = toInt(kiblAmount ?? 100);   // whole KIBL
     const kiblM = kiblW * 100;                // minor units
 
-    const network    = (process.env.NEXA_NET === String('mainnet'));
+    const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
     const house      = process.env.HOUSE_ADDR_MAINNET;
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
 
     // Important: pass the server’s connected provider
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network /* sign-only ctor */)
-     await w.initialize?.();
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network, rostrum);
+   await w.initialize?.();
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
       .sendToToken(house, String(kiblM), tokenIdHex)
-      .populate(rostrum)   // uses the provider we passed above
+      .populate()   // uses the provider we passed above
       .build();     // returns UNSIGNED hex
 console.log('[populate] using provider', {
   hasBroadcast: typeof rostrum.broadcast === 'function',
