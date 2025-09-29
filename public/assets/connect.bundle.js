@@ -125,7 +125,7 @@ async function init() {
   btnLink?.addEventListener("click", async () => {
     try {
       if (!address2) return alert("No address yet.");
-      const net = netSel.value === "mainnet" ? "mainnet" : "testnet";
+      const net = netSel.value === "mainnet";
       const j = await postJSON("/api/wallet/link", { address: address2, network: net });
       alert("Wallet linked!");
       location.href = "/play.html";

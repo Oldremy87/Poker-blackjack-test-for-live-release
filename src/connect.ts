@@ -96,7 +96,7 @@ async function init() {
   let account: any = null;
   let address: string | null = null;
 
-async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
+async function bootFromSeed(seed: string, net: 'mainnet') {
   const { Wallet } = await sdk();
   const wallet = new Wallet(seed, net);
   await wallet.initialize();
@@ -144,7 +144,7 @@ async function bootFromSeed(seed: string, net: 'mainnet'|'testnet') {
 btnLink?.addEventListener('click', async () => {
   try {
     if (!address) return alert('No address yet.');
-    const net = (netSel.value === 'mainnet' ? 'mainnet' : 'testnet');
+    const net = (netSel.value === 'mainnet' );
     const j = await postJSON('/api/wallet/link', { address, network: net });
     alert('Wallet linked!');
     location.href = '/play.html';

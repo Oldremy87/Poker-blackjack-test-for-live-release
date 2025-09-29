@@ -32,7 +32,12 @@ async function loadWallet(pass: string){
 
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;  // Extract rostrumProvider from the SDK
-  await rostrumProvider.connect(net);  // Connect to the network (mainnet or testnet) before initializing
+
+  // Explicit connection parameters to avoid fallback
+  const host = net === 'mainnet' ? 'electrum.nexa.org' : 'testnet-electrum.nexa.org';
+  const port = net === 'mainnet' ? 20004 : 30004;
+  const scheme = 'wss';
+  await rostrumProvider.connect({ host, port, scheme });
 
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
@@ -63,12 +68,12 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const CSRF = await csrf();
 
   // 1) Build unsigned via your server (server talks to Rostrum)
-  console.log('[placeBet] from', address, 'kiblAmount', kiblAmount, 'feeNexa', feeNexa);
+  console.log('[placeBet] from', address, 'kiblAmount', kiblAmount, 'tokenIdHex', tokenIdHex, 'feeNexa', feeNexa);
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
     credentials:'include',
     headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
+    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
   });
   const j = await r.json().catch(()=> ({} as any));
   console.log('[placeBet] build-unsigned response ok?', r.ok, 'payload keys', Object.keys(j || {}));

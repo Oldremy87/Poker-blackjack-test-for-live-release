@@ -23,7 +23,10 @@ async function loadWallet(pass) {
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  await rostrumProvider.connect(net);
+  const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
+  const port = net === "mainnet" ? 20004 : 30004;
+  const scheme = "wss";
+  await rostrumProvider.connect({ host, port, scheme });
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
@@ -44,12 +47,12 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
-  console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "feeNexa", feeNexa);
+  console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "tokenIdHex", tokenIdHex, "feeNexa", feeNexa);
   const r = await fetch("/api/bet/build-unsigned", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
-    body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
+    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
   });
   const j = await r.json().catch(() => ({}));
   console.log("[placeBet] build-unsigned response ok?", r.ok, "payload keys", Object.keys(j || {}));
