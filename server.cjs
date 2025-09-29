@@ -761,13 +761,17 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     // Important: pass the server’s connected provider
     const w = new WatchOnlyWallet([{ address: fromAddress }], network /* sign-only ctor */)
+     await w.initialize?.();
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
       .sendToToken(house, String(kiblM), tokenIdHex)
       .populate(rostrum)   // uses the provider we passed above
       .build();     // returns UNSIGNED hex
-
+console.log('[populate] using provider', {
+  hasBroadcast: typeof rostrum.broadcast === 'function',
+  hasRequest: typeof rostrum.request === 'function'
+});
     res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
@@ -797,25 +801,19 @@ app.post('/api/tx/broadcast', async (req, res) => {
       return res.status(400).json({ ok:false, error:'bad_hex' });
     }
 
-     let txid;
-    if (typeof rostrum.broadcastTransaction === 'function') {
-      console.log('[broadcast] using broadcastTransaction');
+      let txid;
+    if (typeof rostrum.broadcast === 'function') {
+      txid = await rostrum.broadcast(hex);        // <-- your provider supports this
+    } else if (typeof rostrum.broadcastTransaction === 'function') {
       txid = await rostrum.broadcastTransaction(hex);
-    } else if (typeof rostrum.broadcast === 'function') {
-      console.log('[broadcast] using broadcast');
-      txid = await rostrum.broadcast(hex);
     } else if (typeof rostrum.request === 'function') {
-      console.log('[broadcast] using request');
       txid = await rostrum.request('blockchain.transaction.broadcast', [hex]);
     } else if (typeof rostrum.call === 'function') {
-      console.log('[broadcast] using call');
       txid = await rostrum.call('blockchain.transaction.broadcast', [hex]);
     } else {
-      console.error('[broadcast] no broadcast-capable method on provider');
       return res.status(500).json({ ok:false, error:'no_broadcast' });
     }
 
-    console.log('[broadcast] txid', txid);
     if (!txid || typeof txid !== 'string') throw new Error('no_txid');
     res.json({ ok:true, txid });
   } catch (e) {
