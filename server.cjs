@@ -716,9 +716,13 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
+   console.log('[build-unsigned] body', req.body);
+    console.log('[build-unsigned] rostrum shape', provShape(rostrum));
+
     if (!rostrum || typeof rostrum !== 'object') {
       return res.status(500).json({ ok:false, error:'rostrum_missing' });
     }
+
 
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
@@ -754,9 +758,19 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
     const rp = rostrum;
+    console.log('[broadcast] hex len', hex?.length);
+    console.log('[broadcast] rostrum shape', provShape(rp));
+    
     if (!rp || typeof rp !== 'object') {
       return res.status(500).json({ ok:false, error:'rostrum_missing' });
     }
+  
+    
+    
+    if (!rostrum || typeof rostrum !== 'object') {
+      return res.status(500).json({ ok:false, error:'rostrum_missing' });
+    }
+  
 
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {

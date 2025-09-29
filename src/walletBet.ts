@@ -60,6 +60,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const CSRF = await csrf();
 
   // 1) Build unsigned via your server (server talks to Rostrum)
+  console.log('[placeBet] from', address, 'kiblAmount', kiblAmount, 'feeNexa', feeNexa);
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
     credentials:'include',
@@ -67,10 +68,13 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
     body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
   });
   const j = await r.json().catch(()=> ({} as any));
+  console.log('[placeBet] build-unsigned response ok?', r.ok, 'payload keys', Object.keys(j || {}));
   if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
   // 2) Sign in browser
+  console.log('[placeBet] signing…');
   const signedHex = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  console.log('[placeBet] signedHex len', signedHex?.length);
 
   // 3) Broadcast via server
   const br = await fetch('/api/tx/broadcast', {
@@ -80,6 +84,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
     body: JSON.stringify({ hex: signedHex })
   });
   const bj = await br.json().catch(()=> ({} as any));
+  console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
   if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
 
   return { txId: bj.txid, network, address, house: j.house };

@@ -42,6 +42,7 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
+  console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "feeNexa", feeNexa);
   const r = await fetch("/api/bet/build-unsigned", {
     method: "POST",
     credentials: "include",
@@ -49,8 +50,11 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
     body: JSON.stringify({ fromAddress: address, kiblAmount, feeNexa })
   });
   const j = await r.json().catch(() => ({}));
+  console.log("[placeBet] build-unsigned response ok?", r.ok, "payload keys", Object.keys(j || {}));
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
+  console.log("[placeBet] signing…");
   const signedHex = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  console.log("[placeBet] signedHex len", signedHex?.length);
   const br = await fetch("/api/tx/broadcast", {
     method: "POST",
     credentials: "include",
@@ -58,6 +62,7 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
     body: JSON.stringify({ hex: signedHex })
   });
   const bj = await br.json().catch(() => ({}));
+  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
   if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
   return { txId: bj.txid, network, address, house: j.house };
 }
