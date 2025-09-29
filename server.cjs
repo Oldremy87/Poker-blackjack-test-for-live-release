@@ -16,7 +16,7 @@ const app = express();
 // Always work off one module object so the provider remains a true singleton.
 const _sdkCjs = require('nexa-wallet-sdk');
 const _sdk = _sdkCjs && _sdkCjs.rostrumProvider ? _sdkCjs : (_sdkCjs.default || _sdkCjs);
-const { WatchOnlyWallet, Wallet } = _sdk;
+const { WatchOnlyWallet, Wallet, TxTokenType } = _sdk;
 const rostrum = _sdk.rostrumProvider;   // <- the single provider instance we’ll use everywhere
 
 app.set('trust proxy', 1);
@@ -765,7 +765,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
-      .sendToToken(house, String(kiblM), tokenIdHex)
+      .sendToToken(house, String(kiblM), tokenIdHex, TxTokenType.GROUP)
       .populate()   // uses the provider we passed above
       .build();     // returns UNSIGNED hex
 console.log('[populate] using provider', {
