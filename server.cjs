@@ -21,6 +21,25 @@ const rostrum = _sdk.rostrumProvider;   // <- the single provider instance we’
 
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+function provShape(p){
+  return {
+    type: typeof p,
+    hasConnect: typeof p?.connect === 'function',
+    hasPing: typeof p?.ping === 'function',
+    hasRequest: typeof p?.request === 'function',
+    hasCall: typeof p?.call === 'function',
+    hasBroadcast: typeof p?.broadcast === 'function',
+    hasBroadcastTx: typeof p?.broadcastTransaction === 'function',
+  };
+}
+console.log('[sdk keys]', Object.keys(_sdk));
+console.log('[rostrum shape @import]', provShape(rostrum));
 // Use a real WSS hostname if you have one; otherwise many hosts accept "mainnet".
 const ROSTRUM_URL = process.env.ROSTRUM_URL || 'mainnet';
 
@@ -28,7 +47,7 @@ const ROSTRUM_URL = process.env.ROSTRUM_URL || 'mainnet';
 (async () => {
   try {
    await rostrum.connect(ROSTRUM_URL);
-    console.log('[rostrum] connected ->', ROSTRUM_URL);
+    console.log('[rostrum] connected ->', ROSTRUM_URL, provShape(rostrum));
   } catch (e) {
     console.error('[rostrum] initial connect failed:', e?.message || e);
   }
@@ -37,11 +56,12 @@ const ROSTRUM_URL = process.env.ROSTRUM_URL || 'mainnet';
 // Optional: simple keepalive / reconnect nudge
 setInterval(async () => {
   try {
+    console.log('[rostrum ping]', provShape(rostrum));
     await rostrum.ping?.();
   } catch {
     try {
        await rostrum.connect(ROSTRUM_URL);
-      console.log('[rostrum] reconnected');
+      console.log('[rostrum] reconnected', provShape(rostrum));
     } catch (e) {
       console.error('[rostrum] reconnect failed:', e?.message || e);
     }
@@ -777,19 +797,25 @@ app.post('/api/tx/broadcast', async (req, res) => {
       return res.status(400).json({ ok:false, error:'bad_hex' });
     }
 
-    let txid;
-    if (typeof rp.broadcastTransaction === 'function') {
-      txid = await rp.broadcastTransaction(hex);
-    } else if (typeof rp.broadcast === 'function') {
-      txid = await rp.broadcast(hex);
-    } else if (typeof rp.request === 'function') {
-      txid = await rp.request('blockchain.transaction.broadcast', [hex]);
-    } else if (typeof rp.call === 'function') {
-      txid = await rp.call('blockchain.transaction.broadcast', [hex]);
+     let txid;
+    if (typeof rostrum.broadcastTransaction === 'function') {
+      console.log('[broadcast] using broadcastTransaction');
+      txid = await rostrum.broadcastTransaction(hex);
+    } else if (typeof rostrum.broadcast === 'function') {
+      console.log('[broadcast] using broadcast');
+      txid = await rostrum.broadcast(hex);
+    } else if (typeof rostrum.request === 'function') {
+      console.log('[broadcast] using request');
+      txid = await rostrum.request('blockchain.transaction.broadcast', [hex]);
+    } else if (typeof rostrum.call === 'function') {
+      console.log('[broadcast] using call');
+      txid = await rostrum.call('blockchain.transaction.broadcast', [hex]);
     } else {
+      console.error('[broadcast] no broadcast-capable method on provider');
       return res.status(500).json({ ok:false, error:'no_broadcast' });
     }
 
+    console.log('[broadcast] txid', txid);
     if (!txid || typeof txid !== 'string') throw new Error('no_txid');
     res.json({ ok:true, txid });
   } catch (e) {
@@ -797,7 +823,6 @@ app.post('/api/tx/broadcast', async (req, res) => {
     res.status(500).json({ ok:false, error:'broadcast_error' });
   }
 });
-
 
 function evalHand(hand) {
   const sorted = hand.slice().sort((a,b)=>RANK_VALUE[a.rank]-RANK_VALUE[b.rank]);
