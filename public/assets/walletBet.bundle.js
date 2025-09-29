@@ -23,7 +23,7 @@ async function loadWallet(pass) {
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  const host = net === "mainnet" ? "electrum.nexa.org" : "electrum.nexa.org";
+  const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
   const port = net === "mainnet" ? 20004 : 30004;
   const scheme = "wss";
   await rostrumProvider.connect({ host, port, scheme });

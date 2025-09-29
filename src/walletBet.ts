@@ -34,7 +34,7 @@ async function loadWallet(pass: string){
   const { rostrumProvider } = sdk;  // Extract rostrumProvider from the SDK
 
   // Explicit connection parameters to avoid fallback
-  const host = net === 'mainnet' ? 'electrum.nexa.org' : 'electrum.nexa.org' ;
+  const host = net === 'mainnet' ? 'electrum.nexa.org' : 'testnet-electrum.nexa.org';
   const port = net === 'mainnet' ? 20004 : 30004;
   const scheme = 'wss';
   await rostrumProvider.connect({ host, port, scheme });
