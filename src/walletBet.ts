@@ -31,10 +31,13 @@ async function loadWallet(pass: string){
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
 
   const sdk = await getSdk();
+  const { rostrumProvider } = sdk;  // Extract rostrumProvider from the SDK
+  await rostrumProvider.connect(net);  // Connect to the network (mainnet or testnet) before initializing
+
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
 
-  const wallet  = new WalletCtor(seed, net);  // sign-only, no provider
+  const wallet  = new WalletCtor(seed, net);
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');

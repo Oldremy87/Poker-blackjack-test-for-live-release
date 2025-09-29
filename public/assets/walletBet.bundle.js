@@ -22,6 +22,8 @@ async function loadWallet(pass) {
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
+  const { rostrumProvider } = sdk;
+  await rostrumProvider.connect(net);
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
