@@ -18,7 +18,7 @@ const _sdkCjs = require('nexa-wallet-sdk');
 const _sdk = _sdkCjs && _sdkCjs.rostrumProvider ? _sdkCjs : (_sdkCjs.default || _sdkCjs);
 const { WatchOnlyWallet, Wallet } = _sdk;
 const rostrum = _sdk.rostrumProvider;   // <- the single provider instance we’ll use everywhere
-const { WatchOnlyWallet , rostrumProvider, Wallet, TxTokenType } = require('nexa-wallet-sdk');
+
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
 process.on('unhandledRejection', (reason) => {
