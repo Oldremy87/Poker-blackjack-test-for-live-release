@@ -754,7 +754,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const kiblW = toInt(kiblAmount ?? 100);   // whole KIBL
     const kiblM = kiblW * 100;                // minor units
 
-    const network    = (process.env.NEXA_NET === 'mainnet');
+    const network    = (process.env.NEXA_NET === String('mainnet'));
     const house      = process.env.HOUSE_ADDR_MAINNET;
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
