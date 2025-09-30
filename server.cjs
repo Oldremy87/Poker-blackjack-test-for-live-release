@@ -792,6 +792,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     // rostrumProvider singleton is already connected; .populate() will use it.
     // If your SDK requires an explicit provider, pass it: .populate(rostrum)
     const unsignedTx = await tx.populate().build();
+    console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
 console.log('[populate] using provider', {
   hasBroadcast: typeof rostrum.broadcast === 'function',
   hasRequest: typeof rostrum.request === 'function'
