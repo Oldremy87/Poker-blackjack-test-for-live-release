@@ -756,18 +756,42 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
     const house      = process.env.HOUSE_ADDR_MAINNET;
-    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
-    if (!house || !tokenIdHex) return res.status(500).json({ ok:false, error:'server_token_or_house_not_set' });
+    let rawToken = String(process.env.KIBL_TOKEN_ID_HEX || '').trim().toLowerCase();
+    if (rawToken.startsWith('0x')) rawToken = rawToken.slice(2);
+    // If value ends in "0000", try treating it as a padded GROUP id
+    // (some exports add 2 zero bytes). Prefer a clean 64-hex GROUP id where possible.
+    let tokenType = TxTokenType.GROUP;
+    let tokenIdHex = rawToken;
+    if (/^[0-9a-f]+$/.test(rawToken)) {
+      if (rawToken.length === 64) {
+        tokenType = TxTokenType.GROUP;
+        tokenIdHex = rawToken;
+      } else if (rawToken.length > 64 && rawToken.endsWith('0000') && rawToken.slice(0,64).match(/^[0-9a-f]{64}$/)) {
+        // Treat as GROUP id that was padded; slice to 64 hex
+        tokenType = TxTokenType.GROUP;
+        tokenIdHex = rawToken.slice(0, 64);
+      } else {
+        // Full token id (category + commitment) → use ID mode
+        tokenType = TxTokenType.ID;
+        tokenIdHex = rawToken;
+        console.log('[token]', { rawToken, tokenIdHex, tokenType, len: rawToken.length });
+      }
+    } else {
+      return res.status(500).json({ ok:false, error:'bad_token_hex' });
+    }
 
     // Important: pass the server’s connected provider
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network /* sign-only ctor */)
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network)
      await w.initialize?.();
-    const unsignedTx = await w.newTransaction()
+    const tx = w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
-      .sendToToken(house, String(kiblM), tokenIdHex, TxTokenType.GROUP)
-      .populate()   // uses the provider we passed above
-      .build();     // returns UNSIGNED hex
+       .sendToToken(house, String(kiblM), tokenIdHex, tokenType);
+
+    // IMPORTANT: make sure populate() has a provider available. Your SDK’s
+    // rostrumProvider singleton is already connected; .populate() will use it.
+    // If your SDK requires an explicit provider, pass it: .populate(rostrum)
+    const unsignedTx = await tx.populate().build();
 console.log('[populate] using provider', {
   hasBroadcast: typeof rostrum.broadcast === 'function',
   hasRequest: typeof rostrum.request === 'function'
