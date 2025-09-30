@@ -786,7 +786,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const tx = w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
-       .sendToToken(house, String(kiblM), tokenIdHex, tokenType);
+      .sendToToken(house, String(kiblM), TxTokenType.GROUP, tokenIdHex)
 
     // IMPORTANT: make sure populate() has a provider available. Your SDK’s
     // rostrumProvider singleton is already connected; .populate() will use it.
