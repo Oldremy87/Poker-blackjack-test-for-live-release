@@ -765,6 +765,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .onNetwork(network)
       .sendTo(house, String(fee))
       .sendToToken(house, String(kiblM), tokenId)
+      .addOpReturn("Watch-only transaction")
       .populate()
       .build();
   
