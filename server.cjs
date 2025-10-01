@@ -654,31 +654,44 @@ app.get('/api/wallet/balance', async (req, res) => {
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
-    if (!rostrum || typeof rostrum !== 'object')  { return res.status(500).json({ ok:false, error:'rostrum_missing' });
-    }
+    if (!rostrum || typeof rostrum !== 'object') return res.status(500).json({ ok:false, error:'rostrum_missing' });
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-   rostrum.getTokenUtxos(address, tokenIdHex),
-   rostrum.getNexaUtxos(address)
- ]);
+      rostrum.getTokenUtxos(address, tokenIdHex),
+      rostrum.getNexaUtxos(address),
+    ]);
 
     let tokenMinor = 0n;
     for (const u of tokenUtxos || []) tokenMinor += BigInt(u?.value || 0);
+
+    let nexaMinor = 0n; 
+    for (const u of nexaUtxos || []) nexaMinor += BigInt(u?.value || 0);
+
+    const toFixed = (bn, decimals) => {
+      const s = bn.toString();
+      const pad = decimals - Math.min(decimals, s.length);
+      const left = s.length > decimals ? s.slice(0, -decimals) : '0';
+      const right = (pad > 0 ? '0'.repeat(pad) : '') + s.slice(-decimals).padStart(decimals, '0');
+      return `${left}.${right}`.replace(/^0+(?=\.)/, '0');
+    };
 
     res.json({
       ok: true,
       address,
       tokenId: tokenIdHex,
       kiblMinor: tokenMinor.toString(),
-      kibl: (Number(tokenMinor) / 100).toFixed(2),
+      kibl: toFixed(tokenMinor, 2),          // KIBL has 2 decimals
+      nexaMinor: nexaMinor.toString(),
+      nexa: toFixed(nexaMinor, 2),           // NEXA: 2 decimals
       nexaUtxoCount: (nexaUtxos || []).length,
-      tokenUtxoCount: (tokenUtxos || []).length
+      tokenUtxoCount: (tokenUtxos || []).length,
     });
   } catch (e) {
     console.error('balance_error', e);
     res.status(500).json({ ok:false, error:'balance_error' });
   }
 });
+
 
 app.get('/api/rostrum/utxos', async (req, res) => {
   try {

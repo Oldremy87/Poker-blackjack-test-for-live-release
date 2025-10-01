@@ -675,6 +675,7 @@ body.compact {
      <a class="btn btn-ghost" href="pointstable.html">Point Table</Table></a>
      <p id="payoutTotal">Total Payout: 0 KIBL</p>
      <p id="kiblBalance">KIBL: —</p>
+     <p id="nexaBalance">NEXA: —</p>
   </div>
 
   <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
@@ -876,6 +877,23 @@ function flashPayout(){
   // clean up after the glow ends
   setTimeout(() => payoutEl?.classList.remove('payout-win'), 1400);
 }
+async function loadWalletBalances(address) {
+  if (!address) return;
+  try {
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials:'include' });
+    const j = await r.json();
+    if (!j?.ok) return;
+
+    const kiblEl = document.getElementById('kiblBalance');
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl} (utxos: ${j.tokenUtxoCount})`;
+
+    const nexaEl = document.getElementById('nexaBalance');
+    if (nexaEl && 'nexa' in j) nexaEl.textContent = `NEXA: ${j.nexa} (utxos: ${j.nexaUtxoCount})`;
+  } catch (e) {
+    // silent failure is fine for HUD
+  }
+}
+
 
 function confettiBurst(count = 48, ms = 1800){
   const wrap = document.createElement('div');
@@ -1466,7 +1484,7 @@ async function onClaimPayout() {
     document.body.style.overflow = '';
     document.removeEventListener('keydown', trapFocus);
   }
-
+  window.loadWalletBalances = loadWalletBalances;
   window.addEventListener('load', () => {
     // Respect previous confirmation
     const ok = localStorage.getItem(LS_KEY) === 'true' || sessionStorage.getItem(LS_KEY) === 'true';
@@ -1510,6 +1528,10 @@ async function onClaimPayout() {
     const btn = document.getElementById('betBtn');
     if (!btn) return;
     btn.disabled = !linked;
+    if (linked?.address) {
+  // show balances right away
+  window.loadWalletBalances?.(linked.address);
+}
 
     btn.addEventListener('click', async () => {
       try {
@@ -1523,7 +1545,11 @@ async function onClaimPayout() {
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
-
+loadProfile();
+(async () => {
+  const linked = await (window.ensureLinked?.() || Promise.resolve(null)); // if you want; or stash the address
+  if (linked?.address) loadWalletBalances(linked.address);
+})();
         alert(`Bet sent! tx: ${txId.slice(0,12)}…`);
       } catch (e) {
         alert('Bet failed: ' + (e?.message || 'unknown'));
