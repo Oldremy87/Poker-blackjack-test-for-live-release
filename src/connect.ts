@@ -102,7 +102,9 @@ async function bootFromSeed(seed: string, net: 'mainnet') {
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');
   const k = account.getPrimaryAddressKey();
-  return { wallet, account, address: k.address };
+  const kiblBalance = account.tokenBalances[process.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
+  const nexaBalance = account.balance.confirmed || 0;
+  return { wallet, account, address: k.address,kiblBalance, nexaBalance };
 }
 
   btnCreate?.addEventListener('click', async () => {
@@ -181,7 +183,7 @@ async function loadKiblBalance(address: string, net: string) {
 
 // after you set addrText & linked.hidden=false:
 try {
-  const bal = await loadKiblBalance(address!, 'mainnet');
+  const bal = await account.tokenBalances[process.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
   const balEl = document.getElementById('kiblBalance');
   if (balEl) balEl.textContent = `KIBL: ${bal.kibl} (${bal.kiblMinor} minor)`;
 } catch { /* ignore; can retry with a refresh button */ }

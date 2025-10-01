@@ -78,14 +78,16 @@ async function init() {
   const linked = document.getElementById("linked");
   const addrText = document.getElementById("addr");
   const btnLink = document.getElementById("btnLink");
-  let address2 = null;
+  let address = null;
   async function bootFromSeed(seed, net) {
     const { Wallet } = await sdk();
     const wallet2 = new Wallet(seed, net);
     await wallet2.initialize();
-    const account2 = wallet2.accountStore.getAccount("2.0");
-    const k = account2.getPrimaryAddressKey();
-    return { wallet: wallet2, account: account2, address: k.address };
+    const account3 = wallet2.accountStore.getAccount("2.0");
+    const k = account3.getPrimaryAddressKey();
+    const kiblBalance = account3.tokenBalances[process$1.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
+    const nexaBalance = account3.balance.confirmed || 0;
+    return { wallet: wallet2, account: account3, address: k.address, kiblBalance, nexaBalance };
   }
   btnCreate2?.addEventListener("click", async () => {
     try {
@@ -96,8 +98,8 @@ async function init() {
       const seed = w.export().phrase;
       await enc(pass, JSON.stringify({ seed, net }));
       const r = await bootFromSeed(seed, "mainnet");
-      address2 = r.address;
-      addrText.textContent = `Linked address (${net}): ${address2}`;
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
       linked.hidden = false;
       alert("New wallet created. Write down your seed!");
     } catch (e) {
@@ -114,8 +116,8 @@ async function init() {
       const seed = require12Words(normalizeSeed(seedIn.value));
       await enc(pass, JSON.stringify({ seed, net }));
       const r = await bootFromSeed(seed, "mainnet");
-      address2 = r.address;
-      addrText.textContent = `Linked address (${net}): ${address2}`;
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
       linked.hidden = false;
       alert("Imported wallet. Seed stored encrypted locally.");
     } catch (e) {
@@ -124,9 +126,9 @@ async function init() {
   });
   btnLink?.addEventListener("click", async () => {
     try {
-      if (!address2) return alert("No address yet.");
+      if (!address) return alert("No address yet.");
       const net = netSel.value === "mainnet";
-      const j = await postJSON("/api/wallet/link", { address: address2, network: net });
+      const j = await postJSON("/api/wallet/link", { address, network: net });
       alert("Wallet linked!");
       location.href = "/play.html";
     } catch (e) {
@@ -143,8 +145,8 @@ async function init() {
       const { seed, net } = JSON.parse(await dec(passEl2.value || ""));
       netSel.value = net;
       const r = await bootFromSeed(seed, net);
-      address2 = r.address;
-      addrText.textContent = `Linked address (${net}): ${address2}`;
+      address = r.address;
+      addrText.textContent = `Linked address (${net}): ${address}`;
       linked.hidden = false;
     } catch {
     }
@@ -153,15 +155,8 @@ async function init() {
 function passOk(p, p2) {
   return (p?.length ?? 0) >= 8 && p === p2;
 }
-async function loadKiblBalance(address2, net) {
-  const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address2)}&network=${encodeURIComponent(net)}`, { credentials: "include" });
-  if (!r.ok) throw new Error("balance_http");
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || "balance_api");
-  return j;
-}
 try {
-  const bal = await loadKiblBalance(address, "mainnet");
+  const bal = await account.tokenBalances[process$1.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
   const balEl = document.getElementById("kiblBalance");
   if (balEl) balEl.textContent = `KIBL: ${bal.kibl} (${bal.kiblMinor} minor)`;
 } catch {
