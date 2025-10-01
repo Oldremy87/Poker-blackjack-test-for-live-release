@@ -756,7 +756,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
     const house      = process.env.HOUSE_ADDR_MAINNET;
-    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX
+    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
 
     // Important: pass the server’s connected provider
     const w = new WatchOnlyWallet([{ address: fromAddress }], network)
@@ -764,7 +764,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const tx = w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
-      .sendToToken(house, String(kiblM), TxTokenType.GROUP, tokenIdHex)
+      .sendToToken(house, String(kiblM), tokenId)
     const unsignedTx = await tx.populate().build();
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
 console.log('[populate] using provider', {
