@@ -786,11 +786,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const tx = w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
-      .sendToToken(house, String(kiblM), TxTokenType.ID, tokenIdHex)
-
-    // IMPORTANT: make sure populate() has a provider available. Your SDK’s
-    // rostrumProvider singleton is already connected; .populate() will use it.
-    // If your SDK requires an explicit provider, pass it: .populate(rostrum)
+      .sendToToken(house, String(kiblM), TxTokenType.GROUP, tokenIdHex)
     const unsignedTx = await tx.populate().build();
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
 console.log('[populate] using provider', {
