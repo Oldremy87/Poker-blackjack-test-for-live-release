@@ -82,7 +82,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
 
   // 2) Sign in browser
   console.log('[placeBet] signing…');
-  const signedHex = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  const signedHex = await wallet.newTransaction(account, j.tx).sign().build();
   console.log('[placeBet] signedHex len', signedHex?.length);
 
   // 3) Broadcast via server
