@@ -4,7 +4,7 @@ globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
 async function getSdk() {
-  return await import("./chunks/index.web-wporebpY.js");
+  return await import("./chunks/index.web-D4PT8L_9.js");
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;

@@ -3,7 +3,7 @@ globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 async function sdk() {
-  return await import("./chunks/index.web-wporebpY.js");
+  return await import("./chunks/index.web-D4PT8L_9.js");
 }
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";
