@@ -760,17 +760,29 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     // Important: pass the server’s connected provider
     const w = new WatchOnlyWallet([{ address: fromAddress }], network)
-     await w.initialize?.();
+    await w.initialize?.();
+     const account = w.accountStore.getAccount('2.0');
+    const address = account.getPrimaryAddressKey().address;
+     const kiblBalance = account.tokenBalances[tokenId].confirmed;
+     const nexaBalance = account.balance.confirmed
+     const nexaUtxos = await rostrumProvider.getNexaUtxos(address);
+    const tokenUtxos = await rostrumProvider.getTokenUtxos(address, KIBL_TOKEN_ID_HEX);
+    logger.info('Checking player balances', { kiblBalance, nexaBalance });
+    if (kiblBalance < 10000) { // 100 KIBL (10^2 satoshis)
+      logger.warn('Insufficient KIBL balance for bet', { balance: kiblBalance });
+      return res.status(400).json({ error: `Insufficient KIBL balance. Need at least 10000 satoshis (100 KIBL), have ${kiblBalance}` });
+    }
+    if (nexaBalance < 2500) { // 25 NEXA (2500 satoshis)
+      logger.warn('Insufficient NEXA balance for transaction fees', { balance: nexaBalance });
+      return res.status(400).json({ error: `Insufficient NEXA balance for transaction fees. Need at least 2500 satoshis (25 NEXA), have ${nexaBalance}` });
+    }
     const tx = w.newTransaction()
       .onNetwork(network)
       .sendTo(house, String(fee))
       .sendToToken(house, String(kiblM), tokenId)
-    const unsignedTx = await tx.populate().build();
-    console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
-console.log('[populate] using provider', {
-  hasBroadcast: typeof rostrum.broadcast === 'function',
-  hasRequest: typeof rostrum.request === 'function'
-});
+      .populate()
+      .build();
+  
     res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
