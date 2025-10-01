@@ -34,9 +34,7 @@ async function loadWallet(pass) {
   const account = wallet.accountStore.getAccount("2.0");
   if (!account) throw new Error("DApp account (2.0) not found.");
   const address = account.getPrimaryAddressKey().address;
-  const kiblBalance = account.tokenBalances[process$1.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
-  const nexaBalance = account.balance.confirmed || 0;
-  return { wallet, account, address, network: net, kiblBalance, nexaBalance };
+  return { wallet, account, address, network: net };
 }
 async function csrf() {
   if (window.csrfToken) return window.csrfToken;
