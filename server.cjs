@@ -769,7 +769,6 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
     const rp = rostrum;
-    console.log('[broadcast] hex len', hex?.length);
     console.log('[broadcast] rostrum shape', provShape(rp));
     
     if (!rp || typeof rp !== 'object') {
@@ -785,7 +784,9 @@ app.post('/api/tx/broadcast', async (req, res) => {
 
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
+      console.log('[broadcast] hex len', hex?.length);
       return res.status(400).json({ ok:false, error:'bad_hex' });
+      
     }
 
       let txid;

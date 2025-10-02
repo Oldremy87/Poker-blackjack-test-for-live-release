@@ -885,10 +885,10 @@ async function loadWalletBalances(address) {
     if (!j?.ok) return;
 
     const kiblEl = document.getElementById('kiblBalance');
-    if (kiblEl) kiblEl.textContent = `KIBL: ${balances.kibl} (utxos: ${balances.tokenUtxoCount})`;
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl} (utxos: ${j.tokenUtxoCount})`;
 
     const nexaEl = document.getElementById('nexaBalance');
-    if (nexaEl) nexaEl.textContent = `NEXA: ${balances.nexa} (utxos: ${balances.nexaUtxoCount})`;
+    if (nexaEl && 'nexa' in j) nexaEl.textContent = `NEXA: ${j.nexa} (utxos: ${j.nexaUtxoCount})`;
   } catch (e) {
     // silent failure is fine for HUD
   }
