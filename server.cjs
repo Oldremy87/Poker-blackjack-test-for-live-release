@@ -667,22 +667,14 @@ app.get('/api/wallet/balance', async (req, res) => {
     let nexaMinor = 0n; 
     for (const u of nexaUtxos || []) nexaMinor += BigInt(u?.value || 0);
 
-    const toFixed = (bn, decimals) => {
-      const s = bn.toString();
-      const pad = decimals - Math.min(decimals, s.length);
-      const left = s.length > decimals ? s.slice(0, -decimals) : '0';
-      const right = (pad > 0 ? '0'.repeat(pad) : '') + s.slice(-decimals).padStart(decimals, '0');
-      return `${left}.${right}`.replace(/^0+(?=\.)/, '0');
-    };
-
     res.json({
       ok: true,
       address,
       tokenId: tokenIdHex,
       kiblMinor: tokenMinor.toString(),
-      kibl: toFixed(tokenMinor, 2),          // KIBL has 2 decimals
+      kibl: tokenMinor,          
       nexaMinor: nexaMinor.toString(),
-      nexa: toFixed(nexaMinor, 2),           // NEXA: 2 decimals
+      nexa: nexaMinor,           
       nexaUtxoCount: (nexaUtxos || []).length,
       tokenUtxoCount: (tokenUtxos || []).length,
     });
@@ -749,35 +741,21 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-   console.log('[build-unsigned] body', req.body);
-    console.log('[build-unsigned] rostrum shape', provShape(rostrum));
-
-    if (!rostrum || typeof rostrum !== 'object') {
-      return res.status(500).json({ ok:false, error:'rostrum_missing' });
-    }
-
-
     const { fromAddress, kiblAmount, feeNexa } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
     }
 
-    const toInt = v => Math.max(0, Math.floor(Number(v) || 0));
-    const fee   = toInt(feeNexa ?? 600);
-    const kiblW = toInt(kiblAmount ?? 100);   // whole KIBL
-    const kiblM = kiblW * 100;                // minor units
-
     const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
     const house      = process.env.HOUSE_ADDR_MAINNET;
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
 
-    // Important: pass the server’s connected provider
     const w = new WatchOnlyWallet([{ address: fromAddress }], network)
     await w.initialize?.();
     const tx = w.newTransaction()
       .onNetwork(network)
-      .sendTo(house, String(fee))
-      .sendToToken(house, String(kiblM), tokenId)
+      .sendTo(house, '600')
+      .sendToToken(house, '1000', tokenId)
       .populate()
       .build();
   

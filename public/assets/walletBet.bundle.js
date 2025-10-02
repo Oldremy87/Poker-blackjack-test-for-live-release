@@ -3,11 +3,23 @@ globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
+const KIBL_GROUP_ADDR = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
+const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 async function getSdk() {
   return await import("./chunks/index.web-D4PT8L_9.js");
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
+}
+function toFixedFromMinor(minorBn, decimals) {
+  const s = minorBn.toString();
+  if (decimals === 0) return s;
+  const neg = s.startsWith("-");
+  const digits = neg ? s.slice(1) : s;
+  const pad = Math.max(0, decimals - digits.length);
+  const left = digits.length > decimals ? digits.slice(0, -decimals) : "0";
+  const right = (pad ? "0".repeat(pad) : "") + digits.slice(-decimals).padStart(decimals, "0");
+  return (neg ? "-" : "") + `${left}.${right}`;
 }
 async function loadWallet(pass) {
   const rawB64 = localStorage.getItem(KEY);
@@ -23,10 +35,13 @@ async function loadWallet(pass) {
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
-  const port = net === "mainnet" ? 20004 : 30004;
-  const scheme = "wss";
-  await rostrumProvider.connect({ host, port, scheme });
+  try {
+    const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
+    const port = net === "mainnet" ? 20004 : 30004;
+    const scheme = "wss";
+    await rostrumProvider.connect?.({ host, port, scheme });
+  } catch (_) {
+  }
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
@@ -34,7 +49,34 @@ async function loadWallet(pass) {
   const account = wallet.accountStore.getAccount("2.0");
   if (!account) throw new Error("DApp account (2.0) not found.");
   const address = account.getPrimaryAddressKey().address;
-  return { wallet, account, address, network: net };
+  let kiblMinor = 0n;
+  let nexaMinor = 0n;
+  let tokenUtxoCount = 0;
+  let nexaUtxoCount = 0;
+  try {
+    const [tokenUtxos, nexaUtxos] = await Promise.all([
+      rostrumProvider.getTokenUtxos(address, KIBL_TOKEN_HEX),
+      rostrumProvider.getNexaUtxos(address)
+    ]);
+    for (const u of tokenUtxos || []) kiblMinor += BigInt(u?.value || 0);
+    for (const u of nexaUtxos || []) nexaMinor += BigInt(u?.value || 0);
+    tokenUtxoCount = (tokenUtxos || []).length;
+    nexaUtxoCount = (nexaUtxos || []).length;
+  } catch (e) {
+    console.warn("[loadWallet] balance fetch failed", e);
+  }
+  const balances = {
+    kiblMinor,
+    kibl: toFixedFromMinor(kiblMinor, 2),
+    tokenUtxoCount,
+    nexaMinor,
+    nexa: toFixedFromMinor(nexaMinor, 8),
+    nexaUtxoCount,
+    // Handy ids for callers:
+    tokenHex: KIBL_TOKEN_HEX,
+    tokenGroup: KIBL_GROUP_ADDR
+  };
+  return { wallet, account, address, network: net, balances };
 }
 async function csrf() {
   if (window.csrfToken) return window.csrfToken;
@@ -72,6 +114,7 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   return { txId: bj.txid, network, address, house: j.house };
 }
 export {
+  loadWallet,
   placeBet
 };
 //# sourceMappingURL=walletBet.bundle.js.map

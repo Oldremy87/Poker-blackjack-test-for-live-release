@@ -8,14 +8,29 @@ import * as nodeCrypto from 'crypto-browserify';
 
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 
+// Fill these from your config / env / window:
+const KIBL_GROUP_ADDR = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt';
+const KIBL_TOKEN_HEX  = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
+
 async function getSdk() {
-  return await import('nexa-wallet-sdk'); // vite alias points to browser ESM build
+  return await import('nexa-wallet-sdk'); // vite alias -> browser ESM build
 }
 function getWalletCtor(mod: any) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
+function toFixedFromMinor(minorBn: bigint, decimals: number): string {
+  const s = minorBn.toString();
+  if (decimals === 0) return s;
+  const neg = s.startsWith('-');
+  const digits = neg ? s.slice(1) : s;
+  const pad = Math.max(0, decimals - digits.length);
+  const left = digits.length > decimals ? digits.slice(0, -decimals) : '0';
+  const right = (pad ? '0'.repeat(pad) : '') + digits.slice(-decimals).padStart(decimals, '0');
+  return (neg ? '-' : '') + `${left}.${right}`;
+}
 
-async function loadWallet(pass: string){
+export async function loadWallet(pass: string) {
+  // --- decrypt local keystore
   const rawB64 = localStorage.getItem(KEY);
   const ivB64  = localStorage.getItem(IV);
   if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
@@ -28,26 +43,69 @@ async function loadWallet(pass: string){
   const h   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
   const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
-  const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
+  const { seed, net } = JSON.parse(new TextDecoder().decode(pt)); // net: 'mainnet'|'testnet'
 
+  // --- SDK + provider
   const sdk = await getSdk();
-  const { rostrumProvider } = sdk;  // Extract rostrumProvider from the SDK
+  const { rostrumProvider } = sdk;
 
-  // Explicit connection parameters to avoid fallback
-  const host = net === 'mainnet' ? 'electrum.nexa.org' : 'testnet-electrum.nexa.org';
-  const port = net === 'mainnet' ? 20004 : 30004;
-  const scheme = 'wss';
-  await rostrumProvider.connect({ host, port, scheme });
+  // connect once (guard against duplicate connects)
+  try {
+    const host = net === 'mainnet' ? 'electrum.nexa.org' : 'testnet-electrum.nexa.org';
+    const port = net === 'mainnet' ? 20004 : 30004;
+    const scheme = 'wss';
+    await rostrumProvider.connect?.({ host, port, scheme });
+  } catch (_) {
+    // ignore if already connected or if connect() isn't idempotent
+  }
 
+  // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
 
   const wallet  = new WalletCtor(seed, net);
   await wallet.initialize();
+
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
-  const address = account.getPrimaryAddressKey().address;
-  return { wallet, account, address, network: net};
+  const address = account.getPrimaryAddressKey().address; // nexa:...
+
+  // --- balances via rostrum UTXOs (authoritative)
+  // KIBL has 2 decimals; NEXA has 8 decimals
+  let kiblMinor = 0n;
+  let nexaMinor = 0n;
+  let tokenUtxoCount = 0;
+  let nexaUtxoCount = 0;
+
+  try {
+    const [tokenUtxos, nexaUtxos] = await Promise.all([
+      rostrumProvider.getTokenUtxos(address, KIBL_TOKEN_HEX),
+      rostrumProvider.getNexaUtxos(address),
+    ]);
+
+    for (const u of tokenUtxos || []) kiblMinor += BigInt(u?.value || 0);
+    for (const u of nexaUtxos || [])  nexaMinor += BigInt(u?.value || 0);
+
+    tokenUtxoCount = (tokenUtxos || []).length;
+    nexaUtxoCount  = (nexaUtxos  || []).length;
+  } catch (e) {
+    // If this fails, keep going — caller can decide how to handle unknown balances
+    console.warn('[loadWallet] balance fetch failed', e);
+  }
+
+  const balances = {
+    kiblMinor: kiblMinor,
+    kibl: toFixedFromMinor(kiblMinor, 2),
+    tokenUtxoCount,
+    nexaMinor: nexaMinor,
+    nexa: toFixedFromMinor(nexaMinor, 8),
+    nexaUtxoCount,
+    // Handy ids for callers:
+    tokenHex: KIBL_TOKEN_HEX,
+    tokenGroup: KIBL_GROUP_ADDR,
+  };
+
+  return { wallet, account, address, network: net, balances };
 }
 
 async function csrf() {
