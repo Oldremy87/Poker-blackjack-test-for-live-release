@@ -793,19 +793,9 @@ app.post('/api/tx/broadcast', async (req, res) => {
       
     }
 
-      let txid;
-    if (typeof rostrum.broadcast === 'function') {
-      txid = await rostrum.broadcast(hex);        // <-- your provider supports this
-    } else if (typeof rostrum.broadcastTransaction === 'function') {
-      txid = await rostrum.broadcastTransaction(hex);
-    } else if (typeof rostrum.request === 'function') {
-      txid = await rostrum.request('blockchain.transaction.broadcast', [hex]);
-    } else if (typeof rostrum.call === 'function') {
-      txid = await rostrum.call('blockchain.transaction.broadcast', [hex]);
-    } else {
-      return res.status(500).json({ ok:false, error:'no_broadcast' });
-    }
-
+    
+    const txid = await WatchOnlyWallet.sendTransaction(hex)
+    console.log('[signed length]', hex?.length, hex?.slice(0, 24));
     if (!txid || typeof txid !== 'string') throw new Error('no_txid');
     res.json({ ok:true, txid });
   } catch (e) {
