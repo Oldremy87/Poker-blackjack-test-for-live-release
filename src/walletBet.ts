@@ -71,7 +71,7 @@ export async function loadWallet(pass: string) {
   const address = account.getPrimaryAddressKey().address; // nexa:...
 
   // --- balances via rostrum UTXOs (authoritative)
-  // KIBL has 2 decimals; NEXA has 8 decimals
+  // KIBL has 2 decimals; NEXA has 2 decimals
   let kiblMinor = 0n;
   let nexaMinor = 0n;
   let tokenUtxoCount = 0;
@@ -98,7 +98,7 @@ export async function loadWallet(pass: string) {
     kibl: toFixedFromMinor(kiblMinor, 2),
     tokenUtxoCount,
     nexaMinor: nexaMinor,
-    nexa: toFixedFromMinor(nexaMinor, 8),
+    nexa: toFixedFromMinor(nexaMinor, 2),
     nexaUtxoCount,
     // Handy ids for callers:
     tokenHex: KIBL_TOKEN_HEX,
@@ -132,15 +132,17 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
     headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
     body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
   });
-  const j = await r.json().catch(()=> ({} as any));
-  console.log('[placeBet] build-unsigned response ok?', r.ok, 'payload keys', Object.keys(j || {}));
-  if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
+  const j = await r.json();
+if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
-  // 2) Sign in browser
-  console.log('[placeBet] signing…');
-  const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
-  console.log('[placeBet] signedHex len', signedTx?.length);
+console.log('[placeBet] signing… unsigned len', j.unsignedTx?.length);
 
+const signedTx = await wallet
+  .newTransaction(account, j.unsignedTx)  // MUST be the UNSIGNED hex string
+  .sign()
+  .build();
+
+console.log('[placeBet] signedHex len', signedTx?.length);
   // 3) Broadcast via server
   const br = await fetch('/api/tx/broadcast', {
     method:'POST',

@@ -732,7 +732,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network)
     await w.initialize?.();
-    const unsignedTx = w.newTransaction()
+    const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, '2000')
       .feeFromAmount()
@@ -750,25 +750,20 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-     const { fromAddress, network } = req.body || {};
-         if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
-      return res.status(400).json({ ok:false, error:'bad_address' });
-    }
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network)
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
-      console.log('[broadcast] hex len', hex?.length);
+      console.log('[broadcast] bad hex', typeof hex, hex?.length);
       return res.status(400).json({ ok:false, error:'bad_hex' });
     }
 
-    
-    const txid = await w.sendTransaction(hex)
-    console.log('[signed length]', hex?.length, hex?.slice(0, 24));
-    if (!txid || typeof txid !== 'string') throw new Error('no_txid');
-    res.json({ ok:true, txid });
+    // Broadcast via provider
+    const txid = await rostrumProvider.broadcastTransaction(hex);
+
+    console.log('[broadcast ok] txid', txid);
+    return res.json({ ok:true, txid });
   } catch (e) {
     console.error('broadcast_error', e);
-    res.status(500).json({ ok:false, error:'broadcast_error' });
+    return res.status(500).json({ ok:false, error:'broadcast_error' });
   }
 });
 

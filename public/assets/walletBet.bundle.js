@@ -13,7 +13,6 @@ function getWalletCtor(mod) {
 }
 function toFixedFromMinor(minorBn, decimals) {
   const s = minorBn.toString();
-  if (decimals === 0) return s;
   const neg = s.startsWith("-");
   const digits = neg ? s.slice(1) : s;
   const pad = Math.max(0, decimals - digits.length);
@@ -70,7 +69,7 @@ async function loadWallet(pass) {
     kibl: toFixedFromMinor(kiblMinor, 2),
     tokenUtxoCount,
     nexaMinor,
-    nexa: toFixedFromMinor(nexaMinor, 8),
+    nexa: toFixedFromMinor(nexaMinor, 2),
     nexaUtxoCount,
     // Handy ids for callers:
     tokenHex: KIBL_TOKEN_HEX,
@@ -96,10 +95,9 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
     headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
     body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
   });
-  const j = await r.json().catch(() => ({}));
-  console.log("[placeBet] build-unsigned response ok?", r.ok, "payload keys", Object.keys(j || {}));
+  const j = await r.json();
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
-  console.log("[placeBet] signing…");
+  console.log("[placeBet] signing… unsigned len", j.unsignedTx?.length);
   const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
   console.log("[placeBet] signedHex len", signedTx?.length);
   const br = await fetch("/api/tx/broadcast", {
