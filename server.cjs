@@ -763,7 +763,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .populate()
       .build();
   
-    res.json({ ok:true, tx, house, network });
+    res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
     res.status(500).json({ ok:false, error:'build_failed' });
