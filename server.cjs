@@ -13,12 +13,11 @@ const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
 const app = express();
-// Always work off one module object so the provider remains a true singleton.
-const _sdkCjs = require('nexa-wallet-sdk');
-const _sdk = _sdkCjs && _sdkCjs.rostrumProvider ? _sdkCjs : (_sdkCjs.default || _sdkCjs);
-const { WatchOnlyWallet, Wallet, TxTokenType } = _sdk;
-const rostrum = _sdk.rostrumProvider;   // <- the single provider instance we’ll use everywhere
-
+const {
+  Wallet,
+  WatchOnlyWallet,
+  rostrumProvider,   // the singleton provider
+} = require('nexa-wallet-sdk');
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
 process.on('unhandledRejection', (reason) => {
@@ -38,35 +37,18 @@ function provShape(p){
     hasBroadcastTx: typeof p?.broadcastTransaction === 'function',
   };
 }
-console.log('[sdk keys]', Object.keys(_sdk));
-console.log('[rostrum shape @import]', provShape(rostrum));
-// Use a real WSS hostname if you have one; otherwise many hosts accept "mainnet".
-const ROSTRUM_URL = process.env.ROSTRUM_URL || 'mainnet';
 
 // Connect once (and log status)
+const NET = process.env.NEXA_NET || 'mainnet';
 (async () => {
   try {
-   await rostrum.connect(ROSTRUM_URL);
-    console.log('[rostrum] connected ->', ROSTRUM_URL, provShape(rostrum));
+    // accepts 'mainnet' / 'testnet' or a {host,port,scheme} object
+    await rostrumProvider.connect(NET);
+    console.log('[rostrum] connected to', NET);
   } catch (e) {
-    console.error('[rostrum] initial connect failed:', e?.message || e);
+    console.error('[rostrum connect failed]', e?.message || e);
   }
 })();
-
-// Optional: simple keepalive / reconnect nudge
-setInterval(async () => {
-  try {
-    console.log('[rostrum ping]', provShape(rostrum));
-    await rostrum.ping?.();
-  } catch {
-    try {
-       await rostrum.connect(ROSTRUM_URL);
-      console.log('[rostrum] reconnected', provShape(rostrum));
-    } catch (e) {
-      console.error('[rostrum] reconnect failed:', e?.message || e);
-    }
-  }
-}, 30_000);
 
 
 
