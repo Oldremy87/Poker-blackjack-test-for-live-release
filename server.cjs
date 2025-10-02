@@ -648,6 +648,7 @@ function ensureBank(req) {
   if (!req.session.currentHand) req.session.currentHand = null;
 }
 // Wallet functions
+// /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
     const address = String(req.query.address || '');
@@ -658,31 +659,32 @@ app.get('/api/wallet/balance', async (req, res) => {
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
       rostrum.getTokenUtxos(address, tokenIdHex),
-      rostrum.getNexaUtxos(address),
+      rostrum.getNexaUtxos(address)
     ]);
 
-    let tokenMinor = 0n;
-    for (const u of tokenUtxos || []) tokenMinor += BigInt(u?.value || 0);
+    let kiblMinor = 0;
+    for (const u of tokenUtxos || []) kiblMinor += Number(u?.value || 0);
 
-    let nexaMinor = 0n; 
-    for (const u of nexaUtxos || []) nexaMinor += BigInt(u?.value || 0);
+    let nexaMinor = 0;
+    for (const u of nexaUtxos || []) nexaMinor += Number(u?.value || 0);
 
     res.json({
       ok: true,
       address,
       tokenId: tokenIdHex,
-      kiblMinor: tokenMinor.toString(),
-      kibl: tokenMinor,          
-      nexaMinor: nexaMinor.toString(),
-      nexa: nexaMinor,           
+      kiblMinor: String(kiblMinor),          // send as string to be safe
+      kibl: (kiblMinor / 100).toFixed(2),    // KIBL has 2 decimals
+      nexaMinor: String(nexaMinor),
+      nexa: (nexaMinor / 100).toFixed(2),    // NEXA has 2 decimals
       nexaUtxoCount: (nexaUtxos || []).length,
-      tokenUtxoCount: (tokenUtxos || []).length,
+      tokenUtxoCount: (tokenUtxos || []).length
     });
   } catch (e) {
     console.error('balance_error', e);
     res.status(500).json({ ok:false, error:'balance_error' });
   }
 });
+
 
 
 app.get('/api/rostrum/utxos', async (req, res) => {

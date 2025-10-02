@@ -880,16 +880,22 @@ function flashPayout(){
 async function loadWalletBalances(address) {
   if (!address) return;
   try {
-    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials:'include' });
-    const j = await r.json();
-    if (!j?.ok) return;
+    const r = await fetch('/api/wallet/balance?address=' + encodeURIComponent(address), { credentials: 'include' });
+const b = await r.json();
 
-    const kiblEl = document.getElementById('kiblBalance');
-    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl} (utxos: ${j.tokenUtxoCount})`;
+const kiblMinor = Number(b.kiblMinor || 0);
+const nexaMinor = Number(b.nexaMinor || 0);
 
-    const nexaEl = document.getElementById('nexaBalance');
-    if (nexaEl && 'nexa' in j) nexaEl.textContent = `NEXA: ${j.nexa} (utxos: ${j.nexaUtxoCount})`;
-  } catch (e) {
+kiblLabel.textContent = `${(kiblMinor/100).toFixed(2)} KIBL`;
+nexaLabel.textContent = `${(nexaMinor/1e8).toFixed(8)} NEXA`;
+
+// pre-check before placing bet
+const neededKiblMinor = kiblAmount * 100; // whole KIBL → minor
+if (kiblMinor < neededKiblMinor) {
+  throw new Error('Not enough KIBL to place this bet.');
+}
+  }
+    catch (e) {
     // silent failure is fine for HUD
   }
 }
