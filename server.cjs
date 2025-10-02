@@ -751,6 +751,9 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
      const { fromAddress, network } = req.body || {};
+         if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
+      return res.status(400).json({ ok:false, error:'bad_address' });
+    }
     const w = new WatchOnlyWallet([{ address: fromAddress }], network)
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
