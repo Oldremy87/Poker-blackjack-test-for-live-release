@@ -640,8 +640,8 @@ app.get('/api/wallet/balance', async (req, res) => {
     if (!rostrum || typeof rostrum !== 'object') return res.status(500).json({ ok:false, error:'rostrum_missing' });
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrum.getTokenUtxos(address, tokenIdHex),
-      rostrum.getNexaUtxos(address)
+      rostrumProvider.getTokenUtxos(address, tokenIdHex),
+      rostrumProvider.getNexaUtxos(address)
     ]);
 
     let kiblMinor = 0;
@@ -680,8 +680,8 @@ app.get('/api/rostrum/utxos', async (req, res) => {
     }
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-   rostrum.getTokenUtxos(address, tokenIdHex),
-   rostrum.getNexaUtxos(address)
+   rostrumProvider.getTokenUtxos(address, tokenIdHex),
+   rostrumProvider.getNexaUtxos(address)
  ]);
 
     res.json({ ok:true, address, tokenId: tokenIdHex, tokenUtxos, nexaUtxos });
@@ -754,25 +754,10 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-    const rp = rostrum;
-    console.log('[broadcast] rostrum shape', provShape(rp));
-    
-    if (!rp || typeof rp !== 'object') {
-      return res.status(500).json({ ok:false, error:'rostrum_missing' });
-    }
-  
-    
-    
-    if (!rostrum || typeof rostrum !== 'object') {
-      return res.status(500).json({ ok:false, error:'rostrum_missing' });
-    }
-  
-
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
       console.log('[broadcast] hex len', hex?.length);
       return res.status(400).json({ ok:false, error:'bad_hex' });
-      
     }
 
     
