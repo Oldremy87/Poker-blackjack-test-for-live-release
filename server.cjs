@@ -750,6 +750,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network)
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
       console.log('[broadcast] hex len', hex?.length);
@@ -757,7 +758,7 @@ app.post('/api/tx/broadcast', async (req, res) => {
     }
 
     
-    const txid = await WatchOnlyWallet.sendTransaction(hex)
+    const txid = await w.sendTransaction(hex)
     console.log('[signed length]', hex?.length, hex?.slice(0, 24));
     if (!txid || typeof txid !== 'string') throw new Error('no_txid');
     res.json({ ok:true, txid });
