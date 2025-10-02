@@ -100,18 +100,10 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   console.log("[placeBet] build-unsigned response ok?", r.ok, "payload keys", Object.keys(j || {}));
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
   console.log("[placeBet] signing…");
-  const signedHex = await wallet.newTransaction(account, j.tx).sign().build();
-  console.log("[placeBet] signedHex len", signedHex?.length);
-  const br = await fetch("/api/tx/broadcast", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
-    body: JSON.stringify({ hex: signedHex })
-  });
-  const bj = await br.json().catch(() => ({}));
-  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
-  if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
-  return { txId: bj.txid, network, address, house: j.house };
+  const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  console.log("[placeBet] signedHex len", signedTx?.length);
+  const txId = await wallet.sendTransaction(signedTx);
+  console.log("Transaction ID:", txId);
 }
 export {
   loadWallet,

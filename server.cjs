@@ -754,10 +754,12 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network)
     await w.initialize?.();
-    const tx = w.newTransaction()
+    const unsignedTx = w.newTransaction()
       .onNetwork(network)
-      .sendTo(house, '600')
+      .sendTo(house, '2000')
+      .feeFromAmount()
       .sendToToken(house, '1000', tokenId)
+      .addOpReturn("Watch-only transaction")
       .populate()
       .build();
   
