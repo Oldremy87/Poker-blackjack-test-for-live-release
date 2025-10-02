@@ -637,7 +637,6 @@ app.get('/api/wallet/balance', async (req, res) => {
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
-    if (!rostrum || typeof rostrum !== 'object') return res.status(500).json({ ok:false, error:'rostrum_missing' });
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
       rostrumProvider.getTokenUtxos(address, tokenIdHex),
@@ -675,9 +674,6 @@ app.get('/api/rostrum/utxos', async (req, res) => {
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
-    if (!rostrum || typeof rostrum !== 'object') {
-      return res.status(500).json({ ok:false, error:'rostrum_missing' });
-    }
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
    rostrumProvider.getTokenUtxos(address, tokenIdHex),
