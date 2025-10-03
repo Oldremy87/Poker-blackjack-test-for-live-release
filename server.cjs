@@ -621,16 +621,7 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-    const NET = process.env.NEXA_NET || 'mainnet';
-(async () => {
-  try {
-    await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
-  } catch (e) {
-    console.error('[rostrum connect failed]', e?.message || e);
-  }
-})();
-    
+
     const address = String(req.query.address || '');
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
@@ -719,16 +710,7 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    const NET = process.env.NEXA_NET || 'mainnet';
-(async () => {
-  try {
-    await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
-  } catch (e) {
-    console.error('[rostrum connect failed]', e?.message || e);
-  }
-})();
-    
+  
     const { fromAddress } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
