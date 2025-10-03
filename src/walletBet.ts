@@ -83,9 +83,8 @@ export async function loadWallet(pass: string) {
       rostrumProvider.getNexaUtxos(address),
     ]);
 
-    for (const u of tokenUtxos || []) kiblMinor += BigInt(u?.value || 0);
-    for (const u of nexaUtxos || [])  nexaMinor += BigInt(u?.value || 0);
-
+    for (const u of tokenUtxos || []);
+    for (const u of nexaUtxos || []);  
     tokenUtxoCount = (tokenUtxos || []).length;
     nexaUtxoCount  = (nexaUtxos  || []).length;
   } catch (e) {
@@ -136,16 +135,7 @@ if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 const signedTx = await wallet
   .newTransaction(account, j.unsignedTx) 
   .build();
- 
-  const br = await fetch('/api/tx/broadcast', {
-    method:'POST',
-    credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ hex: signedTx })
-  });
-  const bj = await br.json().catch(()=> ({} as any));
-  console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
-  if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
+ const txId = await wallet.sendTransaction(signedTx)
+console.log('Transaction ID:', txId)
 
-  return { txId: bj.txid, network, address, house: j.house };
 }

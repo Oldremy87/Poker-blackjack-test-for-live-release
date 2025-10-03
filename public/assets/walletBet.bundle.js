@@ -57,8 +57,8 @@ async function loadWallet(pass) {
       rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
       rostrumProvider.getNexaUtxos(address)
     ]);
-    for (const u of tokenUtxos || []) kiblMinor += BigInt(u?.value || 0);
-    for (const u of nexaUtxos || []) nexaMinor += BigInt(u?.value || 0);
+    for (const u of tokenUtxos || []) ;
+    for (const u of nexaUtxos || []) ;
     tokenUtxoCount = (tokenUtxos || []).length;
     nexaUtxoCount = (nexaUtxos || []).length;
   } catch (e) {
@@ -88,7 +88,6 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
-  console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "tokenIdHex", tokenIdHex, "feeNexa", feeNexa);
   const r = await fetch("/api/bet/build-unsigned", {
     method: "POST",
     credentials: "include",
@@ -97,20 +96,9 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   });
   const j = await r.json();
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
-  console.log("[placeBet] signing… unsigned len", j.unsignedTx?.length);
-  console.log("[sign] net", network, "unsigned len", j.unsignedTx?.length);
   const signedTx = await wallet.newTransaction(account, j.unsignedTx).build();
-  console.log("[placeBet] signedHex len", signedTx?.length);
-  const br = await fetch("/api/tx/broadcast", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
-    body: JSON.stringify({ hex: signedTx })
-  });
-  const bj = await br.json().catch(() => ({}));
-  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
-  if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
-  return { txId: bj.txid, network, address, house: j.house };
+  const txId = await wallet.sendTransaction(signedTx);
+  console.log("Transaction ID:", txId);
 }
 export {
   loadWallet,

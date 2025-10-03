@@ -728,7 +728,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .sendToToken(house, '1000', tokenId) 
       .populate()
       .build();
-
+     console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
     return res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
@@ -744,8 +744,6 @@ app.post('/api/tx/broadcast', async (req, res) => {
       console.log('[broadcast] bad hex', typeof hex, hex?.length);
       return res.status(400).json({ ok:false, error:'bad_hex' });
     }
-
-    // Broadcast via provider
     const txid = await rostrumProvider.broadcastTransaction(hex);
 
     console.log('[broadcast ok] txid', txid);
