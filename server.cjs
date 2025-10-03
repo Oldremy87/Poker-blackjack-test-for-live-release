@@ -26,20 +26,9 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
-function provShape(p){
-  return {
-    type: typeof p,
-    hasConnect: typeof p?.connect === 'function',
-    hasPing: typeof p?.ping === 'function',
-    hasRequest: typeof p?.request === 'function',
-    hasCall: typeof p?.call === 'function',
-    hasBroadcast: typeof p?.broadcast === 'function',
-    hasBroadcastTx: typeof p?.broadcastTransaction === 'function',
-  };
-}
 
 // Connect once (and log status)
-const NET = process.env.NEXA_NET || 'mainnet';
+const NET = process.env.NEXA_NET || 'wss://electrum.nexa.org:20004';
 (async () => {
   try {
     // accepts 'mainnet' / 'testnet' or a {host,port,scheme} object
@@ -732,7 +721,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
-  const [nexaUtxos, tokenUtxos] = await Promise.all([
+    const [nexaUtxos, tokenUtxos] = await Promise.all([
       rostrumProvider.getNexaUtxos(fromAddress),
       rostrumProvider.getTokenUtxos(fromAddress, tokenId),
     ]);
@@ -741,13 +730,12 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       token: tokenUtxos?.length || 0,
     });
 
-    
-    const unsignedTx = await w
+      const unsignedTx = await w
       .newTransaction()
       .onNetwork(network)
       .sendTo(house, '600')            // NEXA
       .sendToToken(house, '1000', tokenId) 
-      .populate(rostrumProvider)
+      .populate()
       .build();
 
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
