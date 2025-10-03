@@ -745,9 +745,8 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const unsignedTx = await w
       .newTransaction()
       .onNetwork(network)
-      .sendTo(house, '2000')            // NEXA
-      .feeFromAmount()
-      .sendToToken(house, '1000', tokenId) // token by GROUP address
+      .sendTo(house, '600')            // NEXA
+      .sendToToken(house, '1000', tokenId) 
       .populate(rostrumProvider)
       .build();
 
