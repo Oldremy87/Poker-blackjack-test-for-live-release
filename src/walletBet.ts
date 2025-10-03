@@ -7,20 +7,6 @@ import * as nodeCrypto from 'crypto-browserify';
 (globalThis as any).__nodeCrypto = nodeCrypto;
 
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
- let rostrumReady: Promise<void> | null = null;
-
-async function ensureRostrumConnected(sdk: any) {
-  if (!rostrumReady) {
-    rostrumReady = (async () => {
-      const { url } = await (await fetch('/api/rostrum/url')).json();
-      // Force this specific endpoint; prevents testnet/mainnet auto-guessing.
-      await sdk.rostrumProvider.connect(url);
-      await sdk.rostrumProvider.ping?.();
-      console.log('[client rostrum] connected to', url);
-    })();
-  }
-  return rostrumReady;
-}
 
 // Fill these from your config / env / window:
 const KIBL_GROUP_ADDR = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt';
@@ -60,9 +46,19 @@ export async function loadWallet(pass: string) {
   const { seed } = JSON.parse(new TextDecoder().decode(pt)); // net: 'mainnet'|'testnet'
   const net = 'mainnet'
   // --- SDK + provider
- const sdk = await getSdk();
-  await ensureRostrumConnected(sdk);   
- 
+  const sdk = await getSdk();
+  const { rostrumProvider } = sdk;
+
+  // connect once (guard against duplicate connects)
+  try {
+    const host = 'mainnet' 
+    const port = net === 'mainnet' ? 20004 : 30004;
+    const scheme = 'wss';
+    await rostrumProvider.connect?.({ host, port, scheme });
+  } catch (_) {
+    // ignore if already connected or if connect() isn't idempotent
+  }
+
   // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
@@ -83,8 +79,8 @@ export async function loadWallet(pass: string) {
 
   try {
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      sdk.rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
-      sdk.rostrumProvider.getNexaUtxos(address),
+      rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
+      rostrumProvider.getNexaUtxos(address),
     ]);
 
     for (const u of tokenUtxos || []);
@@ -135,7 +131,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   });
   const j = await r.json();
 if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
-await ensureRostrumConnected(await getSdk());  // ensure socket up
+
 const signedTx = await wallet
   .newTransaction(account, j.unsignedTx) 
   .build();

@@ -27,14 +27,19 @@ process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
 
-const ROSTRUM_URL = process.env.ROSTRUM_URL || 'wss://electrum.nexa.org:20004';
 
+const NET = process.env.NEXA_NET || 'wss://electrum.nexa.org:20004';
 (async () => {
-  try { await rostrumProvider.connect(ROSTRUM_URL); }
-  catch (e) { console.error('[rostrum] initial connect failed:', e?.message || e); }
+  try {
+    await rostrumProvider.connect(NET);
+    console.log('[rostrum] connected to', NET);
+  } catch (e) {
+    console.error('[rostrum connect failed]', e?.message || e);
+  }
 })();
 
-app.get('/api/rostrum/url', (_req, res) => res.json({ ok: true, url: ROSTRUM_URL }));
+
+
 
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
 function must(name) {
@@ -616,7 +621,8 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-
+await rostrumProvider.connect(NET);
+    console.log('[rostrum] connected to', NET);
     const address = String(req.query.address || '');
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
@@ -654,6 +660,9 @@ app.get('/api/wallet/balance', async (req, res) => {
 
 app.get('/api/rostrum/utxos', async (req, res) => {
   try {
+    await rostrumProvider.connect(NET);
+    console.log('[rostrum] connected to', NET);
+  
     const address = String(req.query.address || '');
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
@@ -705,7 +714,8 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-  
+  await rostrumProvider.connect(NET);
+    console.log('[rostrum] connected to', NET);
     const { fromAddress } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
@@ -726,7 +736,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .build();
      console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
-
+    
     return res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
@@ -736,6 +746,8 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
+    await rostrumProvider.connect(NET);
+    console.log('[rostrum] connected to', NET);
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
       console.log('[broadcast] bad hex', typeof hex, hex?.length);
