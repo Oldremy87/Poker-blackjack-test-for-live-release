@@ -732,6 +732,14 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
+  const [nexaUtxos, tokenUtxos] = await Promise.all([
+      rostrumProvider.getNexaUtxos(fromAddress),
+      rostrumProvider.getTokenUtxos(fromAddress, tokenId),
+    ]);
+    console.log('[build] UTXO candidates', {
+      nexa: nexaUtxos?.length || 0,
+      token: tokenUtxos?.length || 0,
+    });
 
     
     const unsignedTx = await w
@@ -740,8 +748,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .sendTo(house, '2000')            // NEXA
       .feeFromAmount()
       .sendToToken(house, '1000', tokenId) // token by GROUP address
-      .addOpReturn('Watch-only transaction')
-      .populate()
+      .populate(rostrumProvider)
       .build();
 
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);

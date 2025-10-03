@@ -136,7 +136,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
 if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
 console.log('[placeBet] signing… unsigned len', j.unsignedTx?.length);
-
+console.log('[sign] net', network, 'unsigned len', j.unsignedTx?.length);
 const signedTx = await wallet
   .newTransaction(account, j.unsignedTx)  // MUST be the UNSIGNED hex string
   .sign()
