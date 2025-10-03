@@ -27,19 +27,14 @@ process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
 
+const ROSTRUM_URL = process.env.ROSTRUM_URL || 'wss://electrum.nexa.org:30004';
 
-const NET = process.env.NEXA_NET || 'wss://electrum.nexa.org:20004';
 (async () => {
-  try {
-    await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
-  } catch (e) {
-    console.error('[rostrum connect failed]', e?.message || e);
-  }
+  try { await rostrum.connect(ROSTRUM_URL); }
+  catch (e) { console.error('[rostrum] initial connect failed:', e?.message || e); }
 })();
 
-
-
+app.get('/api/rostrum/url', (_req, res) => res.json({ ok: true, url: ROSTRUM_URL }));
 
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
 function must(name) {
@@ -731,7 +726,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .build();
      console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
-    
+
     return res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);

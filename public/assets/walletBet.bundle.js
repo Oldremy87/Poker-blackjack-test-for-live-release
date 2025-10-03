@@ -3,6 +3,18 @@ globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
+let rostrumReady = null;
+async function ensureRostrumConnected(sdk) {
+  if (!rostrumReady) {
+    rostrumReady = (async () => {
+      const { url } = await (await fetch("/api/rostrum/url")).json();
+      await sdk.rostrumProvider.connect(url);
+      await sdk.rostrumProvider.ping?.();
+      console.log("[client rostrum] connected to", url);
+    })();
+  }
+  return rostrumReady;
+}
 const KIBL_GROUP_ADDR = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 async function getSdk() {
@@ -34,14 +46,7 @@ async function loadWallet(pass) {
   const { seed } = JSON.parse(new TextDecoder().decode(pt));
   const net = "mainnet";
   const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
-  try {
-    const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
-    const port = net === "mainnet" ? 20004 : 30004;
-    const scheme = "wss";
-    await rostrumProvider.connect?.({ host, port, scheme });
-  } catch (_) {
-  }
+  await ensureRostrumConnected(sdk);
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
@@ -56,8 +61,8 @@ async function loadWallet(pass) {
   let nexaUtxoCount = 0;
   try {
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
-      rostrumProvider.getNexaUtxos(address)
+      sdk.rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
+      sdk.rostrumProvider.getNexaUtxos(address)
     ]);
     for (const u of tokenUtxos || []) ;
     for (const u of nexaUtxos || []) ;
@@ -89,13 +94,27 @@ async function csrf() {
 async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
   const { wallet, account, address, network } = await loadWallet(passphrase);
-  await csrf();
-  const house = process$1.env.HOUSE_ADDR_MAINNET;
-  const tokenId = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
-  const signedTx = await wallet.newTransaction(account).onNetwork(network).sendTo(house, "600").sendToToken(house, "1000", tokenId).populate().build();
-  const txId = await wallet.sendTransaction(signedTx);
-  console.log("Transaction ID:", txId);
-  await account.loadBalances();
+  const CSRF = await csrf();
+  const r = await fetch("/api/bet/build-unsigned", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
+    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
+  });
+  const j = await r.json();
+  if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
+  await ensureRostrumConnected(await getSdk());
+  const signedTx = await wallet.newTransaction(account, j.unsignedTx).build();
+  const br = await fetch("/api/tx/broadcast", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
+    body: JSON.stringify({ hex: signedTx })
+  });
+  const bj = await br.json().catch(() => ({}));
+  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
+  if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
+  return { txId: bj.txid, network, address, house: j.house };
 }
 export {
   loadWallet,
