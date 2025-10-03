@@ -69,7 +69,7 @@ export async function loadWallet(pass: string) {
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
   const address = account.getPrimaryAddressKey().address; // nexa:...
-
+  const transactions = await account.getTransactions()
   // --- balances via rostrum UTXOs (authoritative)
   // KIBL has 2 decimals; NEXA has 2 decimals
   let kiblMinor = 0n;
@@ -122,29 +122,37 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
 
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
+    const house   = process.env.HOUSE_ADDR_MAINNET;                          
+    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
 
-  const r = await fetch('/api/bet/build-unsigned', {
-    method:'POST',
-    credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
-  });
-  const j = await r.json();
-if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
+ // const r = await fetch('/api/bet/build-unsigned', {
+ //   method:'POST',
+ //   credentials:'include',
+ //   headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+ //   body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
+ // });
+//  const j = await r.json();
+//  if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
-const signedTx = await wallet
-  .newTransaction(account, j.unsignedTx) 
-  .build();
+const signedTx = await wallet.newTransaction(account) 
+  .onNetwork(network)
+      .sendTo(house, '600')            
+      .sendToToken(house, '1000', tokenId) 
+      .populate()
+      .build();
+const txId = await wallet.sendTransaction(signedTx)
+        console.log('Transaction ID:', txId)
+      await account.loadBalances(); 
+      
+ // const br = await fetch('/api/tx/broadcast', {
+ //   method:'POST',
+ //   credentials:'include',
+ //   headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+ //   body: JSON.stringify({ hex: signedTx })
+ // });
+ // const bj = await br.json().catch(()=> ({} as any));
+ // console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
+ // if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
 
-  const br = await fetch('/api/tx/broadcast', {
-    method:'POST',
-    credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ hex: signedTx })
-  });
-  const bj = await br.json().catch(()=> ({} as any));
-  console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
-  if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
-
-  return { txId: bj.txid, network, address, house: j.house };
+//  return { txId: bj.txid, network, address, house: j.house };
 }

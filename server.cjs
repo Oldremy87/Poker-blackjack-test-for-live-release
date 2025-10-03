@@ -731,6 +731,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .build();
      console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
+    
     return res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
