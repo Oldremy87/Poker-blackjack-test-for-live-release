@@ -634,12 +634,12 @@ function ensureBank(req) {
 app.get('/api/wallet/balance', async (req, res) => {
   try {
     const address = String(req.query.address || '');
-    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
+    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
-    if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
+    
 
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrumProvider.getTokenUtxos(address, tokenIdHex),
+      rostrumProvider.getTokenUtxos(address, tokenId),
       rostrumProvider.getNexaUtxos(address)
     ]);
 
