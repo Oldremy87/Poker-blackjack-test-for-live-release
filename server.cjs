@@ -621,7 +621,7 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-    const NET = process.env.NEXA_NET || 'wss://electrum.nexa.org:20004';
+    const NET = process.env.NEXA_NET || 'mainnet';
 (async () => {
   try {
     await rostrumProvider.connect(NET);
@@ -719,7 +719,7 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    const NET = process.env.NEXA_NET || 'wss://electrum.nexa.org:20004';
+    const NET = process.env.NEXA_NET || 'mainnet';
 (async () => {
   try {
     await rostrumProvider.connect(NET);

@@ -43,8 +43,8 @@ export async function loadWallet(pass: string) {
   const h   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
   const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
-  const { seed, net } = JSON.parse(new TextDecoder().decode(pt)); // net: 'mainnet'|'testnet'
-
+  const { seed } = JSON.parse(new TextDecoder().decode(pt)); // net: 'mainnet'|'testnet'
+  const net = 'mainnet'
   // --- SDK + provider
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
@@ -119,7 +119,20 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   passphrase: string; kiblAmount: number; tokenIdHex: string; feeNexa: number;
 }) {
   if (!passphrase || passphrase.length < 8) throw new Error('Password required (8+ chars).');
+const net = 'mainnet'
+  // --- SDK + provider
+  const sdk = await getSdk();
+  const { rostrumProvider } = sdk;
 
+  // connect once (guard against duplicate connects)
+  try {
+    const host = net === 'mainnet' ? 'electrum.nexa.org' : 'testnet-electrum.nexa.org';
+    const port = net === 'mainnet' ? 20004 : 30004;
+    const scheme = 'wss';
+    await rostrumProvider.connect?.({ host, port, scheme });
+  } catch (_) {
+    // ignore if already connected or if connect() isn't idempotent
+  }
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
 
@@ -138,4 +151,15 @@ const signedTx = await wallet
  const txId = await wallet.sendTransaction(signedTx)
 console.log('Transaction ID:', txId)
 
+  const br = await fetch('/api/tx/broadcast', {
+    method:'POST',
+    credentials:'include',
+    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
+    body: JSON.stringify({ hex: signedTx })
+  });
+  const bj = await br.json().catch(()=> ({} as any));
+  console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
+  if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
+
+  return { txId: bj.txid, network, address, house: j.house };
 }
