@@ -124,8 +124,6 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
 
-  // 1) Build unsigned via your server (server talks to Rostrum)
-  console.log('[placeBet] from', address, 'kiblAmount', kiblAmount, 'tokenIdHex', tokenIdHex, 'feeNexa', feeNexa);
   const r = await fetch('/api/bet/build-unsigned', {
     method:'POST',
     credentials:'include',
@@ -135,15 +133,10 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const j = await r.json();
 if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
 
-console.log('[placeBet] signing… unsigned len', j.unsignedTx?.length);
-console.log('[sign] net', network, 'unsigned len', j.unsignedTx?.length);
 const signedTx = await wallet
-  .newTransaction(account, j.unsignedTx)  // MUST be the UNSIGNED hex string
-  .sign()
+  .newTransaction(account, j.unsignedTx) 
   .build();
-
-console.log('[placeBet] signedHex len', signedTx?.length);
-  // 3) Broadcast via server
+ 
   const br = await fetch('/api/tx/broadcast', {
     method:'POST',
     credentials:'include',

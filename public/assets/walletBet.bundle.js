@@ -6,7 +6,7 @@ const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
 const KIBL_GROUP_ADDR = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 async function getSdk() {
-  return await import("./chunks/index.web-D4PT8L_9.js");
+  return await import("./chunks/index.web-BXlmGF_y.js");
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
@@ -99,7 +99,7 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
   console.log("[placeBet] signing… unsigned len", j.unsignedTx?.length);
   console.log("[sign] net", network, "unsigned len", j.unsignedTx?.length);
-  const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  const signedTx = await wallet.newTransaction(account, j.unsignedTx).build();
   console.log("[placeBet] signedHex len", signedTx?.length);
   const br = await fetch("/api/tx/broadcast", {
     method: "POST",

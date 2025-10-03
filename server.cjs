@@ -716,24 +716,15 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     }
 
     const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
-    const house   = process.env.HOUSE_ADDR_MAINNET;                           // or _TESTNET
-    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; // GROUP address
+    const house   = process.env.HOUSE_ADDR_MAINNET;                          
+    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
-    const [nexaUtxos, tokenUtxos] = await Promise.all([
-      rostrumProvider.getNexaUtxos(fromAddress),
-      rostrumProvider.getTokenUtxos(fromAddress, tokenId),
-    ]);
-    console.log('[build] UTXO candidates', {
-      nexa: nexaUtxos?.length || 0,
-      token: tokenUtxos?.length || 0,
-    });
-
-      const unsignedTx = await w
-      .newTransaction()
+    
+      const unsignedTx = await w.newTransaction()
       .onNetwork(network)
-      .sendTo(house, '600')            // NEXA
+      .sendTo(house, '600')            
       .sendToToken(house, '1000', tokenId) 
       .populate()
       .build();
