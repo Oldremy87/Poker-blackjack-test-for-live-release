@@ -6,7 +6,7 @@ const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
 const KIBL_GROUP_ADDR = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 async function getSdk() {
-  return await import("./chunks/index.web-BXlmGF_y.js");
+  return await import("./chunks/index.web-DTpKA-Oa.js");
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
@@ -87,16 +87,6 @@ async function csrf() {
 }
 async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
-  const net = "mainnet";
-  const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
-  try {
-    const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
-    const port = net === "mainnet" ? 20004 : 30004;
-    const scheme = "wss";
-    await rostrumProvider.connect?.({ host, port, scheme });
-  } catch (_) {
-  }
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
   const r = await fetch("/api/bet/build-unsigned", {
@@ -108,8 +98,6 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   const j = await r.json();
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
   const signedTx = await wallet.newTransaction(account, j.unsignedTx).build();
-  const txId = await wallet.sendTransaction(signedTx);
-  console.log("Transaction ID:", txId);
   const br = await fetch("/api/tx/broadcast", {
     method: "POST",
     credentials: "include",
