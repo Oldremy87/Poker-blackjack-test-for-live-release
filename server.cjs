@@ -27,7 +27,7 @@ process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
 
-const ROSTRUM_URL = process.env.ROSTRUM_URL || 'wss://electrum.nexa.org:30004';
+const ROSTRUM_URL = process.env.ROSTRUM_URL || 'wss://electrum.nexa.org:20004';
 
 (async () => {
   try { await rostrum.connect(ROSTRUM_URL); }
