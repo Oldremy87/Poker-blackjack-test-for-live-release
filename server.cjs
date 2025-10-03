@@ -652,7 +652,7 @@ app.get('/api/wallet/balance', async (req, res) => {
     res.json({
       ok: true,
       address,
-      tokenId: tokenIdHex,
+      tokenId: tokenId,
       kiblMinor: String(kiblMinor),          // send as string to be safe
       kibl: (kiblMinor / 100).toFixed(2),    // KIBL has 2 decimals
       nexaMinor: String(nexaMinor),
@@ -721,30 +721,34 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    const { fromAddress, } = req.body || {};
+    const { fromAddress } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
     }
 
     const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
-    const house      = process.env.HOUSE_ADDR_MAINNET;
-    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
+    const house   = process.env.HOUSE_ADDR_MAINNET;                           // or _TESTNET
+    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; // GROUP address
 
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network)
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
-    const unsignedTx = await w.newTransaction()
+
+    
+    const unsignedTx = await w
+      .newTransaction()
       .onNetwork(network)
-      .sendTo(house, '2000')
+      .sendTo(house, '2000')            // NEXA
       .feeFromAmount()
-      .sendToToken(house, '1000', tokenId)
-      .addOpReturn("Watch-only transaction")
+      .sendToToken(house, '1000', tokenId) // token by GROUP address
+      .addOpReturn('Watch-only transaction')
       .populate()
       .build();
-  
-    res.json({ ok:true, unsignedTx, house, network });
+
+    console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
+    return res.json({ ok:true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
-    res.status(500).json({ ok:false, error:'build_failed' });
+    return res.status(500).json({ ok:false, error:'build_failed' });
   }
 });
 

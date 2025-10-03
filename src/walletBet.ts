@@ -79,7 +79,7 @@ export async function loadWallet(pass: string) {
 
   try {
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrumProvider.getTokenUtxos(address, KIBL_TOKEN_HEX),
+      rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
       rostrumProvider.getNexaUtxos(address),
     ]);
 

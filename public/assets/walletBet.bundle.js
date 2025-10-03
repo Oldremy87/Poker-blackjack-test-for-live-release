@@ -54,7 +54,7 @@ async function loadWallet(pass) {
   let nexaUtxoCount = 0;
   try {
     const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrumProvider.getTokenUtxos(address, KIBL_TOKEN_HEX),
+      rostrumProvider.getTokenUtxos(address, KIBL_GROUP_ADDR),
       rostrumProvider.getNexaUtxos(address)
     ]);
     for (const u of tokenUtxos || []) kiblMinor += BigInt(u?.value || 0);
