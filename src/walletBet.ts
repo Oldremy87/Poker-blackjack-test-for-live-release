@@ -44,20 +44,26 @@ export async function loadWallet(pass: string) {
   const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
   const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
   const { seed } = JSON.parse(new TextDecoder().decode(pt)); // net: 'mainnet'|'testnet'
-  const net = 'mainnet'
-  // --- SDK + provider
-  const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
+const net = 'mainnet'; // hard lock to mainnet
 
-  // connect once (guard against duplicate connects)
-  try {
-    const host = 'mainnet' 
-    const port = net === 'mainnet' ? 20004 : 30004;
-    const scheme = 'wss';
-    await rostrumProvider.connect?.({ host, port, scheme });
-  } catch (_) {
-    // ignore if already connected or if connect() isn't idempotent
-  }
+const sdk = await getSdk();
+const { rostrumProvider } = sdk;
+
+// Force a real mainnet endpoint (no chance of testnet)
+const MAINNET_URL = 'wss://electrum.nexa.org:20004';
+
+try {
+  // If your SDK accepts a URL string:
+  await rostrumProvider.connect(MAINNET_URL);
+
+  // Or, structured form (either is fine):
+  // await rostrumProvider.connect({ host: 'electrum.nexa.org', port: 20004, scheme: 'wss' });
+ 
+} catch (e) {
+  console.error('[rostrum connect failed]', e);
+  throw e; // bail if not connected — no fallback to testnet
+}
+
 
   // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);
@@ -69,11 +75,14 @@ export async function loadWallet(pass: string) {
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
   const address = account.getPrimaryAddressKey().address; // nexa:...
-  const transactions = await account.getTransactions()
+   const nexaMinor = Number(account.balance?.confirmed || 0);
+  const kiblMinor = Number((account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed) || 0);
+
+  const nexa = (nexaMinor / 100).toFixed(2);
+  const kibl = (kiblMinor / 100).toFixed(2);
   // --- balances via rostrum UTXOs (authoritative)
   // KIBL has 2 decimals; NEXA has 2 decimals
-  let kiblMinor = 0n;
-  let nexaMinor = 0n;
+
   let tokenUtxoCount = 0;
   let nexaUtxoCount = 0;
 
@@ -87,17 +96,18 @@ export async function loadWallet(pass: string) {
     for (const u of nexaUtxos || []);  
     tokenUtxoCount = (tokenUtxos || []).length;
     nexaUtxoCount  = (nexaUtxos  || []).length;
+    const kiblEl = document.getElementById('kiblBalance');
+  if (kiblEl) kiblEl.textContent = `KIBL: ${kibl}`;
+  const nexaEl = document.getElementById('nexaBalance');
+  if (nexaEl) nexaEl.textContent = `NEXA: ${nexa}`;
+
   } catch (e) {
     // If this fails, keep going — caller can decide how to handle unknown balances
     console.warn('[loadWallet] balance fetch failed', e);
   }
 
   const balances = {
-    kiblMinor: kiblMinor,
-    kibl: toFixedFromMinor(kiblMinor, 2),
-    tokenUtxoCount,
-    nexaMinor: nexaMinor,
-    nexa: toFixedFromMinor(nexaMinor, 2),
+      nexaMinor, nexa, kiblMinor, kibl,
     nexaUtxoCount,
     // Handy ids for callers:
     tokenHex: KIBL_TOKEN_HEX,

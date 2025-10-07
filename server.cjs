@@ -28,16 +28,17 @@ process.on('uncaughtException', (err) => {
 });
 
 
-const NET = process.env.NEXA_NET || 'wss://electrum.nexa.org:20004';
-(async () => {
-  try {
-    await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
-  } catch (e) {
-    console.error('[rostrum connect failed]', e?.message || e);
-  }
-})();
+const NET = 'mainnet'; // hard lock
+const ROSTRUM_URL = 'wss://electrum.nexa.org:20004';
 
+async function ensureRostrumConnected() {
+  try {
+    await rostrumProvider.connect(ROSTRUM_URL);
+  } catch (e) {
+    console.error('[server rostrum connect failed]', e);
+    throw e;
+  }
+}
 
 
 
@@ -621,8 +622,7 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
+    await rostrumProvider.connect(ROSTRUM_URL);
     const address = String(req.query.address || '');
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
@@ -638,7 +638,9 @@ await rostrumProvider.connect(NET);
 
     let nexaMinor = 0;
     for (const u of nexaUtxos || []) nexaMinor += Number(u?.value || 0);
-
+    const w = new WatchOnlyWallet (address, 'mainnet')
+    await w.initialize?.();
+    
     res.json({
       ok: true,
       address,
@@ -660,8 +662,7 @@ await rostrumProvider.connect(NET);
 
 app.get('/api/rostrum/utxos', async (req, res) => {
   try {
-    await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
+    await rostrumProvider.connect(ROSTRUM_URL);
   
     const address = String(req.query.address || '');
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;

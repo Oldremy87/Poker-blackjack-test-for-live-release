@@ -11,15 +11,6 @@ async function getSdk() {
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
-function toFixedFromMinor(minorBn, decimals) {
-  const s = minorBn.toString();
-  const neg = s.startsWith("-");
-  const digits = neg ? s.slice(1) : s;
-  const pad = Math.max(0, decimals - digits.length);
-  const left = digits.length > decimals ? digits.slice(0, -decimals) : "0";
-  const right = (pad ? "0".repeat(pad) : "") + digits.slice(-decimals).padStart(decimals, "0");
-  return (neg ? "-" : "") + `${left}.${right}`;
-}
 async function loadWallet(pass) {
   const rawB64 = localStorage.getItem(KEY);
   const ivB64 = localStorage.getItem(IV);
@@ -35,12 +26,12 @@ async function loadWallet(pass) {
   const net = "mainnet";
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
+  const MAINNET_URL = "wss://electrum.nexa.org:20004";
   try {
-    const host = "mainnet";
-    const port = net === "mainnet" ? 20004 : 30004;
-    const scheme = "wss";
-    await rostrumProvider.connect?.({ host, port, scheme });
-  } catch (_) {
+    await rostrumProvider.connect(MAINNET_URL);
+  } catch (e) {
+    console.error("[rostrum connect failed]", e);
+    throw e;
   }
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
@@ -49,9 +40,10 @@ async function loadWallet(pass) {
   const account = wallet.accountStore.getAccount("2.0");
   if (!account) throw new Error("DApp account (2.0) not found.");
   const address = account.getPrimaryAddressKey().address;
-  await account.getTransactions();
-  let kiblMinor = 0n;
-  let nexaMinor = 0n;
+  const nexaMinor = Number(account.balance?.confirmed || 0);
+  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+  const nexa = (nexaMinor / 100).toFixed(2);
+  const kibl = (kiblMinor / 100).toFixed(2);
   let tokenUtxoCount = 0;
   let nexaUtxoCount = 0;
   try {
@@ -63,15 +55,18 @@ async function loadWallet(pass) {
     for (const u of nexaUtxos || []) ;
     tokenUtxoCount = (tokenUtxos || []).length;
     nexaUtxoCount = (nexaUtxos || []).length;
+    const kiblEl = document.getElementById("kiblBalance");
+    if (kiblEl) kiblEl.textContent = `KIBL: ${kibl}`;
+    const nexaEl = document.getElementById("nexaBalance");
+    if (nexaEl) nexaEl.textContent = `NEXA: ${nexa}`;
   } catch (e) {
     console.warn("[loadWallet] balance fetch failed", e);
   }
   const balances = {
-    kiblMinor,
-    kibl: toFixedFromMinor(kiblMinor, 2),
-    tokenUtxoCount,
     nexaMinor,
-    nexa: toFixedFromMinor(nexaMinor, 2),
+    nexa,
+    kiblMinor,
+    kibl,
     nexaUtxoCount,
     // Handy ids for callers:
     tokenHex: KIBL_TOKEN_HEX,
