@@ -40,8 +40,8 @@ async function loadWallet(pass) {
   const account = wallet.accountStore.getAccount("2.0");
   if (!account) throw new Error("DApp account (2.0) not found.");
   const address = account.getPrimaryAddressKey().address;
-  const nexaMinor = Number(account.balance?.confirmed || 0);
-  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+  const nexaMinor = account.balance?.confirmed || 0;
+  const kiblMinor = account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0;
   const nexa = (nexaMinor / 100).toFixed(2);
   const kibl = (kiblMinor / 100).toFixed(2);
   let tokenUtxoCount = 0;

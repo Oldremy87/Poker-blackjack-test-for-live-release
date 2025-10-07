@@ -626,21 +626,13 @@ app.get('/api/wallet/balance', async (req, res) => {
     const address = String(req.query.address || '');
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
-    
-
-    const [tokenUtxos, nexaUtxos] = await Promise.all([
-      rostrumProvider.getTokenUtxos(address, tokenId),
-      rostrumProvider.getNexaUtxos(address)
-    ]);
-
-    let kiblMinor = 0;
-    for (const u of tokenUtxos || []) kiblMinor += Number(u?.value || 0);
-
-    let nexaMinor = 0;
-    for (const u of nexaUtxos || []) nexaMinor += Number(u?.value || 0);
-    const w = new WatchOnlyWallet (address, 'mainnet')
+    const w = new WatchOnlyWallet([String( req.query.address || '' )], 'mainnet');
     await w.initialize?.();
-    
+    const account = w.accountStore.getAccount('2.0');
+  if (!account) throw new Error('DApp account (2.0) not found.');
+   const nexaMinor = (account.balance?.confirmed || 0);
+  const kiblMinor = ((account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed) || 0);
+
     res.json({
       ok: true,
       address,
@@ -728,7 +720,11 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
-    
+    const account = w.accountStore.getAccount('2.0');
+  if (!account) throw new Error('DApp account (2.0) not found.');
+  const address = account.getPrimaryAddressKey().address; // nexa:...
+   const nexaMinor = (account.balance?.confirmed || 0);
+  const kiblMinor = ((account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed) || 0);
       const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, '600')            
