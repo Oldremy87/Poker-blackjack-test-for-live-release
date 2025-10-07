@@ -26,14 +26,26 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
+async function connectRostrum() {
+  try {
+    // If your SDK exposes a connected flag/method, short-circuit:
+    if (typeof rostrumProvider.isConnected === 'function' && rostrumProvider.isConnected()) {
+      return rostrumProvider;
+    }
 
-try {
-  await rostrumProvider.connect({
-  scheme: 'wss',
-  host: 'electrum.nexa.org',
-  port: 20004,
-});
-}catch{}
+    await rostrumProvider.connect({
+      scheme: 'wss',
+      host: 'electrum.nexa.org',
+      port: 20004,
+    });
+
+    return rostrumProvider;
+  } catch (err) {
+    console.error('Failed to connect to Rostrum:', err);
+    throw err; // bubble up so callers can handle
+  }
+}
+connectRostrum();
 
 
 
