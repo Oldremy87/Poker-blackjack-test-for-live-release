@@ -54,10 +54,9 @@ const MAINNET_URL = 'wss://electrum.nexa.org:20004';
 
 try {
   // If your SDK accepts a URL string:
-  await rostrumProvider.connect(MAINNET_URL);
 
   // Or, structured form (either is fine):
-  // await rostrumProvider.connect({ host: 'electrum.nexa.org', port: 20004, scheme: 'wss' });
+   await rostrumProvider.connect({ host: 'electrum.nexa.org', port: 20004, scheme: 'wss' });
  
 } catch (e) {
   console.error('[rostrum connect failed]', e);

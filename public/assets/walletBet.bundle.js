@@ -26,9 +26,8 @@ async function loadWallet(pass) {
   const net = "mainnet";
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  const MAINNET_URL = "wss://electrum.nexa.org:20004";
   try {
-    await rostrumProvider.connect(MAINNET_URL);
+    await rostrumProvider.connect({ host: "electrum.nexa.org", port: 20004, scheme: "wss" });
   } catch (e) {
     console.error("[rostrum connect failed]", e);
     throw e;
