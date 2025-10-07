@@ -50,19 +50,7 @@ const sdk = await getSdk();
 const { rostrumProvider } = sdk;
 
 // Force a real mainnet endpoint (no chance of testnet)
-const MAINNET_URL = 'wss://electrum.nexa.org:20004';
-
-try {
-  // If your SDK accepts a URL string:
-
-  // Or, structured form (either is fine):
-   await rostrumProvider.connect({ host: 'electrum.nexa.org', port: 20004, scheme: 'wss' });
- 
-} catch (e) {
-  console.error('[rostrum connect failed]', e);
-  throw e; // bail if not connected — no fallback to testnet
-}
-
+await rostrumProvider.connect('wss://electrum.nexa.org:20004');
 
   // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);

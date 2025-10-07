@@ -28,17 +28,20 @@ process.on('uncaughtException', (err) => {
 });
 
 
-const NET = 'mainnet'; // hard lock
+const NET = 'mainnet'; // informational; DO NOT pass this to connect()
 const ROSTRUM_URL = 'wss://electrum.nexa.org:20004';
 
 async function ensureRostrumConnected() {
   try {
-    await rostrumProvider.connect(ROSTRUM_URL);
+    await rostrumProvider.connect(ROSTRUM_URL); // ← URL, not 'mainnet'
   } catch (e) {
-    console.error('[server rostrum connect failed]', e);
+    console.error('[server rostrum connect failed]', e?.message || e);
     throw e;
   }
 }
+
+// connect once on boot
+ensureRostrumConnected().catch(()=>{});
 
 
 
@@ -622,11 +625,11 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-    await rostrumProvider.connect(ROSTRUM_URL);
+     await ensureRostrumConnected();
     const address = String(req.query.address || '');
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
-    const w = new WatchOnlyWallet([String( req.query.address || '' )], 'mainnet');
+    const w = new WatchOnlyWallet([{ address }], 'mainnet');
     await w.initialize?.();
     const account = w.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
@@ -654,7 +657,7 @@ app.get('/api/wallet/balance', async (req, res) => {
 
 app.get('/api/rostrum/utxos', async (req, res) => {
   try {
-    await rostrumProvider.connect(ROSTRUM_URL);
+     await ensureRostrumConnected();
   
     const address = String(req.query.address || '');
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
@@ -707,8 +710,7 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-  await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
+   await ensureRostrumConnected();
     const { fromAddress } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
@@ -743,8 +745,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-    await rostrumProvider.connect(NET);
-    console.log('[rostrum] connected to', NET);
+     await ensureRostrumConnected();
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
       console.log('[broadcast] bad hex', typeof hex, hex?.length);
