@@ -27,24 +27,14 @@ process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
 
+try {
+  await rostrumProvider.connect({
+  scheme: 'wss',
+  host: 'electrum.nexa.org',
+  port: 20004,
+});
+}catch{}
 
-let rostrumReady; // cache a single connect promise
-function ensureRostrumConnected() {
-  if (!rostrumReady) {
-    rostrumReady = rostrumProvider.connect({
-      scheme: 'wss',
-      host: 'electrum.nexa.org',
-      port: 20004,
-    }).catch(err => {
-      rostrumReady = null; // allow retry on failure
-      throw err;
-    });
-  }
-  return rostrumReady;
-}
-
-// connect once at boot
-ensureRostrumConnected().catch(e => console.error('[rostrum connect]', e));
 
 
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
@@ -627,7 +617,12 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-     await ensureRostrumConnected();
+  await rostrumProvider.connect({
+  scheme: 'wss',
+  host: 'electrum.nexa.org',
+  port: 20004,
+});
+
     const address = String(req.query.address || '');
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
@@ -659,8 +654,12 @@ app.get('/api/wallet/balance', async (req, res) => {
 
 app.get('/api/rostrum/utxos', async (req, res) => {
   try {
-     await ensureRostrumConnected();
-  
+    await rostrumProvider.connect({
+  scheme: 'wss',
+  host: 'electrum.nexa.org',
+  port: 20004,
+});
+
     const address = String(req.query.address || '');
     const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
@@ -712,7 +711,11 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-   await ensureRostrumConnected();
+      await rostrumProvider.connect({
+  scheme: 'wss',
+  host: 'electrum.nexa.org',
+  port: 20004,
+});
     const { fromAddress } = req.body || {};
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
@@ -726,7 +729,6 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     await w.initialize?.();
     const account = w.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
-  const address = account.getPrimaryAddressKey().address; // nexa:...
    const nexaMinor = (account.balance?.confirmed || 0);
   const kiblMinor = ((account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed) || 0);
       const unsignedTx = await w.newTransaction()
@@ -747,7 +749,11 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-     await ensureRostrumConnected();
+     await rostrumProvider.connect({
+  scheme: 'wss',
+  host: 'electrum.nexa.org',
+  port: 20004,
+});
     const { hex } = req.body || {};
     if (!hex || typeof hex !== 'string') {
       console.log('[broadcast] bad hex', typeof hex, hex?.length);

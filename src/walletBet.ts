@@ -18,16 +18,6 @@ async function getSdk() {
 function getWalletCtor(mod: any) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
-function toFixedFromMinor(minorBn: bigint, decimals: number): string {
-  const s = minorBn.toString();
-  if (decimals === 0) return s;
-  const neg = s.startsWith('-');
-  const digits = neg ? s.slice(1) : s;
-  const pad = Math.max(0, decimals - digits.length);
-  const left = digits.length > decimals ? digits.slice(0, -decimals) : '0';
-  const right = (pad ? '0'.repeat(pad) : '') + digits.slice(-decimals).padStart(decimals, '0');
-  return (neg ? '-' : '') + `${left}.${right}`;
-}
 
 export async function loadWallet(pass: string) {
   // --- decrypt local keystore
@@ -49,11 +39,7 @@ const net = 'mainnet'; // hard lock to mainnet
 const sdk = await getSdk();
 const { rostrumProvider } = sdk;
 
-rostrumProvider.connect({
-      scheme: 'wss',
-      host: 'electrum.nexa.org',
-      port: 20004,
-    })
+  await rostrumProvider.connect({ scheme: 'wss', host: 'electrum.nexa.org', port: 20004 });
 
   // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);

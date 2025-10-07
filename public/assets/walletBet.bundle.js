@@ -26,11 +26,7 @@ async function loadWallet(pass) {
   const net = "mainnet";
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  rostrumProvider.connect({
-    scheme: "wss",
-    host: "electrum.nexa.org",
-    port: 20004
-  });
+  await rostrumProvider.connect({ scheme: "wss", host: "electrum.nexa.org", port: 20004 });
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
