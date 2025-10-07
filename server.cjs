@@ -28,11 +28,6 @@ process.on('uncaughtException', (err) => {
 });
 async function connectRostrum() {
   try {
-    // If your SDK exposes a connected flag/method, short-circuit:
-    if (typeof rostrumProvider.isConnected === 'function' && rostrumProvider.isConnected()) {
-      return rostrumProvider;
-    }
-
     await rostrumProvider.connect({
       scheme: 'wss',
       host: 'electrum.nexa.org',
@@ -640,10 +635,8 @@ app.get('/api/wallet/balance', async (req, res) => {
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     const w = new WatchOnlyWallet([{ address }], 'mainnet');
     await w.initialize?.();
-    const account = w.accountStore.getAccount('2.0');
-  if (!account) throw new Error('DApp account (2.0) not found.');
-   const nexaMinor = (account.balance?.confirmed || 0);
-  const kiblMinor = ((account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed) || 0);
+   const kiblMinor = rostrumProvider.getTokensBalance(address, tokenId);
+  const nexaMinor= rostrumProvider.getBalance (address);
 
     res.json({
       ok: true,
@@ -653,39 +646,10 @@ app.get('/api/wallet/balance', async (req, res) => {
       kibl: (kiblMinor / 100).toFixed(2),    // KIBL has 2 decimals
       nexaMinor: String(nexaMinor),
       nexa: (nexaMinor / 100).toFixed(2),    // NEXA has 2 decimals
-      nexaUtxoCount: (nexaUtxos || []).length,
-      tokenUtxoCount: (tokenUtxos || []).length
     });
   } catch (e) {
     console.error('balance_error', e);
     res.status(500).json({ ok:false, error:'balance_error' });
-  }
-});
-
-
-
-app.get('/api/rostrum/utxos', async (req, res) => {
-  try {
-    await rostrumProvider.connect({
-  scheme: 'wss',
-  host: 'electrum.nexa.org',
-  port: 20004,
-});
-
-    const address = String(req.query.address || '');
-    const tokenIdHex = process.env.KIBL_TOKEN_ID_HEX;
-    if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
-    if (!tokenIdHex) return res.status(500).json({ ok:false, error:'server_missing_token_id' });
-
-    const [tokenUtxos, nexaUtxos] = await Promise.all([
-   rostrumProvider.getTokenUtxos(address, tokenIdHex),
-   rostrumProvider.getNexaUtxos(address)
- ]);
-
-    res.json({ ok:true, address, tokenId: tokenIdHex, tokenUtxos, nexaUtxos });
-  } catch (e) {
-    console.error('utxos_error', e);
-    res.status(500).json({ ok:false, error:'utxos_error' });
   }
 });
 
@@ -733,16 +697,14 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       return res.status(400).json({ ok:false, error:'bad_address' });
     }
 
-    const network = (process.env.NEXA_NET === 'testnet') ? 'testnet' : 'mainnet';
+    
     const house   = process.env.HOUSE_ADDR_MAINNET;                          
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
 
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
+    const w = new WatchOnlyWallet([{ address: fromAddress }], 'mainnet');
     await w.initialize?.();
-    const account = w.accountStore.getAccount('2.0');
-  if (!account) throw new Error('DApp account (2.0) not found.');
-   const nexaMinor = (account.balance?.confirmed || 0);
-  const kiblMinor = ((account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed) || 0);
+    const kiblMinor = rostrumProvider.getTokensBalance(fromAddress, tokenId);
+    const nexaMinor= rostrumProvider.getBalance (fromAddress);
       const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, '600')            

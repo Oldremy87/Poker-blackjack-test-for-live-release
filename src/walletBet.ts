@@ -38,10 +38,7 @@ const net = 'mainnet'; // hard lock to mainnet
 
 const sdk = await getSdk();
 const { rostrumProvider } = sdk;
-
-  await rostrumProvider.connect({ scheme: 'wss', host: 'electrum.nexa.org', port: 20004 });
-
-  // --- wallet + account
+await rostrumProvider.connect();
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
 
