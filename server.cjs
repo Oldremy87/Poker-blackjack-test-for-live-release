@@ -28,21 +28,23 @@ process.on('uncaughtException', (err) => {
 });
 
 
-const NET = 'mainnet'; // informational; DO NOT pass this to connect()
-const ROSTRUM_URL = 'wss://electrum.nexa.org:20004';
-
-async function ensureRostrumConnected() {
-  try {
-    await rostrumProvider.connect(ROSTRUM_URL); // ← URL, not 'mainnet'
-  } catch (e) {
-    console.error('[server rostrum connect failed]', e?.message || e);
-    throw e;
+let rostrumReady; // cache a single connect promise
+function ensureRostrumConnected() {
+  if (!rostrumReady) {
+    rostrumReady = rostrumProvider.connect({
+      scheme: 'wss',
+      host: 'electrum.nexa.org',
+      port: 20004,
+    }).catch(err => {
+      rostrumReady = null; // allow retry on failure
+      throw err;
+    });
   }
+  return rostrumReady;
 }
 
-// connect once on boot
-ensureRostrumConnected().catch(()=>{});
-
+// connect once at boot
+ensureRostrumConnected().catch(e => console.error('[rostrum connect]', e));
 
 
 const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;

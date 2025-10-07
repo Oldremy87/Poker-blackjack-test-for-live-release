@@ -49,8 +49,11 @@ const net = 'mainnet'; // hard lock to mainnet
 const sdk = await getSdk();
 const { rostrumProvider } = sdk;
 
-// Force a real mainnet endpoint (no chance of testnet)
-await rostrumProvider.connect('wss://electrum.nexa.org:20004');
+rostrumProvider.connect({
+      scheme: 'wss',
+      host: 'electrum.nexa.org',
+      port: 20004,
+    })
 
   // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);
