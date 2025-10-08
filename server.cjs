@@ -693,10 +693,6 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
   port: 20004,
 });
     const address = String(req.query.address || '');
-    if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
-      return res.status(400).json({ ok:false, error:'bad_address' });
-    }
-
     const network = 'mainnet'
     const house   = process.env.HOUSE_ADDR_MAINNET;                          
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
