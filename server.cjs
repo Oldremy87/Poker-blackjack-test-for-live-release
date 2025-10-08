@@ -707,8 +707,9 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const nexaMinor= await rostrumProvider.getBalance (fromAddress);
       const unsignedTx = await w.newTransaction()
       .onNetwork(network)
-      .sendTo(house, '600')            
-      .sendToToken(house, '1000', tokenId) 
+    //  .sendTo(house, '600')            
+    //  .sendToToken(house, '1000', tokenId) 
+      .melt (5000, tokenId)
       .populate()
       .build();
      console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
