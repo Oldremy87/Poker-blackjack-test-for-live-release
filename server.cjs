@@ -692,7 +692,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
   host: 'electrum.nexa.org',
   port: 20004,
 });
-    const { fromAddress } = req.body || {};
+    const address = String(req.query.address || '');
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
     }
@@ -701,14 +701,14 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const house   = process.env.HOUSE_ADDR_MAINNET;                          
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
 
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
+    const w = new WatchOnlyWallet( address, network);
     await w.initialize?.();
-    const kiblMinor = await rostrumProvider.getTokensBalance(fromAddress, tokenId);
-    const nexaMinor= await rostrumProvider.getBalance (fromAddress);
+    const kiblMinor = await rostrumProvider.getTokensBalance(address, tokenId);
+    const nexaMinor= await rostrumProvider.getBalance (address);
       const unsignedTx = await w.newTransaction()
       .onNetwork(network)
-    //  .sendTo(house, '600')            
-    //  .sendToToken(house, '1000', tokenId) 
+      .sendTo(house, '600')            
+      .sendToToken(house, '5000', tokenId) 
       .melt (tokenId,5000) 
       .populate()
       .build();
