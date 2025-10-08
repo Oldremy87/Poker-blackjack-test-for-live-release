@@ -635,8 +635,8 @@ app.get('/api/wallet/balance', async (req, res) => {
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     const w = new WatchOnlyWallet([{ address }], 'mainnet');
     await w.initialize?.();
-   const kiblMinor = rostrumProvider.getTokensBalance(address, tokenId);
-  const nexaMinor= rostrumProvider.getBalance (address);
+   const kiblMinor = await rostrumProvider.getTokensBalance(address, tokenId);
+  const nexaMinor=  await rostrumProvider.getBalance (address);
 
     res.json({
       ok: true,
@@ -697,14 +697,14 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       return res.status(400).json({ ok:false, error:'bad_address' });
     }
 
-    
+    const network = 'mainnet'
     const house   = process.env.HOUSE_ADDR_MAINNET;                          
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
 
-    const w = new WatchOnlyWallet([{ address: fromAddress }], 'mainnet');
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
-    const kiblMinor = rostrumProvider.getTokensBalance(fromAddress, tokenId);
-    const nexaMinor= rostrumProvider.getBalance (fromAddress);
+    const kiblMinor = await rostrumProvider.getTokensBalance(fromAddress, tokenId);
+    const nexaMinor= await rostrumProvider.getBalance (fromAddress);
       const unsignedTx = await w.newTransaction()
       .onNetwork(network)
       .sendTo(house, '600')            
