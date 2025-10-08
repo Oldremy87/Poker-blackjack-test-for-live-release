@@ -106,7 +106,19 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   passphrase: string; kiblAmount: number; tokenIdHex: string; feeNexa: number;
 }) {
   if (!passphrase || passphrase.length < 8) throw new Error('Password required (8+ chars).');
+  const net = 'mainnet'
+  const sdk = await getSdk();
+  const { rostrumProvider } = sdk;
 
+  // connect once (guard against duplicate connects)
+  try {
+    const host = net === 'mainnet' ? 'electrum.nexa.org' : 'testnet-electrum.nexa.org';
+    const port = net === 'mainnet' ? 20004 : 30004;
+    const scheme = 'wss';
+    await rostrumProvider.connect?.({ host, port, scheme });
+  } catch (_) {
+    // ignore if already connected or if connect() isn't idempotent
+  }
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
 

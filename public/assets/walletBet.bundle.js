@@ -65,6 +65,16 @@ async function csrf() {
 }
 async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
+  const net = "mainnet";
+  const sdk = await getSdk();
+  const { rostrumProvider } = sdk;
+  try {
+    const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
+    const port = net === "mainnet" ? 20004 : 30004;
+    const scheme = "wss";
+    await rostrumProvider.connect?.({ host, port, scheme });
+  } catch (_) {
+  }
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
   console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "tokenIdHex", tokenIdHex, "feeNexa", feeNexa);

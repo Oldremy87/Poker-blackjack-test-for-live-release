@@ -709,7 +709,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       .onNetwork(network)
     //  .sendTo(house, '600')            
     //  .sendToToken(house, '1000', tokenId) 
-      .melt (5000, tokenId)
+      .melt (tokenId,5000) 
       .populate()
       .build();
      console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
