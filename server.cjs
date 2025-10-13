@@ -701,6 +701,11 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const house = process.env.HOUSE_ADDR_MAINNET;
     const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
+    // Optional: Pre-check balance to avoid building invalid TX
+    const kiblBal = await rostrumProvider.getTokensBalance(fromAddress, tokenIdHex);
+    const nexaBal = await rostrumProvider.getBalance(fromAddress);
+    if (Number(kiblBal.confirmed[tokenIdHex] || 0) < kiblAmount) return res.status(400).json({ ok: false, error: 'insufficient_kibl' }); 
+    if (Number(nexaBal.confirmed || 0) < feeNexa) return res.status(400).json({ ok: false, error: 'insufficient_nexa' });
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
