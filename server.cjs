@@ -698,7 +698,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     
 
     const network = 'mainnet';
-    const house = 'nexa:nqtsq5g5njggz5xxahs26ch0y98c638rswgjwv02hgkl8yd6';
+    const house = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';
     const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     // Optional: Pre-check balance to avoid building invalid TX
