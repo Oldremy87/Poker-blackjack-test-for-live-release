@@ -880,17 +880,17 @@ function flashPayout(){
 async function loadWalletBalances(address) {
   if (!address) return;
   try {
-    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials:'include' });
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
     const j = await r.json();
     if (!j?.ok) return;
 
     const kiblEl = document.getElementById('kiblBalance');
-    if (kiblE ) kiblEl.textContent = `KIBL: ${j.kibl}`;
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
 
     const nexaEl = document.getElementById('nexaBalance');
-    if (nexaEl || 'nexa' in j) nexaEl.textContent = `NEXA: ${j.nexa} `;
+    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
   } catch (e) {
-    // silent failure is fine for HUD
+    console.error('loadWalletBalances failed:', e);  
   }
 }
 
