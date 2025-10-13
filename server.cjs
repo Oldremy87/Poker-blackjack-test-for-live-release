@@ -691,7 +691,7 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    const { fromAddress, kiblAmount, tokenIdHex, feeNexa } = req.body;
+    const { fromAddress, kiblAmount, feeNexa } = req.body;
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) return res.status(400).json({ ok: false, error: 'bad_address' });
     if (!Number.isInteger(kiblAmount) || kiblAmount <= 0) return res.status(400).json({ ok: false, error: 'bad_kibl_amount' });
     if (!Number.isInteger(feeNexa) || feeNexa <= 0) return res.status(400).json({ ok: false, error: 'bad_fee' });
@@ -699,10 +699,10 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
 
     const network = 'mainnet';
     const house = process.env.HOUSE_ADDR_MAINNET;
-    const tokenId = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
-
+    const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
+    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     // Optional: Pre-check balance to avoid building invalid TX
-    const kiblBal = await rostrumProvider.getTokensBalance(fromAddress, tokenId);
+    const kiblBal = await rostrumProvider.getTokensBalance(fromAddress, tokenIdHex);
     const nexaBal = await rostrumProvider.getBalance(fromAddress);
     if (Number(kiblBal.confirmed[tokenId] || 0) < kiblAmount * 2) return res.status(400).json({ ok: false, error: 'insufficient_kibl' }); // *2 if melt + send
     if (Number(nexaBal.confirmed || 0) < feeNexa) return res.status(400).json({ ok: false, error: 'insufficient_nexa' });
