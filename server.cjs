@@ -708,13 +708,11 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     if (Number(nexaBal.confirmed || 0) < feeNexa) return res.status(400).json({ ok: false, error: 'insufficient_nexa' });
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
-    await w.initialize?.();
-
     const unsignedTx = await w.newTransaction()
-      .onNetwork(network)
+      
       .sendTo(house, feeNexa.toString())  // Nexa to house (fee?)
       .sendToToken(house, kiblAmount.toString(), tokenId)  // Tokens to house
-      .melt(tokenId, kiblAmount.toString())  // Burn equal amount? (Remove if not needed for bet commitment)
+   //   .melt(tokenId, kiblAmount.toString())  // Burn equal amount? (Remove if not needed for bet commitment)
       .populate()
       .build();
 
