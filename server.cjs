@@ -695,11 +695,11 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) return res.status(400).json({ ok: false, error: 'bad_address' });
     if (!Number.isInteger(kiblAmount) || kiblAmount <= 0) return res.status(400).json({ ok: false, error: 'bad_kibl_amount' });
     if (!Number.isInteger(feeNexa) || feeNexa <= 0) return res.status(400).json({ ok: false, error: 'bad_fee' });
-    if (!tokenIdHex || !/^nexa:[a-z0-9]+$/i.test(tokenIdHex)) return res.status(400).json({ ok: false, error: 'bad_token_id' });
+    
 
     const network = 'mainnet';
     const house = process.env.HOUSE_ADDR_MAINNET;
-    const tokenId = tokenIdHex;
+    const tokenId = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
 
     // Optional: Pre-check balance to avoid building invalid TX
     const kiblBal = await rostrumProvider.getTokensBalance(fromAddress, tokenId);
