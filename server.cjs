@@ -712,7 +712,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
       
     //  .sendTo(house, feeNexa.toString())  // Nexa to house (fee?)
     //  .sendToToken(house, kiblAmount.toString(), tokenId)  // Tokens to house
-     .melt(tokenId, kiblAmount.toString())  // Burn equal amount? (Remove if not needed for bet commitment)
+      .melt(tokenIdHex, kiblAmount.toString())  // Burn equal amount? (Remove if not needed for bet commitment)
       .populate()
       .build();
 
