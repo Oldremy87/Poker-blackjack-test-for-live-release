@@ -75,10 +75,10 @@ const fromMinor = (n: number) => n / Math.pow(10, DECIMALS);
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
   const address = account.getPrimaryAddressKey().address; 
-  const kiblBal = await rostrumProvider.getTokensBalance(address, KIBL_GROUP_ADDR);
+  const kiblBal = await rostrumProvider.getTokensBalance(address, KIBL_TOKEN_HEX);
   const nexaBal=  await rostrumProvider.getBalance (address);
 
-const kiblMinor = toNum(kiblBal.confirmed[KIBL_GROUP_ADDR]);
+const kiblMinor = toNum(kiblBal.confirmed[KIBL_TOKEN_HEX]);
 const nexaMinor = toNum(nexaBal.confirmed);
 
   const balances = {

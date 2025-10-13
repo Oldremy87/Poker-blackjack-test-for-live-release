@@ -691,34 +691,40 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-      await rostrumProvider.connect({
-  scheme: 'wss',
-  host: 'electrum.nexa.org',
-  port: 20004,
-});
-    const address = String(req.query.address || '');
-    const network = 'mainnet'
-    const house   = process.env.HOUSE_ADDR_MAINNET;                          
-    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; 
+    const { fromAddress, kiblAmount, tokenIdHex, feeNexa } = req.body;
+    if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) return res.status(400).json({ ok: false, error: 'bad_address' });
+    if (!Number.isInteger(kiblAmount) || kiblAmount <= 0) return res.status(400).json({ ok: false, error: 'bad_kibl_amount' });
+    if (!Number.isInteger(feeNexa) || feeNexa <= 0) return res.status(400).json({ ok: false, error: 'bad_fee' });
+    if (!tokenIdHex || !/^nexa:[a-z0-9]+$/i.test(tokenIdHex)) return res.status(400).json({ ok: false, error: 'bad_token_id' });
 
-    const w = new WatchOnlyWallet( [address], network);
+    const network = 'mainnet';
+    const house = process.env.HOUSE_ADDR_MAINNET;
+    const tokenId = tokenIdHex;
+
+    // Optional: Pre-check balance to avoid building invalid TX
+    const kiblBal = await rostrumProvider.getTokensBalance(fromAddress, tokenId);
+    const nexaBal = await rostrumProvider.getBalance(fromAddress);
+    if (Number(kiblBal.confirmed[tokenId] || 0) < kiblAmount * 2) return res.status(400).json({ ok: false, error: 'insufficient_kibl' }); // *2 if melt + send
+    if (Number(nexaBal.confirmed || 0) < feeNexa) return res.status(400).json({ ok: false, error: 'insufficient_nexa' });
+
+    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
     await w.initialize?.();
-    const kiblMinor = await rostrumProvider.getTokensBalance(address, tokenId);
-    const nexaMinor= await rostrumProvider.getBalance (address);
-      const unsignedTx = await w.newTransaction()
+
+    const unsignedTx = await w.newTransaction()
       .onNetwork(network)
-      .sendTo(house, '600')            
-      .sendToToken(house, '5000', tokenId) 
-      .melt (tokenId,5000) 
+      .sendTo(house, feeNexa.toString())  // Nexa to house (fee?)
+      .sendToToken(house, kiblAmount.toString(), tokenId)  // Tokens to house
+      .melt(tokenId, kiblAmount.toString())  // Burn equal amount? (Remove if not needed for bet commitment)
       .populate()
       .build();
-     console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
+
+    console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
     console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
-    
-    return res.json({ ok:true, unsignedTx, house, network });
+
+    return res.json({ ok: true, unsignedTx, house, network });
   } catch (e) {
     console.error('build_unsigned_failed', e);
-    return res.status(500).json({ ok:false, error:'build_failed' });
+    return res.status(500).json({ ok: false, error: 'build_failed' });
   }
 });
 
