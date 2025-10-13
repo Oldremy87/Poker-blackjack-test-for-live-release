@@ -631,7 +631,7 @@ app.get('/api/wallet/balance', async (req, res) => {
 });
 
     const address = String(req.query.address || '');
-    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
+    const tokenId = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
     if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     const w = new WatchOnlyWallet([{ address }], 'mainnet');
     await w.initialize?.();
