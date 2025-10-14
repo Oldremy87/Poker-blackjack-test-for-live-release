@@ -6,7 +6,7 @@ const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
 const KIBL_GROUP_ADDR = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 async function getSdk() {
-  return await import("./chunks/index.web-BLBFEYpJ.js");
+  return await import("./chunks/index.web-BVpTD3m9.js");
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
