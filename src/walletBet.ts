@@ -122,34 +122,30 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const { wallet, account, address, network } = await loadWallet(passphrase);
   const CSRF = await csrf();
 
-  // 1) Build unsigned via your server (server talks to Rostrum)
-  console.log('[placeBet] from', address, 'kiblAmount', kiblAmount, 'tokenIdHex', tokenIdHex, 'feeNexa', feeNexa);
-  const r = await fetch('/api/bet/build-unsigned', {
-    method:'POST',
-    credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
-  });
-  const j = await r.json().catch(()=> ({} as any));
-  console.log('[placeBet] build-unsigned response ok?', r.ok, 'payload keys', Object.keys(j || {}));
-  if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
+  const house = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';  // Hardcode your house address
 
-  // 2) Sign in browser
-  console.log('[placeBet] signing…');
-  await wallet.initialize();
-  const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
-  console.log('[placeBet] signedHex len', signedTx?.length);
+  // Pre-check balances client-side
+  const kiblBal = await rostrumProvider.getTokensBalance(address, tokenIdHex);
+  const nexaBal = await rostrumProvider.getBalance(address);
+  if (Number(kiblBal.confirmed[tokenIdHex] || 0) < kiblAmount) throw new Error('Insufficient KIBL');
+  if (Number(nexaBal.confirmed || 0) < feeNexa) throw new Error('Insufficient NEXA');
 
-  // 3) Broadcast via server
-  const br = await fetch('/api/tx/broadcast', {
-    method:'POST',
-    credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ hex: signedTx })
-  });
-  const bj = await br.json().catch(()=> ({} as any));
-  console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
-  if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
+  console.log('[placeBet] Building TX client-side from', address, 'kiblAmount', kiblAmount, 'tokenIdHex', tokenIdHex, 'feeNexa', feeNexa);
 
-  return { txId: bj.txid, network, address, house: j.house };
+  // Build, populate, sign, and build hex client-side
+  const tx = wallet.newTransaction(account);  // Pass account if required by SDK
+  tx.onNetwork(network);
+  tx.sendTo(house, feeNexa.toString());  // NEXA to house (for fee)
+  tx.sendToToken(house, kiblAmount.toString(), tokenIdHex);  // Tokens to house
+  // tx.melt(tokenIdHex, kiblAmount.toString());  // Uncomment if burning is needed for bet commitment
+  await tx.populate();  // Fetches and selects UTXOs client-side
+  const signedTx = await tx.sign().build();  // Sign and get signed hex
+
+  console.log('[placeBet] Signed HEX len', signedTx?.length);
+
+  // Broadcast client-side
+  const txId = await wallet.sendTransaction(signedTx)
+  console.log('Transaction ID:', txId)
+
+  return { txId, network, address, house };
 }
