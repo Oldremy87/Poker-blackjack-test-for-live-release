@@ -13,11 +13,7 @@ const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
 const app = express();
-const {
-  Wallet,
-  WatchOnlyWallet,
-  rostrumProvider,   // the singleton provider
-} = require('nexa-wallet-sdk');
+const {WatchOnlyWallet, rostrumProvider } = require('nexa-wallet-sdk');
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
 process.on('unhandledRejection', (reason) => {
@@ -26,21 +22,16 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
-async function connectRostrum() {
-  try {
-    await rostrumProvider.connect({
-      scheme: 'wss',
-      host: 'electrum.nexa.org',
-      port: 20004,
-    });
+const express = require('express');
+const PORT = process.env.PORT || 10000;
 
-    return rostrumProvider;
-  } catch (err) {
-    console.error('Failed to connect to Rostrum:', err);
-    throw err; // bubble up so callers can handle
-  }
+// Hard-lock to MAINNET Rostrum (no testnet, no localhost)
+async function ensureRostrum() {
+  await rostrumProvider.connect({ scheme: 'wss', host: 'electrum.nexa.org', port: 20004 });
 }
-connectRostrum();
+ensureRostrum().catch(()=>{});
+// KIBL token group HEX (64 hex chars – trim any trailing padding you may have)
+const KIBL_GROUP_HEX = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
 
 
 
@@ -224,21 +215,6 @@ app.get('/healthz', async (_req,res)=>{
   res.json({ ok:true, ts:new Date().toISOString(), db: dbOk });
 });
 
-// --- UID COOKIE (used by getOrCreateUser/saveAfterDraw) ---
-app.use((req, res, next) => {
-  let uid = req.cookies?.uid;
-  if (!uid) {
-    uid = randomUUID();
-    res.cookie('uid', uid, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 1000 * 60 * 60 * 24 * 365
-    });
-  }
-  req.uid = uid;
-  next();
-});
 app.get('/api/version', (_req,res)=> {
   res.json({ ok:true, commit: process.env.GIT_COMMIT || null, build: process.env.BUILD_ID || null });
 });
@@ -624,32 +600,33 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-  await rostrumProvider.connect({
-  scheme: 'wss',
-  host: 'electrum.nexa.org',
-  port: 20004,
-});
+    await ensureRostrum();
 
     const address = String(req.query.address || '');
-    const tokenId = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
-    if (!/^nexa:[a-z0-9]+$/i.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
+    if (!/^nexa:[a-z0-9]+$/i.test(address)) {
+      return res.status(400).json({ ok:false, error:'bad_address' });
+    }
+
+    // Watch-only against the single address, mainnet
     const w = new WatchOnlyWallet([{ address }], 'mainnet');
     await w.initialize?.();
-   const kiblBal = await rostrumProvider.getTokensBalance(address, tokenId);
-  const nexaBal=  await rostrumProvider.getBalance (address);
 
-const kiblMinor = Number(kiblBal.confirmed[tokenId]);
-const nexaMinor = Number(nexaBal.confirmed);
+    // New 0.8.0 helpers – already aggregated; no manual UTXO math
+    const nexaBal     = await w.getBalance();         // { confirmed:"...", unconfirmed:"..." }
+    const tokenBals   = await w.getTokenBalances();   // { [tokenHex]: { confirmed:"...", unconfirmed:"..." }, ... }
 
+    // Pull just KIBL (string → Number → /100). No BigInt anywhere.
+    const kiblMinor   = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
+    const nexaMinor   = Number(nexaBal.confirmed || 0);
 
     res.json({
       ok: true,
       address,
-      tokenId: tokenId,
-      kiblMinor: String(kiblMinor),          // send as string to be safe
-      kibl: (kiblMinor / 100).toFixed(2),    // KIBL has 2 decimals
+      tokenHex: KIBL_GROUP_HEX,
       nexaMinor: String(nexaMinor),
-      nexa: (nexaMinor / 100).toFixed(2),    // NEXA has 2 decimals
+      nexa: (nexaMinor / 100).toFixed(2),
+      kiblMinor: String(kiblMinor),
+      kibl: (kiblMinor / 100).toFixed(2),
     });
   } catch (e) {
     console.error('balance_error', e);
@@ -702,12 +679,12 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
     // Optional: Pre-check balance to avoid building invalid TX
-    const kiblBal = await rostrumProvider.getTokensBalance(fromAddress, tokenIdHex);
-    const nexaBal = await rostrumProvider.getBalance(fromAddress);
-    if (Number(kiblBal.confirmed[tokenIdHex] || 0) < kiblAmount) return res.status(400).json({ ok: false, error: 'insufficient_kibl' }); 
-    if (Number(nexaBal.confirmed || 0) < feeNexa) return res.status(400).json({ ok: false, error: 'insufficient_nexa' });
+   
 
     const w = new WatchOnlyWallet([{ address: fromAddress }], network);
+const nexaBal   = await w.getBalance();
+const tokenBals = await w.getTokenBalances();
+const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const unsignedTx = await w.newTransaction()
       
       .sendTo(house, feeNexa.toString())  // Nexa to house (fee?)

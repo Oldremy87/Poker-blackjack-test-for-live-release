@@ -1,9 +1,9 @@
-import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-B2SI0-L8.js";
+import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-C_zbkbH-.js";
 globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 async function sdk() {
-  return await import("./chunks/index.web-BVpTD3m9.js");
+  return await import("./chunks/index.web-Does7zZT.js");
 }
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";

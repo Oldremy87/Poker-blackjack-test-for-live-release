@@ -1,4 +1,4 @@
-import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-B2SI0-L8.js";
+import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-C_zbkbH-.js";
 globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
@@ -6,7 +6,7 @@ const KEY = "kk_wallet_v1", IV = "kk_wallet_iv_v1";
 const KIBL_GROUP_ADDR = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
 async function getSdk() {
-  return await import("./chunks/index.web-BVpTD3m9.js");
+  return await import("./chunks/index.web-Does7zZT.js");
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
@@ -76,23 +76,30 @@ async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   } catch (_) {
   }
   const { wallet, account, address, network } = await loadWallet(passphrase);
-  await csrf();
-  const house = "nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3";
-  const kiblBal = await rostrumProvider.getTokensBalance(address, tokenIdHex);
-  const nexaBal = await rostrumProvider.getBalance(address);
-  if (Number(kiblBal.confirmed[tokenIdHex] || 0) < kiblAmount) throw new Error("Insufficient KIBL");
-  if (Number(nexaBal.confirmed || 0) < feeNexa) throw new Error("Insufficient NEXA");
-  console.log("[placeBet] Building TX client-side from", address, "kiblAmount", kiblAmount, "tokenIdHex", tokenIdHex, "feeNexa", feeNexa);
-  const tx = wallet.newTransaction(account);
-  tx.onNetwork(network);
-  tx.sendTo(house, feeNexa.toString());
-  tx.sendToToken(house, kiblAmount.toString(), tokenIdHex);
-  await tx.populate();
-  const signedTx = await tx.sign().build();
-  console.log("[placeBet] Signed HEX len", signedTx?.length);
-  const txId = await wallet.sendTransaction(signedTx);
-  console.log("Transaction ID:", txId);
-  return { txId, network, address, house };
+  const CSRF = await csrf();
+  console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "tokenIdHex", tokenIdHex, "feeNexa", feeNexa);
+  const r = await fetch("/api/bet/build-unsigned", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
+    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
+  });
+  const j = await r.json().catch(() => ({}));
+  console.log("[placeBet] build-unsigned response ok?", r.ok, "payload keys", Object.keys(j || {}));
+  if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
+  console.log("[placeBet] signing…");
+  const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
+  console.log("[placeBet] signedHex len", signedTx?.length);
+  const br = await fetch("/api/tx/broadcast", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
+    body: JSON.stringify({ hex: signedTx })
+  });
+  const bj = await br.json().catch(() => ({}));
+  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
+  if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
+  return { txId: bj.txid, network, address, house: j.house };
 }
 export {
   loadWallet,
