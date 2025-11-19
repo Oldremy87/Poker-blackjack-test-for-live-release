@@ -8,6 +8,16 @@ const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42
 async function getSdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
+const MAINNET = {
+  scheme: "wss",
+  host: "electrum.nexa.org",
+  port: 20004
+};
+async function connectMainnet(rostrumProvider) {
+  if (globalThis.__kk_rostrum_mainnet_ok) return;
+  await rostrumProvider.connect(MAINNET);
+  globalThis.__kk_rostrum_mainnet_ok = true;
+}
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
@@ -25,16 +35,7 @@ async function loadWallet(pass) {
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  try {
-    const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
-    const port = net === "mainnet" ? 20004 : 30004;
-    const scheme = "wss";
-    await rostrumProvider.connect?.({ host, port, scheme });
-  } catch (_) {
-  }
-  const toNum = (v) => typeof v === "bigint" ? Number(v) : typeof v === "string" ? Number(v) : v;
-  const DECIMALS = 2;
-  const fromMinor = (n) => n / Math.pow(10, DECIMALS);
+  await connectMainnet(rostrumProvider);
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
@@ -42,15 +43,14 @@ async function loadWallet(pass) {
   const account = wallet.accountStore.getAccount("2.0");
   if (!account) throw new Error("DApp account (2.0) not found.");
   const address = account.getPrimaryAddressKey().address;
-  const kiblBal = await rostrumProvider.getTokensBalance(address, KIBL_TOKEN_HEX);
-  const nexaBal = await rostrumProvider.getBalance(address);
-  const kiblMinor = toNum(kiblBal.confirmed[KIBL_TOKEN_HEX]);
-  const nexaMinor = toNum(nexaBal.confirmed);
+  const nexaMinor = Number(account.balance?.confirmed || 0);
+  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+  const DEC = 2;
   const balances = {
     kiblMinor,
-    kibl: fromMinor(kiblMinor),
+    kibl: kiblMinor / 10 ** DEC,
     nexaMinor,
-    nexa: fromMinor(nexaMinor),
+    nexa: nexaMinor / 10 ** DEC,
     tokenHex: KIBL_TOKEN_HEX,
     tokenGroup: KIBL_GROUP_ADDR
   };
@@ -63,43 +63,42 @@ async function csrf() {
   window.csrfToken = j.csrfToken;
   return j.csrfToken;
 }
-async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
+function cleanNexa(addr) {
+  const m = String(addr || "").match(/^(nexa:[a-z0-9]+)/i);
+  return m ? m[1] : "";
+}
+async function placeBet({
+  passphrase,
+  kiblAmount,
+  // minor units (e.g. 10000 = 100.00 KIBL)
+  tokenIdHex,
+  // you can ignore this if you already have KIBL_GROUP_ADDR
+  feeNexa
+  // minor units (e.g. 600 = 6.00 NEXA, if 2 decimals)
+}) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
-  const net = "mainnet";
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
-  try {
-    const host = net === "mainnet" ? "electrum.nexa.org" : "testnet-electrum.nexa.org";
-    const port = net === "mainnet" ? 20004 : 30004;
-    const scheme = "wss";
-    await rostrumProvider.connect?.({ host, port, scheme });
-  } catch (_) {
-  }
+  await connectMainnet(rostrumProvider);
   const { wallet, account, address, network } = await loadWallet(passphrase);
+  const from = cleanNexa(address);
+  const HOUSE_ADDR = "nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3";
+  const TOKEN_ID = KIBL_GROUP_ADDR;
+  const nexaMinor = Number(account.balance?.confirmed || 0);
+  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+  if (kiblMinor < kiblAmount) throw new Error("Insufficient KIBL");
+  if (nexaMinor < feeNexa) throw new Error("Insufficient NEXA");
+  const signedHex = await wallet.newTransaction().sendTo(HOUSE_ADDR, String(feeNexa)).sendToToken(HOUSE_ADDR, String(kiblAmount), TOKEN_ID).populate().sign().build();
   const CSRF = await csrf();
-  console.log("[placeBet] from", address, "kiblAmount", kiblAmount, "tokenIdHex", tokenIdHex, "feeNexa", feeNexa);
-  const r = await fetch("/api/bet/build-unsigned", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
-    body: JSON.stringify({ fromAddress: address, kiblAmount, tokenIdHex, feeNexa })
-  });
-  const j = await r.json().catch(() => ({}));
-  console.log("[placeBet] build-unsigned response ok?", r.ok, "payload keys", Object.keys(j || {}));
-  if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
-  console.log("[placeBet] signing…");
-  const signedTx = await wallet.newTransaction(account, j.unsignedTx).sign().build();
-  console.log("[placeBet] signedHex len", signedTx?.length);
   const br = await fetch("/api/tx/broadcast", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
-    body: JSON.stringify({ hex: signedTx })
+    body: JSON.stringify({ hex: signedHex })
   });
   const bj = await br.json().catch(() => ({}));
-  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
   if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
-  return { txId: bj.txid, network, address, house: j.house };
+  return { txId: bj.txid, network, address: from, house: HOUSE_ADDR };
 }
 export {
   loadWallet,
