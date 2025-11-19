@@ -112,7 +112,7 @@ export async function placeBet({
   passphrase: string; kiblAmount: number; tokenIdHex: string; feeNexa: number;
 }) {
   if (!passphrase || passphrase.length < 8) throw new Error('Password required (8+ chars).');
-
+console.log('[placeBet v2] client-sign path active');
   // Load wallet + ensure provider connectivity (same endpoint as server)
   const net = 'mainnet';
   const sdk = await getSdk();

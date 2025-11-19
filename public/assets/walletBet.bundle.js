@@ -77,6 +77,7 @@ async function placeBet({
   // minor units (e.g. 600 = 6.00 NEXA, if 2 decimals)
 }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
+  console.log("[placeBet v2] client-sign path active");
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
   await connectMainnet(rostrumProvider);
