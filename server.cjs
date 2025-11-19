@@ -22,7 +22,6 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
-const express = require('express');
 const PORT = process.env.PORT || 10000;
 
 // Hard-lock to MAINNET Rostrum (no testnet, no localhost)
