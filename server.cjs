@@ -607,8 +607,7 @@ app.get('/api/wallet/balance', async (req, res) => {
     }
 
     // Watch-only against the single address, mainnet
-    const w = new WatchOnlyWallet([{ address }], 'mainnet');
-    await w.initialize?.();
+    const w = new WatchOnlyWallet({ address }, 'mainnet');
 
     // New 0.8.0 helpers – already aggregated; no manual UTXO math
     const nexaBal     = await w.getBalance();         // { confirmed:"...", unconfirmed:"..." }
@@ -680,7 +679,7 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     // Optional: Pre-check balance to avoid building invalid TX
    
 
-    const w = new WatchOnlyWallet([{ address: fromAddress }], network);
+    const w = new WatchOnlyWallet({ address: fromAddress }, network);
 const nexaBal   = await w.getBalance();
 const tokenBals = await w.getTokenBalances();
 const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
