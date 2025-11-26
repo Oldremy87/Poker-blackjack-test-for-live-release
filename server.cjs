@@ -690,7 +690,6 @@ const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const unsignedTx = await w.newTransaction()
       .sendTo(house, feeNexa.toString())  
       .sendToToken(house, kiblAmount.toString(), tokenId)  
-      .melt (tokenId, 5000)
       .populate()
       .build();
 
