@@ -666,6 +666,12 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
+    // --- FIX: Ensure connection here too ---
+    await rostrumProvider.connect({
+      scheme: 'wss',
+      host: 'electrum.nexa.org',
+      port: 20004,
+    });
     const { fromAddress, kiblAmount, feeNexa } = req.body;
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) return res.status(400).json({ ok: false, error: 'bad_address' });
     if (!Number.isInteger(kiblAmount) || kiblAmount <= 0) return res.status(400).json({ ok: false, error: 'bad_kibl_amount' });
@@ -684,6 +690,7 @@ const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const unsignedTx = await w.newTransaction()
       .sendTo(house, feeNexa.toString())  
       .sendToToken(house, kiblAmount.toString(), tokenId)  
+      .melt (tokenId, 5000)
       .populate()
       .build();
 
@@ -699,7 +706,6 @@ const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
 
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
-    // 1. Ensure connection (always good practice)
     await rostrumProvider.connect({
       scheme: 'wss',
       host: 'electrum.nexa.org',
