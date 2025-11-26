@@ -880,19 +880,20 @@ app.post('/api/start-hand', async (req, res) => {
   }
 });
 
+[cite_start]// 'dealLimiter' is your flood protection (e.g. max 40 reqs/min) [cite: 147]
 app.post('/api/deal', dealLimiter, async (req, res) => {
-  // keep your IP gate behavior
-  const ip = getClientIp(req);
-  const rec = handsByIp.get(ip);
-  if (!rec) return res.status(429).json({ ok:false, error:'use_start_hand_first' });
-
+  // REMOVED: The specific IP memory check (handsByIp)
+  // Why: You already passed the gate at 'start-hand'.
+  
   ensureBank(req);
 
+  // Security Check: Do they actually have a paid hand in the session?
   const round = req.session.round;
   if (!round || !round.handId || !round.serverSeed) {
     return res.status(400).json({ ok:false, error:'use_start_hand_first' });
   }
 
+  // ... (Standard Deck Building Logic) ...
   const seedString = `${round.serverSeed}:${round.clientSeed || ''}:${round.handId}:deal`;
   const rng = hashStream(sha256hex(seedString));
 
@@ -915,13 +916,9 @@ app.post('/api/deal', dealLimiter, async (req, res) => {
   req.session.currentHand = hand;
   req.session.hasDrawn = false;
 
-  // --- FIX: Force save before replying ---
-  // This ensures 'currentHand' is in the DB before the user clicks Draw
+  // Force Save to prevent Race Condition
   await new Promise((resolve, reject) => {
-    req.session.save((err) => {
-      if (err) reject(err);
-      else resolve();
-    });
+    req.session.save((err) => (err ? reject(err) : resolve()));
   });
 
   return res.json({
@@ -931,23 +928,22 @@ app.post('/api/deal', dealLimiter, async (req, res) => {
   });
 });
 
-app.post('/api/draw', drawLimiter, async (req, res) => {
+   app.post('/api/draw', drawLimiter, async (req, res) => {
   try {
-    const ip = getClientIp(req);
-    ensureBank(req); // make sure req.session.bank is a finite number
+   
+    ensureBank(req);
 
-    // throttle per session (handle first-draw case)
     const now = Date.now();
     const lastDrawAt = Number(req.session.lastDrawAt) || 0;
     if (now - lastDrawAt < DRAW_MIN_MS) {
       return res.status(429).json({ ok: false, error: 'too_fast' });
     }
 
-    // Validate payload & draw state
     const { held } = req.body || {};
     if (!Array.isArray(held) || held.length !== 5) {
       return res.status(400).json({ ok: false, error: 'bad_hold_array' });
     }
+    // Security Check: Do they have cards to draw against?
     if (!req.session.currentHand || !Array.isArray(req.session.deck)) {
       return res.status(400).json({ ok: false, error: 'deal_first' });
     }
