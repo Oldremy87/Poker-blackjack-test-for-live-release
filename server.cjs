@@ -676,18 +676,14 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     const house = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';
     const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
     const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
-    // Optional: Pre-check balance to avoid building invalid TX
-   
-
+  
     const w = new WatchOnlyWallet({ address: fromAddress }, network);
 const nexaBal   = await w.getBalance();
 const tokenBals = await w.getTokenBalances();
 const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const unsignedTx = await w.newTransaction()
-      
-      .sendTo(house, feeNexa.toString())  // Nexa to house (fee?)
-      .sendToToken(house, kiblAmount.toString(), tokenId)  // Tokens to house
-    //  .melt(tokenId, kiblAmount.toString())  // Burn equal amount? (Remove if not needed for bet commitment)
+      .sendTo(house, feeNexa.toString())  
+      .sendToToken(house, kiblAmount.toString(), tokenId)  
       .populate()
       .build();
 

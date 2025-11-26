@@ -63,43 +63,39 @@ async function csrf() {
   window.csrfToken = j.csrfToken;
   return j.csrfToken;
 }
-function cleanNexa(addr) {
-  const m = String(addr || "").match(/^(nexa:[a-z0-9]+)/i);
-  return m ? m[1] : "";
-}
 async function placeBet({
   passphrase,
   kiblAmount,
-  // minor units (e.g. 10000 = 100.00 KIBL)
   tokenIdHex,
-  // you can ignore this if you already have KIBL_GROUP_ADDR
   feeNexa
-  // minor units (e.g. 600 = 6.00 NEXA, if 2 decimals)
 }) {
   if (!passphrase || passphrase.length < 8) throw new Error("Password required (8+ chars).");
-  console.log("[placeBet v2] client-sign path active");
-  const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
-  await connectMainnet(rostrumProvider);
   const { wallet, account, address, network } = await loadWallet(passphrase);
-  const from = cleanNexa(address);
-  const HOUSE_ADDR = "nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3";
-  const TOKEN_ID = KIBL_GROUP_ADDR;
-  const nexaMinor = Number(account.balance?.confirmed || 0);
-  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
-  if (kiblMinor < kiblAmount) throw new Error("Insufficient KIBL");
-  if (nexaMinor < feeNexa) throw new Error("Insufficient NEXA");
-  const signedHex = await wallet.newTransaction().sendTo(HOUSE_ADDR, String(feeNexa)).sendToToken(HOUSE_ADDR, String(kiblAmount), TOKEN_ID).populate().sign().build();
   const CSRF = await csrf();
+  const r = await fetch("/api/bet/build-unsigned", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
+    body: JSON.stringify({
+      fromAddress: address,
+      kiblAmount,
+      tokenIdHex,
+      feeNexa
+    })
+  });
+  const j = await r.json();
+  if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
+  const signedTx = await wallet.newTransaction(account).parseTxHex(j.unsignedTx).sign().build();
   const br = await fetch("/api/tx/broadcast", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "CSRF-Token": CSRF },
-    body: JSON.stringify({ hex: signedHex })
+    body: JSON.stringify({ hex: signedTx })
   });
   const bj = await br.json().catch(() => ({}));
+  console.log("[placeBet] broadcast ok?", br.ok, "payload", bj);
   if (!br.ok || !bj.ok) throw new Error(bj?.error || "broadcast_failed");
-  return { txId: bj.txid, network, address: from, house: HOUSE_ADDR };
+  return { txId: bj.txid, network, address, house: j.house };
 }
 export {
   loadWallet,

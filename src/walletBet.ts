@@ -30,16 +30,6 @@ async function connectMainnet(rostrumProvider: any) {
 function getWalletCtor(mod: any) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
-function toFixedFromMinor(minorBn: bigint, decimals: number): string {
-  const s = minorBn.toString();
-  if (decimals === 0) return s;
-  const neg = s.startsWith('-');
-  const digits = neg ? s.slice(1) : s;
-  const pad = Math.max(0, decimals - digits.length);
-  const left = digits.length > decimals ? digits.slice(0, -decimals) : '0';
-  const right = (pad ? '0'.repeat(pad) : '') + digits.slice(-decimals).padStart(decimals, '0');
-  return (neg ? '-' : '') + `${left}.${right}`;
-}
 
 export async function loadWallet(pass: string) {
   const rawB64 = localStorage.getItem(KEY);
@@ -60,7 +50,7 @@ export async function loadWallet(pass: string) {
   const sdk = await getSdk();
   const { rostrumProvider } = sdk;
 
-await connectMainnet(rostrumProvider);
+  await connectMainnet(rostrumProvider);
 
   // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);
@@ -105,54 +95,50 @@ function cleanNexa(addr: string): string {
 
 export async function placeBet({
   passphrase,
-  kiblAmount,   // minor units (e.g. 10000 = 100.00 KIBL)
-  tokenIdHex,   // you can ignore this if you already have KIBL_GROUP_ADDR
-  feeNexa       // minor units (e.g. 600 = 6.00 NEXA, if 2 decimals)
+  kiblAmount,   
+  tokenIdHex,   
+  feeNexa       
 }: {
   passphrase: string; kiblAmount: number; tokenIdHex: string; feeNexa: number;
 }) {
   if (!passphrase || passphrase.length < 8) throw new Error('Password required (8+ chars).');
-console.log('[placeBet v2] client-sign path active');
-  // Load wallet + ensure provider connectivity (same endpoint as server)
-  const net = 'mainnet';
-  const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
-await connectMainnet(rostrumProvider);
-
-
+  
+  // 1. Load wallet (connects to mainnet)
   const { wallet, account, address, network } = await loadWallet(passphrase);
-  const from = cleanNexa(address);
-
-  // House/token constants (bech32 token id for sendToToken)
-  const HOUSE_ADDR = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';
-  const TOKEN_ID   = KIBL_GROUP_ADDR; // SDK accepts bech32 token id
-
-  // Quick pre-checks (authoritative aggregates)
-  const nexaMinor = Number(account.balance?.confirmed || 0);
-  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
-  if (kiblMinor < kiblAmount) throw new Error('Insufficient KIBL');
-  if (nexaMinor < feeNexa)    throw new Error('Insufficient NEXA');
-
-  // ✅ Build + sign entirely on client
-  // - UTXOs selected from the user's own address set
-  // - change forced back to user's address
-  const signedHex = await wallet.newTransaction()
-    .sendTo(HOUSE_ADDR, String(feeNexa))                  // NEXA (minor units)
-    .sendToToken(HOUSE_ADDR, String(kiblAmount), TOKEN_ID) // KIBL (minor units)
-    .populate()
-    .sign()
-    .build();
-
-  // Broadcast via your server (keeps your CSRF, logs, etc.)
+  
+  // 2. Fetch Unsigned TX from Server
   const CSRF = await csrf();
+  const r = await fetch('/api/bet/build-unsigned', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'CSRF-Token': CSRF },
+    body: JSON.stringify({ 
+      fromAddress: address, 
+      kiblAmount, 
+      tokenIdHex, 
+      feeNexa 
+    })
+  });
+  const j = await r.json();
+  if (!r.ok || !j.ok) throw new Error(j?.error || 'build_unsigned_failed');
+
+  
+  const signedTx = await wallet
+    .newTransaction(account)     
+    .parseTxHex(j.unsignedTx)    
+    .sign()                      
+    .build();                   
+
   const br = await fetch('/api/tx/broadcast', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'CSRF-Token': CSRF },
-    body: JSON.stringify({ hex: signedHex })
+    body: JSON.stringify({ hex: signedTx })
   });
   const bj = await br.json().catch(() => ({} as any));
+  
+  console.log('[placeBet] broadcast ok?', br.ok, 'payload', bj);
   if (!br.ok || !bj.ok) throw new Error(bj?.error || 'broadcast_failed');
 
-  return { txId: bj.txid, network, address: from, house: HOUSE_ADDR };
+  return { txId: bj.txid, network, address, house: j.house };
 }
