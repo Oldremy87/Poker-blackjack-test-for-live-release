@@ -789,18 +789,7 @@ const feedSound = document.getElementById('feedSound');
       const { csrfToken } = await r.json();
       __csrf = csrfToken;
     }
-document.getElementById('betBtn')?.addEventListener('click', async () => {
-  try {
-    const pass = prompt('Enter your wallet passphrase to sign the bet:');
-    const tokenIdHex = window.KIBL_TOKEN_ID_HEX;  // wherever you expose it client-side
-    const { txId } = await placeBet({ passphrase: pass, kiblAmount: 10000, tokenIdHex, feeNexa: 600 });
-    toast(`Bet sent: ${txId.slice(0,12)}…`, { type: 'win' });
-    // Optionally: call your /api/start-hand etc. or refresh profile/balances
-    loadProfile();
-  } catch (e) {
-    toast(`Bet failed: ${e.message}`, { type: 'error' });
-  }
-});
+
 function postWithCsrf(input, init = {}) {
   const baseHeaders = init.headers ? {...init.headers} : {};
   if (init.body && !baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
@@ -1507,10 +1496,11 @@ async function onClaimPayout() {
   });
 })();
 </script>
- <script type="module" >
-  import { placeBet } from "/assets/walletBet.bundle.js?v=20250303" ;
+script type="module">
+  import { placeBet } from "/assets/walletBet.bundle.js?v=20250303";
   window.placeBet = placeBet;
-  // bootstrap CSRF once
+
+  // Bootstrap CSRF once
   fetch('/api/csrf', { credentials: 'include' })
     .then(r => r.json())
     .then(j => { window.csrfToken = j.csrfToken; });
@@ -1521,38 +1511,66 @@ async function onClaimPayout() {
     return j?.ok && j.linked ? j : null;
   }
 
+  // Unified Event Listener
   addEventListener('DOMContentLoaded', async () => {
-    await fetchCsrf();
+    // 1. Check wallet link status
     const linked = await ensureLinked();
-
     const btn = document.getElementById('betBtn');
-    if (!btn) return;
-    btn.disabled = !linked;
-    if (linked?.address) {
-  // show balances right away
-  window.loadWalletBalances?.(linked.address);
-}
+    
+    if (btn) {
+      btn.disabled = !linked;
+      // Remove any old listeners by cloning (optional safety) or just ensure this is the only one
+      // btn.replaceWith(btn.cloneNode(true)); 
+    }
 
-    btn.addEventListener('click', async () => {
+    if (linked?.address) {
+      window.loadWalletBalances?.(linked.address);
+    }
+
+    // 2. Attach the SINGLE click handler
+    btn?.addEventListener('click', async () => {
+      if (btn.disabled || btn.classList.contains('busy')) return;
+      
       try {
         if (!linked) return alert('Link a wallet on the Connect page first.');
-        const passphrase = prompt('Enter your wallet passphrase to sign the bet') || '';
-        if (!passphrase) return;
+        
+        // Prevent double-clicks
+        btn.classList.add('busy');
+        btn.textContent = 'Signing...';
+        btn.disabled = true;
 
+        const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
+        if (!passphrase) {
+          throw new Error('Cancelled');
+        }
+
+        // A. Place the Bet
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: 10000, // e.g. 100 KIBL if 2 decimals
+          kiblAmount: 10000, // 100.00 KIBL
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
-loadProfile();
-(async () => {
-  const linked = await (window.ensureLinked?.() || Promise.resolve(null)); // if you want; or stash the address
-  if (linked?.address) loadWalletBalances(linked.address);
-})();
-        alert(`Bet sent! tx: ${txId.slice(0,12)}…`);
+
+        toast(`Bet sent! Transaction ID: ${txId.slice(0, 8)}…`, { type: 'win' });
+        
+        // B. Refresh Balances
+        loadProfile();
+        if (linked?.address) loadWalletBalances(linked.address);
+
+        // C. AUTO-START THE HAND 🎮
+        btn.textContent = 'Starting Hand...';
+        await startGame(); // Calls the existing Poker start function
+
       } catch (e) {
-        alert('Bet failed: ' + (e?.message || 'unknown'));
+        if (e.message !== 'Cancelled') {
+          toast(`Bet failed: ${e.message}`, { type: 'error' });
+        }
+      } finally {
+        // Reset button state
+        btn.classList.remove('busy');
+        btn.textContent = 'Place 10 KIBL bet';
+        btn.disabled = false;
       }
     });
   });

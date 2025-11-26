@@ -1417,10 +1417,11 @@ async function onPayout(){
 
 
   </script>
-  <script type="module">
+ <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
   window.placeBet = placeBet;
-  // bootstrap CSRF once
+
+  // Bootstrap CSRF
   fetch('/api/csrf', { credentials: 'include' })
     .then(r => r.json())
     .then(j => { window.csrfToken = j.csrfToken; });
@@ -1432,29 +1433,47 @@ async function onPayout(){
   }
 
   addEventListener('DOMContentLoaded', async () => {
-    await fetch('/api/csrf', { credentials: 'include' });
     const linked = await ensureLinked();
-
     const btn = document.getElementById('betBtn');
-    if (!btn) return;
-    btn.disabled = !linked;
 
-    btn.addEventListener('click', async () => {
+    if (btn) btn.disabled = !linked;
+
+    btn?.addEventListener('click', async () => {
+      if (btn.disabled || btn.classList.contains('busy')) return;
+
       try {
         if (!linked) return alert('Link a wallet on the Connect page first.');
-        const passphrase = prompt('Enter your wallet passphrase to sign the bet') || '';
-        if (!passphrase) return;
+        
+        btn.classList.add('busy');
+        btn.textContent = 'Signing...';
+        btn.disabled = true;
 
+        const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
+        if (!passphrase) throw new Error('Cancelled');
+
+        // A. Place Bet
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: 10000, // e.g. 100 KIBL if 2 decimals
+          kiblAmount: 10000, 
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
-        alert(`Bet sent! tx: ${txId.slice(0,12)}…`);
+        toast(`Bet sent! ${txId.slice(0, 8)}…`, { type: 'win' });
+        loadProfile();
+
+        // B. AUTO-START BLACKJACK ♠️
+        btn.textContent = 'Dealing...';
+        await startRound(); // Calls existing Blackjack start function
+
       } catch (e) {
-        alert('Bet failed: ' + (e?.message || 'unknown'));
+        if (e.message !== 'Cancelled') {
+          toast(`Bet failed: ${e.message}`, { type: 'error' });
+        }
+      } finally {
+        btn.classList.remove('busy');
+        btn.textContent = 'Place 100 KIBL bet';
+        btn.disabled = false;
       }
     });
   });
