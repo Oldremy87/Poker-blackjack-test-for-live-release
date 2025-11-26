@@ -665,7 +665,7 @@ body.compact {
 
       <p id="userTag" class="readout"></p>
       <p id="fairInfo" class="readout"></p>
-      <button id="betBtn" class="btn btn-primary">Place 10 KIBL bet</button>
+      <button id="betBtn" class="btn btn-primary">Place 100 KIBL bet</button>
       <button id="draw" class="btn" disabled>Draw</button>
     </div>
     <div id="hand" class="card-hand" aria-live="polite"></div>
@@ -736,7 +736,6 @@ body.compact {
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await fetchCsrf();
-    dealBtn.disabled = false;
     await (window.loadProfile?.());
     await (window.loadLeaderboard?.());
   } catch {
@@ -1181,8 +1180,6 @@ async function startGame() {
   // 2) Simulated deal animation (keep visible ≥1.5s)
   const anim = showSimulatedDeal(1500);
   try { feedSound.currentTime = 0; feedSound.play(); } catch {}
-  
-  // REMOVED: dealBtn.disabled = true; (Button no longer exists)
 
   // 3) Request the actual deal in parallel with the animation
   const dealReq = postWithCsrf(API.deal, { method: 'POST', credentials: 'include' });
@@ -1290,7 +1287,13 @@ async function draw() {
     if (payoutEl) payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
     totalPayout = balanceUnits;
     if (payoutBtn) payoutBtn.disabled = (totalPayout === 0);
-    if (dealBtn)  dealBtn.disabled  = false;
+    const betBtn = document.getElementById('betBtn'); 
+    if (betBtn) {
+        betBtn.style.display = 'inline-flex'; // Show the bet button again
+        betBtn.disabled = false;
+        betBtn.textContent = 'Place 100 KIBL Bet';
+    }
+    
     if (drawBtn)  drawBtn.disabled  = true;
 
     // Let the browser paint the new hand (and decode images) before blocking alerts

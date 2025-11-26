@@ -934,12 +934,6 @@ app.post('/api/draw', drawLimiter, async (req, res) => {
       return res.status(429).json({ ok: false, error: 'too_fast' });
     }
 
-    // Require a started hand (paired with /api/start-hand)
-    const rec = handsByIp.get(ip);
-    if (!rec) {
-      return res.status(429).json({ ok: false, error: 'use_start_hand_first' });
-    }
-
     // Validate payload & draw state
     const { held } = req.body || {};
     if (!Array.isArray(held) || held.length !== 5) {
