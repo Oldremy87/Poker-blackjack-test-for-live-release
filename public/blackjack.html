@@ -846,6 +846,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 })();
 
+// --- Add this helper function to blackjack.html script ---
+
+async function postWithCsrf(url, body = {}) {
+  // Ensure we have a token
+  if (!window.csrfToken) {
+    const r = await fetch('/api/csrf', { credentials: 'include' });
+    const j = await r.json();
+    window.csrfToken = j.csrfToken;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'CSRF-Token': window.csrfToken, // Match the header expected by csurf/server
+      'x-csrf-token': window.csrfToken // Redundant backup
+    },
+    body: JSON.stringify(body)
+  });
+
+  // If token is stale (403), retry once
+  if (res.status === 403) {
+    const r = await fetch('/api/csrf', { credentials: 'include' });
+    const j = await r.json();
+    window.csrfToken = j.csrfToken;
+    
+    // Retry original request
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'CSRF-Token': window.csrfToken
+      },
+      body: JSON.stringify(body)
+    }).then(r => r.json());
+  }
+
+  return res.json();
+}
+
 function flashPayout(){
   if (!payoutEl) return;
   // retrigger the one-shot animation reliably
