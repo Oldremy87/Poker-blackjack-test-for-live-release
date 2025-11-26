@@ -906,6 +906,69 @@ function applyScaleFromSlider(){
   document.documentElement.style.setProperty('--ui-scale', String(scale));
   try { localStorage.setItem('kk_bj_scale', String(v)); } catch {}
 }
+// Replace your existing startGame function with this one
+async function startGame() {
+  // 1) Start-hand gate FIRST
+  let start;
+  try {
+    start = await postWithCsrf(API.start, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    alert('Network error starting hand.'); 
+    return;
+  }
+
+  let startData;
+  try { startData = await start.json(); } catch { startData = {}; }
+  
+  if (startData?.commit && startData?.handId) {
+    const fi = document.getElementById('fairInfo');
+    if (fi) fi.textContent = `Commit: ${startData.commit.slice(0,10)}… (hand ${startData.handId.slice(0,8)})`;
+  }
+
+  if (!start.ok || !startData.ok) {
+    if (startData?.error === 'ip_limit') {
+      alert(`Play limit reached. Come back in ${formatWait(startData.retryMs)}.`);
+    } else if (startData?.error) {
+      alert(`Start-hand failed: ${startData.error}`);
+    } else {
+      alert(`Start-hand failed: ${start.statusText}`);
+    }
+    return;
+  }
+
+  // 2) Simulated deal animation (keep visible ≥1.5s)
+  const anim = showSimulatedDeal(1500);
+  try { feedSound.currentTime = 0; feedSound.play(); } catch {}
+  
+  // REMOVED: dealBtn.disabled = true; (Button no longer exists)
+
+  // 3) Request the actual deal in parallel with the animation
+  const dealReq = postWithCsrf(API.deal, { method: 'POST', credentials: 'include' });
+  
+  try {
+    const [resp] = await Promise.all([dealReq, anim]);
+    const data = await resp.json();
+    
+    if (!resp.ok || !data.ok) {
+      alert('Deal failed: ' + (data.error || resp.statusText));
+      return;
+    }
+    
+    hand = data.hand || [];
+    held = [false, false, false, false, false];
+    renderHand();
+    
+    // Enable the Draw button now that cards are dealt
+    if (drawBtn) drawBtn.disabled = false;
+
+  } catch (e) {
+    console.error(e);
+    alert('Deal failed.');
+  }
+}
 
 // Compute a base card width that fits the widest row we can see
 function fitBjToScreen(){
