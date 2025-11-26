@@ -665,8 +665,7 @@ body.compact {
 
       <p id="userTag" class="readout"></p>
       <p id="fairInfo" class="readout"></p>
-      <button id="betBtn" class="btn">Place 10 KIBL bet</button>
-      <button id="deal" class="btn btn-primary" disabled>Feed the dealer</button>
+      <button id="betBtn" class="btn btn-primary">Place 10 KIBL bet</button>
       <button id="draw" class="btn" disabled>Draw</button>
     </div>
     <div id="hand" class="card-hand" aria-live="polite"></div>
@@ -1500,79 +1499,113 @@ async function onClaimPayout() {
   import { placeBet } from "/assets/walletBet.bundle.js?v=20250303";
   window.placeBet = placeBet;
 
-  // Bootstrap CSRF once
-  fetch('/api/csrf', { credentials: 'include' })
-    .then(r => r.json())
-    .then(j => { window.csrfToken = j.csrfToken; });
+  // 1. Setup CSRF Helper
+  async function fetchCsrf() {
+    const r = await fetch('/api/csrf', { credentials: 'include' });
+    const j = await r.json();
+    window.csrfToken = j.csrfToken;
+    return j.csrfToken;
+  }
 
+  // 2. Setup Wallet Link Helper
   async function ensureLinked() {
-    const r = await fetch('/api/wallet/status', { credentials:'include' });
-    const j = await r.json().catch(()=>null);
+    const r = await fetch('/api/wallet/status', { credentials: 'include' });
+    const j = await r.json().catch(() => null);
     return j?.ok && j.linked ? j : null;
   }
 
-  // Unified Event Listener
   addEventListener('DOMContentLoaded', async () => {
-    // 1. Check wallet link status
-    const linked = await ensureLinked();
-    const btn = document.getElementById('betBtn');
+    await fetchCsrf(); // Init security token
     
-    if (btn) {
-      btn.disabled = !linked;
-      // Remove any old listeners by cloning (optional safety) or just ensure this is the only one
-      // btn.replaceWith(btn.cloneNode(true)); 
+    // Check wallet connection
+    const linked = await ensureLinked();
+    const betBtn = document.getElementById('betBtn');
+    const drawBtn = document.getElementById('draw');
+
+    // Setup initial button states
+    if (betBtn) {
+      betBtn.disabled = !linked;
+      betBtn.textContent = 'Place 10 KIBL Bet';
     }
+    if (drawBtn) drawBtn.disabled = true; // Can't draw until we deal
 
     if (linked?.address) {
       window.loadWalletBalances?.(linked.address);
     }
 
-    // 2. Attach the SINGLE click handler
-    btn?.addEventListener('click', async () => {
-      if (btn.disabled || btn.classList.contains('busy')) return;
-      
+    // --- SINGLE CLICK HANDLER FOR BETTING ---
+    betBtn?.addEventListener('click', async () => {
+      if (betBtn.disabled || betBtn.classList.contains('busy')) return;
+
       try {
         if (!linked) return alert('Link a wallet on the Connect page first.');
-        
-        // Prevent double-clicks
-        btn.classList.add('busy');
-        btn.textContent = 'Signing...';
-        btn.disabled = true;
+
+        // Lock UI
+        betBtn.classList.add('busy');
+        betBtn.textContent = 'Signing...';
+        betBtn.disabled = true;
 
         const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
-        if (!passphrase) {
-          throw new Error('Cancelled');
-        }
+        if (!passphrase) throw new Error('Cancelled');
 
-        // A. Place the Bet
+        // 1. Send the Crypto (The "Fee")
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: 10000, // 100.00 KIBL
+          kiblAmount: 10000, 
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
-        toast(`Bet sent! Transaction ID: ${txId.slice(0, 8)}…`, { type: 'win' });
+        toast(`Bet sent! Transaction: ${txId.slice(0, 8)}…`, { type: 'win' });
         
-        // B. Refresh Balances
+        // 2. Start the Game Logic (The "Deal")
+        betBtn.textContent = 'Dealing...';
+        
+        // We call the existing startGame() function you have defined globally
+        // This triggers /api/start-hand and /api/deal
+        await window.startGame(); 
+
+        // 3. Update UI for the "Draw" phase
+        betBtn.style.display = 'none'; // Hide bet button during the hand
+        drawBtn.disabled = false;      // Enable draw button
+        
+        // Refresh wallet balances
         loadProfile();
         if (linked?.address) loadWalletBalances(linked.address);
-
-        // C. AUTO-START THE HAND 🎮
-        btn.textContent = 'Starting Hand...';
-        await startGame(); // Calls the existing Poker start function
 
       } catch (e) {
         if (e.message !== 'Cancelled') {
           toast(`Bet failed: ${e.message}`, { type: 'error' });
+          betBtn.disabled = false;
+          betBtn.textContent = 'Place 10 KIBL Bet';
+        } else {
+          betBtn.disabled = false;
+          betBtn.textContent = 'Place 10 KIBL Bet';
         }
       } finally {
-        // Reset button state
-        btn.classList.remove('busy');
-        btn.textContent = 'Place 10 KIBL bet';
-        btn.disabled = false;
+        betBtn.classList.remove('busy');
       }
     });
+
+    // --- HOOK INTO DRAW TO RESET ---
+    // We need to bring the Bet button back after the hand is over.
+    // Since draw() is global, we can attach a listener to the draw button
+    // to verify when it's done, or simpler: modify the global draw() to reset UI.
+    // For now, let's use a MutationObserver to see when draw disables itself.
+    const obs = new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        if (m.attributeName === 'disabled' && drawBtn.disabled === true) {
+          // If draw became disabled, the hand is likely over. Show bet button again.
+          // Small delay to let the win animation play
+          setTimeout(() => {
+             betBtn.style.display = 'inline-flex';
+             betBtn.disabled = false;
+             betBtn.textContent = 'Place 10 KIBL Bet';
+          }, 2000);
+        }
+      });
+    });
+    obs.observe(drawBtn, { attributes: true });
   });
 </script>
 <footer style="opacity:.9;color:var(--text-dim);font-size:12px;text-align:center;padding:14px 0 6px;">

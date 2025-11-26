@@ -835,6 +835,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+ let __csrf = null;
+    async function fetchCsrf(){
+      const r = await fetch('/api/csrf', { credentials:'include' });
+      if (!r.ok) throw new Error('CSRF bootstrap failed');
+      const { csrfToken } = await r.json();
+      __csrf = csrfToken;
+    }
+    // --- RESTORED UI HELPER ---
+function fitBjToScreen(){
+  const panel = document.getElementById('bjPanel');
+  if (!panel) return;
+
+  const gap = parseFloat(getComputedStyle(document.documentElement)
+               .getPropertyValue('--hand-gap') || '10') || 10;
+
+  // How many cards in the widest visible row?
+  const dealerCount = document.querySelectorAll('#bjDealer .card').length || 2;
+  const rowCounts = Array.from(document.querySelectorAll('#bjPlayer .hand-row'))
+                    .map(r => r.querySelectorAll('.card, .placeholder').length);
+  const n = Math.max(dealerCount, ...(rowCounts.length ? rowCounts : [2]));
+
+  // Available width inside the table panel (minus a little padding)
+  const available = panel.clientWidth - 32;
+  const perCard = (available - gap * (n - 1)) / n;
+
+  // Clamp so it always looks nice
+  const base = Math.max(64, Math.min(perCard, 136)); // px
+  document.documentElement.style.setProperty('--cardBaseW', base + 'px');
+}
+// ---------------------------
 (function showHowtoOnce(){
   const k = 'bj_seen_instructions_v1';
   if (localStorage.getItem(k)) return;
@@ -846,47 +876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 })();
 
-// --- Add this helper function to blackjack.html script ---
 
-async function postWithCsrf(url, body = {}) {
-  // Ensure we have a token
-  if (!window.csrfToken) {
-    const r = await fetch('/api/csrf', { credentials: 'include' });
-    const j = await r.json();
-    window.csrfToken = j.csrfToken;
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'CSRF-Token': window.csrfToken, // Match the header expected by csurf/server
-      'x-csrf-token': window.csrfToken // Redundant backup
-    },
-    body: JSON.stringify(body)
-  });
-
-  // If token is stale (403), retry once
-  if (res.status === 403) {
-    const r = await fetch('/api/csrf', { credentials: 'include' });
-    const j = await r.json();
-    window.csrfToken = j.csrfToken;
-    
-    // Retry original request
-    return fetch(url, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'CSRF-Token': window.csrfToken
-      },
-      body: JSON.stringify(body)
-    }).then(r => r.json());
-  }
-
-  return res.json();
-}
 
 function flashPayout(){
   if (!payoutEl) return;
@@ -1463,22 +1453,39 @@ async function onPayout(){
   import { placeBet } from '/assets/walletBet.bundle.js';
   window.placeBet = placeBet;
 
-  // Bootstrap CSRF
-  fetch('/api/csrf', { credentials: 'include' })
-    .then(r => r.json())
-    .then(j => { window.csrfToken = j.csrfToken; });
+  // 1. Define CSRF Fetcher explicitly
+  async function fetchCsrf() {
+    try {
+      const r = await fetch('/api/csrf', { credentials: 'include' });
+      const j = await r.json();
+      window.csrfToken = j.csrfToken;
+      return j.csrfToken;
+    } catch (e) {
+      console.error("CSRF Init Failed", e);
+    }
+  }
 
   async function ensureLinked() {
-    const r = await fetch('/api/wallet/status', { credentials:'include' });
-    const j = await r.json().catch(()=>null);
+    const r = await fetch('/api/wallet/status', { credentials: 'include' });
+    const j = await r.json().catch(() => null);
     return j?.ok && j.linked ? j : null;
   }
 
   addEventListener('DOMContentLoaded', async () => {
+    // Init CSRF immediately
+    await fetchCsrf();
+
     const linked = await ensureLinked();
     const btn = document.getElementById('betBtn');
+    
+    // Hide the "Feed the Dealer" button since Bet replaces it
+    const oldStart = document.getElementById('bjStart');
+    if (oldStart) oldStart.style.display = 'none';
 
-    if (btn) btn.disabled = !linked;
+    if (btn) {
+      btn.disabled = !linked;
+      btn.textContent = 'Place 100 KIBL Bet';
+    }
 
     btn?.addEventListener('click', async () => {
       if (btn.disabled || btn.classList.contains('busy')) return;
@@ -1506,18 +1513,35 @@ async function onPayout(){
 
         // B. AUTO-START BLACKJACK ♠️
         btn.textContent = 'Dealing...';
-        await startRound(); // Calls existing Blackjack start function
+        
+        // Wait for the game to start rendering
+        await window.startRound(); 
+        
+        // Hide bet button while hand is active
+        btn.style.display = 'none';
 
       } catch (e) {
         if (e.message !== 'Cancelled') {
           toast(`Bet failed: ${e.message}`, { type: 'error' });
         }
+        btn.textContent = 'Place 100 KIBL Bet';
+        btn.disabled = false;
       } finally {
         btn.classList.remove('busy');
-        btn.textContent = 'Place 100 KIBL bet';
-        btn.disabled = false;
       }
     });
+    
+    // Monitor for round end to show bet button again
+    // We check if the 'bjMsg' text says "Round settled"
+    const statusMsg = document.getElementById('bjStatus');
+    const obs = new MutationObserver(() => {
+        if (statusMsg.textContent.includes('Round settled')) {
+            btn.style.display = 'inline-flex';
+            btn.disabled = false;
+            btn.textContent = 'Place 100 KIBL Bet';
+        }
+    });
+    if (statusMsg) obs.observe(statusMsg, { childList: true });
   });
 </script>
 
