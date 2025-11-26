@@ -828,16 +828,14 @@ app.post('/api/start-hand', async (req, res) => {
 
     ensureBank(req);
 
-    // optional client seed from body (hex string or any string)
     const clientSeed = (req.body && typeof req.body.clientSeed === 'string')
       ? req.body.clientSeed.trim()
       : '';
 
     const handId     = randomUUID();
-    const serverSeed = randHex(32);            // 32 bytes → 64 hex
-    const commitHash = sha256hex(serverSeed);  // publish now, reveal later
+    const serverSeed = randHex(32);
+    const commitHash = sha256hex(serverSeed);
 
-    // stash round in session
     req.session.round = {
       handId,
       commit: commitHash,
@@ -847,37 +845,42 @@ app.post('/api/start-hand', async (req, res) => {
     };
     req.session.hasDrawn = false;
 
-    // best-effort audit trail; do not fail the request on DB hiccup
     if (hasDb) {
-    try {
-      const p = await db();
-      await getOrCreateUser(req.uid);
-      await ensureDisplayId(req.uid); // make sure display_id exists once
-      await p.query(
-        `INSERT INTO fair_rounds(hand_id, user_id, commit_hash, client_seed)
-         VALUES ($1,$2,$3,$4)`,
-        [handId, req.uid, commitHash, clientSeed || null]
-      );
-    } catch (e) {
-      logger.error('fair_rounds insert', { e: String(e) });
+      try {
+        const p = await db();
+        await getOrCreateUser(req.uid);
+        await ensureDisplayId(req.uid);
+        await p.query(
+          `INSERT INTO fair_rounds(hand_id, user_id, commit_hash, client_seed)
+           VALUES ($1,$2,$3,$4)`,
+          [handId, req.uid, commitHash, clientSeed || null]
+        );
+      } catch (e) {
+        logger.error('fair_rounds insert', { e: String(e) });
+      }
     }
-  }
-    // return the gate info + fair commit
+
+    // --- FIX: Force save before replying ---
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
     return res.json({
       ok:true,
-      g,               // { ok:true, remaining, windowMs, ... }
+      g,
       handId,
       commit: commitHash
     });
-
   } catch (e) {
     console.error('start-hand error', e);
     return res.status(500).json({ ok:false, error:'start_hand_error' });
   }
 });
 
-// Deterministic /api/deal using your "2_of_Clubs.png" naming
-app.post('/api/deal', dealLimiter, (req, res) => {
+app.post('/api/deal', dealLimiter, async (req, res) => {
   // keep your IP gate behavior
   const ip = getClientIp(req);
   const rec = handsByIp.get(ip);
@@ -890,31 +893,37 @@ app.post('/api/deal', dealLimiter, (req, res) => {
     return res.status(400).json({ ok:false, error:'use_start_hand_first' });
   }
 
-  // === deterministic seed everyone can reproduce ===
-  // IMPORTANT: any change to this string or deck build order affects verification.
   const seedString = `${round.serverSeed}:${round.clientSeed || ''}:${round.handId}:deal`;
-  const rng = hashStream(sha256hex(seedString)); // helpers you added earlier
+  const rng = hashStream(sha256hex(seedString));
 
-  // === build canonical unshuffled deck (Suits outer, Ranks inner) ===
   const deck0 = [];
   for (const s of SUITS) {
     for (const r of RANKS) {
       deck0.push({
         rank: r,
         suit: s,
-        filename: `${r}_of_${s}.png`,   // <- "2_of_Clubs.png", "Jack_of_Spades.png"
+        filename: `${r}_of_${s}.png`,
         displayText: `${r} of ${s}`
       });
     }
   }
-  // === deterministic shuffle → first 5 are the hand ===
-  const deck = shuffleDeterministic(deck0, rng); // helper from earlier patch
+  
+  const deck = shuffleDeterministic(deck0, rng);
   const hand = deck.slice(0, 5);
-  // persist remaining deck for draw() to pull replacements from (also deterministic)
+  
   req.session.deck = deck.slice(5);
   req.session.currentHand = hand;
   req.session.hasDrawn = false;
-  // include fair commit bits so UI can show “Commit …”
+
+  // --- FIX: Force save before replying ---
+  // This ensures 'currentHand' is in the DB before the user clicks Draw
+  await new Promise((resolve, reject) => {
+    req.session.save((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+
   return res.json({
     ok: true,
     hand,
