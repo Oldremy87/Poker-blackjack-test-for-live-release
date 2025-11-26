@@ -880,7 +880,6 @@ app.post('/api/start-hand', async (req, res) => {
   }
 });
 
-[cite_start]// 'dealLimiter' is your flood protection (e.g. max 40 reqs/min) [cite: 147]
 app.post('/api/deal', dealLimiter, async (req, res) => {
   // REMOVED: The specific IP memory check (handsByIp)
   // Why: You already passed the gate at 'start-hand'.
