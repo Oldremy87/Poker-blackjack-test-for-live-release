@@ -744,7 +744,8 @@ body.compact {
 
         <div class="readout">You</div>
         <p id="payoutTotal">Total Payout: 0 KIBL</p>
-        <p id="kiblBalance">KIBL: —</p>
+     <p id="kiblBalance">KIBL: —</p>
+     <p id="nexaBalance">NEXA: —</p>
         <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
 
         <div class="controls">
@@ -828,7 +829,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await fetchCsrf();
     await (window.loadProfile?.());
     await (window.loadLeaderboard?.());
-    showHowtoOnce();
+    await showHowtoOnce();
   } catch {
     alert('Could not initialize security token. Refresh to try again.');
   }
@@ -963,6 +964,22 @@ function setChip(el, kind, text) {
   el.className = `chip ${kind}`;
   el.textContent = text;
 }
+window.loadWalletBalances = async function(address) {
+  if (!address) return;
+  try {
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
+    const j = await r.json();
+    if (!j?.ok) return;
+
+    const kiblEl = document.getElementById('kiblBalance');
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
+
+    const nexaEl = document.getElementById('nexaBalance');
+    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
+  } catch (e) {
+    console.error('loadWalletBalances failed:', e);  
+  }
+};
 
 function updatePlayerPanelFromSnapshot(data) {
   const pTotalsEl  = document.getElementById('playerTotals');
@@ -1476,6 +1493,7 @@ async function onPayout(){
   </script>
  <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
+  import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
   window.placeBet = placeBet;
 
   // 1. Define CSRF Fetcher explicitly
@@ -1522,7 +1540,7 @@ async function onPayout(){
         btn.textContent = 'Signing...';
         btn.disabled = true;
 
-        const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
+        const passphrase = await getSigner();
         if (!passphrase) throw new Error('Cancelled');
 
         // A. Place Bet

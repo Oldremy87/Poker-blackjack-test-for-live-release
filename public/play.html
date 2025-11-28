@@ -1510,6 +1510,7 @@ async function onClaimPayout() {
 </script>
 <script type="module">
   import { placeBet } from "/assets/walletBet.bundle.js?v=20250303";
+  import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
   window.placeBet = placeBet;
 
   // 1. Setup CSRF Helper
@@ -1558,7 +1559,7 @@ async function onClaimPayout() {
         betBtn.textContent = 'Signing...';
         betBtn.disabled = true;
 
-        const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
+        const passphrase = await getSigner();
         if (!passphrase) throw new Error('Cancelled');
 
         // 1. Send the Crypto (The "Fee")
@@ -1613,7 +1614,7 @@ async function onClaimPayout() {
           setTimeout(() => {
              betBtn.style.display = 'inline-flex';
              betBtn.disabled = false;
-             betBtn.textContent = 'Place 10 KIBL Bet';
+             betBtn.textContent = 'Place 100 KIBL Bet';
           }, 2000);
         }
       });
