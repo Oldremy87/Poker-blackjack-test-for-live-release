@@ -815,300 +815,44 @@ body.compact {
 
   
 <script>
-  window.loadWalletBalances = async function(address) {
-  if (!address) return;
-  try {
-    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
-    const j = await r.json();
-    if (!j?.ok) return;
-
-    const kiblEl = document.getElementById('kiblBalance');
-    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
-
-    const nexaEl = document.getElementById('nexaBalance');
-    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
-  } catch (e) {
-    console.error('loadWalletBalances failed:', e);  
-  }
-};
-document.addEventListener('DOMContentLoaded', async () => {
-  try {
-    await fetchCsrf();
-    await (window.loadProfile?.());
-    await (window.loadLeaderboard?.());
-  } catch {
-    alert('Could not initialize security token. Refresh to try again.');
-  }
-});
-
-function fitBjToScreen(){
-      const panel = document.getElementById('bjPanel');
-      if (!panel) return;
-      const gap = 10;
-      const dealerCount = document.querySelectorAll('#bjDealer .card').length || 2;
-      const rowCounts = Array.from(document.querySelectorAll('#bjPlayer .hand-row')).map(r => r.querySelectorAll('.card').length);
-      const n = Math.max(dealerCount, ...(rowCounts.length ? rowCounts : [2]));
-      const available = panel.clientWidth - 32;
-      const perCard = (available - gap * (n - 1)) / n;
-      const base = Math.max(64, Math.min(perCard, 136)); 
-      document.documentElement.style.setProperty('--cardBaseW', base + 'px');
-    }
-// ---------------------------
-(function showHowtoOnce(){
-  const k = 'bj_seen_instructions_v1';
-  if (localStorage.getItem(k)) return;
-  const m = document.getElementById('bjHowto');
-  const b = document.getElementById('bjHowtoClose');
-  if (m && b) {
-    m.style.display = 'flex';
-    b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
-  }
-})();
-async function loadWalletBalances(address) {
-  if (!address) return;
-  try {
-    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
-    const j = await r.json();
-    if (!j?.ok) return;
-
-    const kiblEl = document.getElementById('kiblBalance');
-    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
-
-    const nexaEl = document.getElementById('nexaBalance');
-    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
-  } catch (e) {
-    console.error('loadWalletBalances failed:', e);  
-  }
-}
-async function postWithCsrf(url, body = {}) {
-  // Ensure we have a token
-  if (!window.csrfToken) {
-    const r = await fetch('/api/csrf', { credentials: 'include' });
-    const j = await r.json();
-    window.csrfToken = j.csrfToken;
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'CSRF-Token': window.csrfToken, // Match the header expected by csurf/server
-      'x-csrf-token': window.csrfToken // Redundant backup
-    },
-    body: JSON.stringify(body)
+  // 1. GLOBAL CONFIG & BUTTON DEFINITIONS (Run immediately)
+  window.KIBL_TOKEN_ID_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
+  
+  const API = Object.freeze({
+    profile:'/api/profile', daily:'/api/daily-reward', payout:'/api/payout',
+    bj: { start:'/api/bj/start', hit:'/api/bj/hit', stand:'/api/bj/stand', double:'/api/bj/double', split:'/api/bj/split' }
   });
 
-  // If token is stale (403), retry once
-  if (res.status === 403) {
-    const r = await fetch('/api/csrf', { credentials: 'include' });
-    const j = await r.json();
-    window.csrfToken = j.csrfToken;
-    
-    // Retry original request
-    return fetch(url, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'CSRF-Token': window.csrfToken
-      },
-      body: JSON.stringify(body)
-    }).then(r => r.json());
-  }
+  // Define Elements Safely
+  const els = {
+    deal: document.getElementById('bjStart'),
+    hit: document.getElementById('bjHit'),
+    stand: document.getElementById('bjStand'),
+    double: document.getElementById('bjDoubleBtn'),
+    split: document.getElementById('bjSplitBtn'),
+    msg: document.getElementById('bjStatus'),
+    dealer: document.getElementById('bjDealer'),
+    player: document.getElementById('bjPlayer'),
+    fair: document.getElementById('bjFair'),
+    payout: document.getElementById('payoutTotal'),
+    payoutBtn: document.getElementById('ClaimPayout'),
+    address: document.getElementById('addressInput'),
+    daily: document.getElementById('dailyReward'),
+    loading: document.getElementById('loading')
+  };
 
-  return res.json();
-}
-
-function flashPayout(){
-  if (!payoutEl) return;
-  // retrigger the one-shot animation reliably
-  payoutEl.classList.remove('payout-win');
-  // force reflow
-  void payoutEl.offsetWidth;
-  payoutEl.classList.add('payout-win');
-  // clean up after the glow ends
-  setTimeout(() => payoutEl?.classList.remove('payout-win'), 1400);
-}
-
-function confettiBurst(count = 48, ms = 1800){
-  const wrap = document.createElement('div');
-  wrap.className = 'fx-confetti';
-  document.body.appendChild(wrap);
-  for (let i=0;i<count;i++){
-    const s = document.createElement('i');
-    s.style.setProperty('--x', `${Math.random()*100}%`);
-    s.style.setProperty('--rot', `${Math.random()*360}deg`);
-    s.style.setProperty('--dur', `${1000 + Math.random()*900}ms`);
-    wrap.appendChild(s);
-  }
-  setTimeout(()=> wrap.remove(), ms + 500);
-}
-
-function bjScore(cards) {
-  let total = 0, aces = 0;
-  for (const c of (cards||[])) {
-    const r = c.rank;
-    if (r === 'Ace') { total += 11; aces++; }
-    else if (r === 'King' || r === 'Queen' || r === 'Jack') total += 10;
-    else total += Number(r) || 0;
-  }
-  while (total > 21 && aces > 0) { total -= 10; aces--; }
-  return { total, soft: aces > 0, isBJ: (cards?.length === 2 && total === 21) };
-}
-
-function renderCardChips(cards) {
-  return (cards||[]).map(c => {
-    const text = c.displayText || `${c.rank} of ${c.suit}`;
-    return `<span class="cardchip">${text}</span>`;
-  }).join('');
-}
-
-function setChip(el, kind, text) {
-  el.className = `chip ${kind}`;
-  el.textContent = text;
-}
-
-
-function updatePlayerPanelFromSnapshot(data) {
-  const pTotalsEl  = document.getElementById('playerTotals');
-  const pCardsEl   = document.getElementById('playerCards');
-  const pStatusEl  = document.getElementById('playerStatus');
-  const pFooterEl  = document.getElementById('playerFooter');
-
-  pFooterEl.textContent = '';
-
-  // Start payload uses `player` (array of cards); later snapshots use `players` (array of hands)
-  const hands = Array.isArray(data.players) && data.players.length
-    ? data.players.map((ph, i) => ({ ...ph, idx: i }))
-    : (data.player ? [{ cards: data.player, idx: 0 }] : []);
-
-  if (!hands.length) {
-    pTotalsEl.textContent = '—';
-    pCardsEl.innerHTML = '';
-    setChip(pStatusEl, 'play', 'Ready');
-    return;
-  }
-
-  // Build per-hand lines (supporting split)
-  const lines = [];
-  const cardRows = [];
-  const activeIdx = (typeof data.activeIndex === 'number') ? data.activeIndex : 0;
-
-  for (const h of hands) {
-    const { total, soft, isBJ } = bjScore(h.cards || []);
-    const idx = (hands.length > 1) ? `<span class="idx">${h.idx+1}.</span>` : '';
-    const softStr = soft ? `<span class="softflag">(soft)</span>` : '';
-    lines.push(`<div class="handline ${h.idx === activeIdx && !data.settled ? 'activeHand':''}">
-      ${idx}<div>Total: <strong>${total}</strong> ${softStr}</div>
-    </div>`);
-    cardRows.push(`<div class="handline">${idx}<div>${renderCardChips(h.cards||[])}</div></div>`);
-
-    // Set a simple status based on result when settled
-    if (data.settled && h.result) {
-      const map = { win:'win', bj:'bj', push:'push', loss:'loss', bust:'loss' };
-      setChip(pStatusEl, map[h.result] || 'play', h.result.toUpperCase());
-    } else {
-      setChip(pStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : (data.settled ? 'Done' : 'Your move'));
-    }
-  }
-
-  pTotalsEl.innerHTML = lines.join('');
-  pCardsEl.innerHTML  = cardRows.join('');
-
-  // If server returned credits/points on the final settle, echo a tiny footer
-  if (data.settled && (Number.isFinite(data.credit) || Number.isFinite(data.points))) {
-    const kibl = Math.floor((Number(data.credit)||0)/100);
-    const pts  = Number.isFinite(data.points) ? Number(data.points) : null;
-    pFooterEl.textContent = `${kibl ? `+${kibl} KIBL` : ''}${kibl && pts ? ' · ' : ''}${(pts||pts===0) ? `+${pts} pts` : ''}`;
-  }
-}
-
-function updateDealerPanelFromSnapshot(data) {
-  const dTotalsEl  = document.getElementById('dealerTotals');
-  const dCardsEl   = document.getElementById('dealerCards');
-  const dStatusEl  = document.getElementById('dealerStatus');
-  const dFooterEl  = document.getElementById('dealerFooter');
-
-  if (!data.dealer) {
-    dTotalsEl.textContent = '—';
-    dCardsEl.innerHTML = '';
-    setChip(dStatusEl, 'play', 'Waiting');
-    dFooterEl.textContent = '';
-    return;
-  }
-
-  if (data.settled && Array.isArray(data.dealer.full)) {
-    const { total, soft, isBJ } = bjScore(data.dealer.full);
-    const softStr = soft ? ' (soft)' : '';
-    dTotalsEl.innerHTML = `Total: <strong>${total}</strong>${softStr}`;
-    dCardsEl.innerHTML  = renderCardChips(data.dealer.full);
-    setChip(dStatusEl, isBJ ? 'bj' : 'play', isBJ ? 'BLACKJACK' : 'Revealed');
-    dFooterEl.textContent = '';
-  } else {
-    // Not settled yet — show upcard only
-    const up = data.dealer.up ? [data.dealer.up] : [];
-    dTotalsEl.textContent = 'Upcard shown';
-    dCardsEl.innerHTML    = renderCardChips(up);
-    setChip(dStatusEl, 'play', 'In play');
-    dFooterEl.textContent = 'Dealer total hidden until settle';
-  }
-}
-
-// Call this anywhere you already handle a BJ JSON response (start/hit/stand/double/split)
-function updateBjPanels(snapshotJson) {
-  try {
-    updatePlayerPanelFromSnapshot(snapshotJson || {});
-    updateDealerPanelFromSnapshot(snapshotJson || {});
-  } catch (_) {}
-}
- window.KIBL_TOKEN_ID_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
-   const API = Object.freeze({
-  profile:'/api/profile',
-  daily:'/api/daily-reward',
-  payout:'/api/payout',
-  bj: { start:'/api/bj/start', hit:'/api/bj/hit', stand:'/api/bj/stand', double:'/api/bj/double', split:'/api/bj/split' }
-});
- const IDS = { payout: 'payoutTotal', deal: 'bjStart', hit: 'bjHit', stand: 'bjStand', double: 'bjDoubleBtn', split: 'bjSplitBtn' };
-  
-  // DEFINE BUTTONS IMMEDIATELY so they are never null
-  const btnStart  = document.getElementById(IDS.deal);
-  const btnHit    = document.getElementById(IDS.hit);
-  const btnStand  = document.getElementById(IDS.stand);
-  const btnDouble = document.getElementById(IDS.double);
-  const btnSplit  = document.getElementById(IDS.split);
-  
-  const bjMsg = document.getElementById('bjStatus');
-  const bjDealer = document.getElementById('bjDealer');
-  const bjPlayer = document.getElementById('bjPlayer');
-  const bjFair   = document.getElementById('bjFair');
-  const payoutEl = document.getElementById('payoutTotal');
-  const payoutBtn = document.getElementById('ClaimPayout'); // Might be null if you removed it, that's ok
-  const addressInput = document.getElementById('addressInput');
-  const dailyBtn = document.getElementById('dailyReward');
-  const loading  = document.getElementById('loading');
-const leaderboardList = document.getElementById('leaderboardList');
-
-
-     function formatWait(ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return 'a bit';
-  const m = Math.ceil(ms / 60000);
-  return `${m} minute${m !== 1 ? 's' : ''}`;
-}
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const REVEAL_EXTRA_MS = 600 ; 
-const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
-
- let __csrf = null;
+  let __csrf = null;
   let totalPayout = 0;
 
   // --- 2. HELPERS ---
   async function fetchCsrf(){
-    const r = await fetch('/api/csrf', { credentials:'include' });
-    if (!r.ok) throw new Error('CSRF bootstrap failed');
-    const { csrfToken } = await r.json();
-    __csrf = csrfToken;
-    window.csrfToken = csrfToken;
+    try {
+        const r = await fetch('/api/csrf', { credentials:'include' });
+        if (!r.ok) throw new Error('CSRF bootstrap failed');
+        const { csrfToken } = await r.json();
+        __csrf = csrfToken;
+        window.csrfToken = csrfToken;
+    } catch (e) { console.error("CSRF Error", e); }
   }
 
   async function postWithCsrf(input, init = {}) {
@@ -1127,6 +871,26 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
       resp = await makeReq();
     }
     return resp.json();
+  }
+
+  // --- 3. UI FUNCTIONS ---
+  function applyBJCan(can = {}) {
+    if (els.hit)    els.hit.disabled    = !(can.hit ?? true);
+    if (els.stand)  els.stand.disabled  = !(can.stand ?? true);
+    if (els.double) els.double.disabled = !(can.double ?? false);
+    
+    const allowSplit = !!(can.split);
+    if (els.split) {
+      els.split.disabled = !allowSplit;
+      if (allowSplit) els.split.classList.remove('hidden');
+      else els.split.classList.add('hidden');
+    }
+  }
+
+  function setButtons({ deal, hit, stand }) {
+    if (els.deal && deal !== undefined) els.deal.disabled = !deal;
+    if (els.hit  && hit  !== undefined) els.hit.disabled  = !hit;
+    if (els.stand && stand !== undefined) els.stand.disabled = !stand;
   }
 
   function fitBjToScreen(){
@@ -1151,54 +915,45 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
   }
 
   function renderHands({ dealer, player }) {
-    bjDealer.innerHTML = '';
-    if (dealer.full) dealer.full.forEach(c => bjDealer.appendChild(renderCard(c)));
-    else {
-      bjDealer.appendChild(renderCard(dealer.up));
-      bjDealer.appendChild(renderCard(dealer.up, true)); // hole card
+    if (els.dealer) {
+        els.dealer.innerHTML = '';
+        if (dealer.full) dealer.full.forEach(c => els.dealer.appendChild(renderCard(c)));
+        else {
+          els.dealer.appendChild(renderCard(dealer.up));
+          els.dealer.appendChild(renderCard(dealer.up, true));
+        }
     }
     
-    bjPlayer.innerHTML = '';
-    (player || []).forEach(h => {
-      const row = document.createElement('div'); row.className='hand-row';
-      (h.cards || []).forEach(c => row.appendChild(renderCard(c)));
-      bjPlayer.appendChild(row);
-    });
+    if (els.player) {
+        els.player.innerHTML = '';
+        (player || []).forEach(h => {
+          const row = document.createElement('div'); row.className='hand-row';
+          (h.cards || []).forEach(c => row.appendChild(renderCard(c)));
+          els.player.appendChild(row);
+        });
+    }
     fitBjToScreen();
   }
 
-  // SAFE CONTROLS FUNCTION (Fixes "cannot set property of null")
-  function applyBJCan(can = {}) {
-    if (btnHit)    btnHit.disabled    = !(can.hit ?? true);
-    if (btnStand)  btnStand.disabled  = !(can.stand ?? true);
-    if (btnDouble) btnDouble.disabled = !(can.double ?? false);
-    
-    if (btnSplit) {
-      const allowSplit = !!can.split;
-      btnSplit.disabled = !allowSplit;
-      if (allowSplit) btnSplit.classList.remove('hidden');
-      else btnSplit.classList.add('hidden');
-    }
-  }
-
-  // --- 3. GAME ACTIONS ---
+  // --- 4. GAME ACTIONS ---
   async function startRound() {
     try {
       const d = await postWithCsrf(API.bj.start);
       if (!d.ok) throw new Error(d.error || 'Start failed');
       
-      if (d.fair?.commit) bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}...`;
+      if (d.fair?.commit && els.fair) els.fair.textContent = `Commit: ${d.fair.commit.slice(0,10)}...`;
 
       // Render initial state
       renderHands({ dealer: d.dealer, player: [{ cards: d.player }] });
       updateBjPanels(d);
       
       if (d.settled) {
-        // Natural Blackjack or instant settle
-        afterActionSnapshot(d);
+        afterActionSnapshot(d); // Handles Natural BJ
       } else {
         applyBJCan(d.can);
-        bjMsg.textContent = 'Your move.';
+        if (els.msg) els.msg.textContent = 'Your move.';
+        // Disable Start button during play
+        if (els.deal) els.deal.disabled = true;
       }
     } catch (e) {
       alert(e.message);
@@ -1206,7 +961,12 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
   }
 
   async function hit() { action(API.bj.hit); }
-  async function stand() { action(API.bj.stand); }
+  async function stand() { 
+      // Manually disable buttons to prevent double-click crash
+      if (els.hit) els.hit.disabled = true;
+      if (els.stand) els.stand.disabled = true;
+      action(API.bj.stand); 
+  }
   async function doubleDown() { action(API.bj.double); }
   async function split() { action(API.bj.split); }
 
@@ -1217,6 +977,9 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
       afterActionSnapshot(d);
     } catch (e) {
       console.error(e);
+      // Re-enable on error so user isn't stuck
+      if (els.hit) els.hit.disabled = false;
+      if (els.stand) els.stand.disabled = false;
     }
   }
 
@@ -1226,25 +989,29 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
     updateBjPanels(d);
     
     if (d.settled) {
+      // Game Over
       applyBJCan({ hit:false, stand:false, double:false, split:false });
       
-      // Update status text
       const res = Array.isArray(d.results) && d.results[0]?.result;
-      bjMsg.textContent = res === 'bj' ? 'Blackjack!' : 
-                          res === 'win' ? 'You Win!' : 
-                          res === 'push' ? 'Push' : 'Round Over';
+      if (els.msg) {
+          els.msg.textContent = res === 'bj' ? 'Blackjack!' : 
+                                res === 'win' ? 'You Win!' : 
+                                res === 'push' ? 'Push' : 'Round Over';
+      }
 
       announceAndRefresh(d);
 
-      // --- BRIDGE: TELL BETTING UI TO SHOW BUTTON ---
+      // --- CRITICAL BRIDGE ---
+      // This forces the Bet Button to reappear in the bottom script
       if (window.onGameSettled) window.onGameSettled(); 
       
     } else {
+      // Game Continues
       applyBJCan(d.can || { hit:true, stand:true, double:false, split:false });
     }
   }
 
-  // --- 4. PANELS & EXTRAS ---
+  // --- 5. PANELS & EXTRAS ---
   function bjScore(cards) {
       let total = 0, aces = 0;
       for (const c of (cards||[])) {
@@ -1258,13 +1025,11 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
   }
 
   function updateBjPanels(data) {
-      // Player
       const pTotalsEl = document.getElementById('playerTotals');
       const hands = data.players || (data.player ? [{cards:data.player}] : []);
       if(hands.length && pTotalsEl) {
           pTotalsEl.innerHTML = hands.map((h,i) => `<div>Hand ${i+1}: <strong>${bjScore(h.cards).total}</strong></div>`).join('');
       }
-      // Dealer
       const dTotalsEl = document.getElementById('dealerTotals');
       if(data.dealer && dTotalsEl) {
           const cards = data.dealer.full || (data.dealer.up ? [data.dealer.up] : []);
@@ -1272,362 +1037,30 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
       }
   }
 
-  // --- 5. INITIALIZATION ---
-  if(btnHit) btnHit.addEventListener('click', hit);
-  if(btnStand) btnStand.addEventListener('click', stand);
-  if(btnDouble) btnDouble.addEventListener('click', doubleDown);
-  if(btnSplit) btnSplit.addEventListener('click', split);
-  
-  if(dailyBtn) dailyBtn.addEventListener('click', async () => {
+  // --- 6. INIT LISTENERS (Check existence first) ---
+  if(els.hit) els.hit.addEventListener('click', hit);
+  if(els.stand) els.stand.addEventListener('click', stand);
+  if(els.double) els.double.addEventListener('click', doubleDown);
+  if(els.split) els.split.addEventListener('click', split);
+  if(els.daily) els.daily.addEventListener('click', async () => {
      const d = await postWithCsrf(API.daily);
      if(d.ok) alert(`Reward: ${d.credit/100} KIBL`);
      else alert(d.error || 'Failed');
   });
 
-  // Make functions global for module script
+  // Global Exports for Module Script
   window.startRound = startRound;
-function toast(html, { type = 'info', timeout = 2500 } = {}) {
-    let root = document.getElementById('toasts');
-    if (!root) {
-      root = document.createElement('div');
-      root.id = 'toasts';
-      document.body.appendChild(root);
-    }
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.innerHTML = `<span class="close" aria-label="Dismiss">×</span>${html}`;
-    root.appendChild(el);
-
-    // enter
-    requestAnimationFrame(() => el.classList.add('show'));
-
-    // auto-dismiss
-    const remove = () => {
-      el.classList.remove('show');
-      el.classList.add('hide');
-      el.addEventListener('transitionend', () => el.remove(), { once: true });
-    };
-    const t = setTimeout(remove, timeout);
-
-    // click to dismiss immediately
-    el.querySelector('.close').addEventListener('click', () => {
-      clearTimeout(t);
-      remove();
-    });
-
-    // light haptic on mobile (best-effort)
-    if (navigator.vibrate) { navigator.vibrate(20); }
-  }
-
-  function announceAndRefresh(d){
-  const creditUnits  = Math.floor((d.credit || 0) / 100);
-  const balanceUnits = Math.floor((d.sessionBalance || 0) / 100);
-
-  if (d.bonuses?.length) {
-    const lines = d.bonuses
-      .map(b => `• ${Math.floor((b.amount || 0) / 100)} KIBL — ${b.name}`)
-      .join('<br>');
-    toast(`<strong>Bonuses unlocked</strong><br>${lines}`, { type: 'bonus', timeout: 2500 });
-  }
-  if (creditUnits > 0) {
-    toast(`You won <strong>${creditUnits}</strong> KIBL!`, { type: 'win', timeout: 2500 });
-      
-    // Sound: restart and play (user gesture already happened)
-    const sfx = document.getElementById('feedSound');
-    if (sfx) { try { sfx.currentTime = 0; sfx.volume = 0.6; sfx.play().catch(()=>{}); } catch(_){} }
-  flashPayout();
-
-  // 🎉 optional quick confetti burst (comment out if you prefer)
-  confettiBurst();
-    // Haptic (best-effort on mobile)
-    if (navigator.vibrate) { navigator.vibrate([10, 40, 10]); }
-
-    // Pulse the payout readout
-    payoutEl.classList.add('payout-pulse');
-    setTimeout(() => payoutEl.classList.remove('payout-pulse'), 1900);
-  }
-
-  payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
-  totalPayout = balanceUnits;
-  payoutBtn.disabled = (totalPayout === 0);
-  // Always refresh profile + leaderboard so numbers are current
-  loadProfile();
-  loadLeaderboard();
-}
-  async function loadProfile(){
-  try{
-    const r = await fetch(API.profile, { credentials:'include' });
-    const d = await r.json(); if (!d.ok) return;
-
-    const bankUnits = Math.floor((d.bank||0)/100);
-    totalPayout = bankUnits;
-    payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
-    payoutBtn.disabled = (totalPayout === 0);
-      // NEW: show player tag
-  const tagEl = document.getElementById('userTag');
-  if (tagEl && d.displayId) tagEl.textContent = `Your tag: ${d.displayId}`;
-    const ach = d.stats?.blackjack?.achievements || {};
-    const list = Object.entries(ach).filter(([,v])=>v).map(([k])=>k.replace(/([A-Z])/g,' $1').trim());
-    const el = document.getElementById('bjAchievements');
-    if (el) el.textContent = list.length ? `Achievements: ${list.join(', ')}` : 'Achievements: —';
-  }catch{}
-}
-    
-    function cardEl(card, faceDown=false){
-      const div = document.createElement('div'); div.className='card';
-      const img = document.createElement('img');
-      img.src = faceDown ? 'cards/card-back.png' : `cards/${card.filename}`;
-      img.alt = faceDown ? 'Hidden card' : card.displayText;
-      div.appendChild(img);
-      return div;
-    }
-async function loadLeaderboard(){
-  try{
-    const res = await fetch('/api/leaderboard/window?game=blackjack&k=3', { credentials:'include' });
-    const d = await res.json(); if (!d.ok) return;
-
-    const list = document.getElementById('leaderboardList');
-    if (!list) return;
-    list.innerHTML = '';
-
-    d.window.forEach(row => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <span class="who">${row.rank}. <span class="user">${row.user}${row.you ? ' (you)' : ''}</span></span>
-        <span class="pts">${row.points}</span>`;
-      if (row.you) li.classList.add('you');
-      list.appendChild(li);
-    });
-
-    let hint = document.getElementById('lbHint');
-    if (!hint) {
-      hint = document.createElement('div');
-      hint.id = 'lbHint';
-      hint.className = 'readout';
-      list.parentNode.appendChild(hint);
-    }
-    hint.textContent = (d.you && d.you.deltaAhead != null)
-      ? `Only ${d.you.deltaAhead} pts to the next rank.`
-      : '';
-  } catch(e){ console.warn('blackjack window LB failed', e); }
-}
- function renderHands({ dealer, player }){
-  bjDealer.innerHTML = '';
-  if (dealer.full){
-    dealer.full.forEach(c => bjDealer.appendChild(cardEl(c, false)));
-  } else {
-    bjDealer.appendChild(cardEl(dealer.up, false));
-    bjDealer.appendChild(cardEl(dealer.holeHidden ? dealer.up : dealer.up, dealer.holeHidden));
-  }
-fitBjToScreen();
-  bjPlayer.innerHTML = '';
-  (player || []).forEach(h => {
-    const row = document.createElement('div');
-    row.className = 'hand-row';
-    (h.cards || []).forEach(c => row.appendChild(cardEl(c, false)));
-    bjPlayer.appendChild(row);
-  });
-}
-
-
-    async function startRound(){
-  try{
-    const d = await postWithCsrf(API.bj.start, {});   // already JSON
-    if (!d.ok) throw new Error(d.error || 'Start failed');
-
-    if (d.fair?.commit && d.fair?.handId){
-      bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}… (hand ${d.fair.handId.slice(0,8)})`;
-    }
-
-    // If server dealt a natural BJ and settled immediately, just snapshot it.
-    if (d.settled) {
-      afterActionSnapshot(d);
-      return;
-    }
-
-    // Normal start payload: dealer upcard + player’s two cards in d.player
-    renderHands({ dealer: d.dealer, player: [{ cards: d.player }] });
-    updateBjPanels(d);
-
-    btnStart.disabled = true;
-    btnHit.disabled = btnStand.disabled = false;
-    bjMsg.textContent = 'Your move.';
-    applyBJCan(d.can || {});
-  } catch(e){
-    alert(`Start failed: ${e.message || e}`);
-  }
-}
-  
-    async function hit(){ 
-  try{
-    const d = await postWithCsrf(API.bj.hit, {});
-    if (!d.ok) throw new Error(d.error || 'Hit failed');
-    afterActionSnapshot(d);
-    if (d.settled) bjMsg.textContent = 'Round settled. Press Feed the dealer for a new round.';
-  } catch(e){
-    alert(`Hit failed: ${e.message || e}`);
-  }
-}
-
-async function stand(){
-  try{
-    // Disable buttons immediately to prevent double-clicks
-    if (btnHit) btnHit.disabled = true;
-    if (btnStand) btnStand.disabled = true;
-
-    const d = await postWithCsrf(API.bj.stand, {});
-    
-    if (!d.ok) throw new Error(d.error || 'Stand failed');
-
-    // SUCCESS PATH
-    afterActionSnapshot(d);
-    
-    if (d.fair?.serverSeed) {
-      if (bjFair) bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}…`;
-    }
-    await sleep(600);
-
-  } catch(e){
-    console.error(e);
-    // Only show error toast if it wasn't a standard game-over
-    if (window.toast) window.toast(`Stand failed: ${e.message || e}`, { type:'error' });
-    else alert(`Stand failed: ${e.message}`);
-    
-    // Recovery: Try to re-enable buttons so user isn't stuck
-    if (btnHit) btnHit.disabled = false;
-    if (btnStand) btnStand.disabled = false;
-  }
-}
-
-async function doubleDown(){
-  try{
-    const d = await postWithCsrf(API.bj.double, {});
-    if (!d.ok) throw new Error(d.error || 'Double failed');
-    afterActionSnapshot(d);
-  } catch(e){
-    alert(`Double failed: ${e.message || e}`);
-  }
-}
-
-async function split(){
-  try{
-    const d = await postWithCsrf(API.bj.split, {});
-    if (!d.ok) throw new Error(d.error || 'Split failed');
-    afterActionSnapshot(d);
-  } catch(e){
-    alert(`Split failed: ${e.message || e}`);
-  }
-}
-
-    // ——— Daily & Payout (copied minimal from poker page) ———
-    async function onDaily(){
-  try{
-    const data = await postWithCsrf(API.daily, {});
-    if (!data.ok){
-      const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
-      alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
-      return;
-    }
-    const creditUnits  = Math.floor((data.credit||0)/100);
-    const balanceUnits = Math.floor((data.sessionBalance||0)/100);
-    alert(`Daily reward claimed: +${creditUnits} KIBL`);
-    payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
-    totalPayout = balanceUnits; payoutBtn.disabled = (totalPayout===0);
-  } catch(e){
-    alert(`Daily failed: ${e.message || e}`);
-  }
-}
-
-async function onPayout(){
-  if (totalPayout===0){ alert('No payout to claim!'); return; }
-  const addr = addressInput.value.trim();
-  if (!/^nexa:/.test(addr)){ alert('Please enter a valid Nexa address (nexa:...)'); return; }
-  try{
-    loading.style.display='block'; payoutBtn.disabled=true;
-
-    const data = await postWithCsrf(API.payout, {
-      playerAddress: addr,
-      'h-captcha-response': (window.hcaptcha?.getResponse?.() || '')
-    });
-
-    if (!data || data.error) {
-      throw new Error(data?.error || 'Unknown payout error');
-    }
-
-    alert(`Payout successful! Tx ID: ${data.txId}`);
-    totalPayout = data.remainingKIBL ?? 0;
-    payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
-    payoutBtn.disabled = (totalPayout===0);
-  } catch(e){
-    alert(`Payout failed: ${e.message || e}`);
-  } finally {
-    loading.style.display='none';
-  }
-}
-
-    // Wire up
-    btnStart.addEventListener('click', startRound);
-    btnHit.addEventListener('click',   hit);
-    btnStand.addEventListener('click', stand);
-    dailyBtn.addEventListener('click', onDaily);
-    btnDouble.addEventListener('click', doubleDown);
-    btnSplit .addEventListener('click', split);
-
-
-    // bootstrap
-    (async ()=>{
-      try{ await fetchCsrf(); await loadProfile(); await loadLeaderboard(); }
-      catch{ alert('Could not initialize security token. Refresh to try again.'); }
-    })();
-    // Dismissible "How to play" with memory
-(function(){
-  const KEY = 'kk_bj_help_hidden';
-  const el  = document.getElementById('bjHow');
-  if (!el) return;
-  if (localStorage.getItem(KEY) === '1') el.hidden = true;
-  el.querySelector('.close')?.addEventListener('click', () => {
-    el.hidden = true; localStorage.setItem(KEY, '1');
-  });
-})();
-// One-time, shared with poker: 'kk_age_ok' === '1' skips gate on both pages
-(function(){
-  const KEY = 'kk_age_ok';
-  const gate = document.getElementById('ageGate');
-  if (!gate) return;
-
-  if (localStorage.getItem(KEY) === '1') { gate.hidden = true; return; }
-
-  gate.hidden = false;
-  const yes = document.getElementById('ageYes');
-  const no  = document.getElementById('ageNo');
-
-  // Prevent background scroll and set initial focus
-  const prevOverflow = document.body.style.overflow;
-  document.body.style.overflow = 'hidden';
-  yes?.focus();
-
-  const enter = () => {
-    localStorage.setItem(KEY, '1');
-    gate.hidden = true;
-    document.body.style.overflow = prevOverflow || '';
+  window.loadWalletBalances = async (addr) => {
+        try {
+            const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(addr)}`);
+            const j = await r.json();
+            if(j.ok) {
+                document.getElementById('kiblBalance').textContent = `KIBL: ${j.kibl}`;
+                document.getElementById('nexaBalance').textContent = `NEXA: ${j.nexa}`;
+            }
+        } catch {}
   };
-
-  yes?.addEventListener('click', enter);
-
-  // Simple focus trap
-  const focusables = gate.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
-  gate.addEventListener('keydown', (e)=>{
-    if (e.key !== 'Tab' || focusables.length === 0) return;
-    const first = focusables[0], last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first){ last.focus(); e.preventDefault(); }
-    else if (!e.shiftKey && document.activeElement === last){ first.focus(); e.preventDefault(); }
-  });
-})();
-
-
-  </script>
+</script>
 <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
   import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
