@@ -665,7 +665,7 @@ body.compact {
 
       <p id="userTag" class="readout"></p>
       <p id="fairInfo" class="readout"></p>
-      <button id="betBtn" class="btn btn-primary" data-default-text="Place 100 KIBL Bet">Place 100 KIBL bet</button>
+      <button id="betBtn" class="btn btn-primary">Place 100 KIBL bet</button>
       <button id="draw" class="btn" disabled>Draw</button>
     </div>
     <div id="hand" class="card-hand" aria-live="polite"></div>
@@ -690,14 +690,40 @@ body.compact {
 </div>
 
     </div>
+<section id="claim" class="claim-block">
+  <h2>Claim</h2>
+  <form class="faucet-form" id="faucetForm" onsubmit="return false;" autocomplete="off">
+    <div class="field">
+      <label for="addressInput">Wallet address</label>
+      <input
+  type="text"
+  id="addressInput"
+  placeholder="Enter your Nexa address (e.g., nexa:...)"
+  aria-label="Nexa address input"
+  required
+  spellcheck="false"
+  autocapitalize="off"
+  autocomplete="off"
+  inputmode="latin"
+/>
 
+    </div>
+    <div class="field">
+      <label>Human check</label>
+      <div id="payoutCaptcha" class="h-captcha"
+     data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
+     data-size="normal"></div>
+
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" id="ClaimPayout" type="button" aria-label="Claim Payout">FEED ME! 🐾</button>
 
     </div>
   </form>
   <div id="loading" class="status" aria-live="polite" style="display:none;">Processing your request...</div>
   <p id="result" aria-live="polite">Idle</p>
 </section>
-      <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; margin-top:10px;">Withdraw Winnings</a>
+      
     </div>
 
   <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
@@ -1483,23 +1509,18 @@ async function onClaimPayout() {
 })();
 </script>
 <script type="module">
-  import { placeBet } from "/assets/walletBet.bundle.js?v=Christmas";
-  import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
-  
+  import { placeBet } from "/assets/walletBet.bundle.js?v=20250303";
   window.placeBet = placeBet;
 
-  // 1. Global CSRF Init (Fixes BJ "Security Token" error)
-  window.ensureCsrf = async function() {
-    if (window.csrfToken) return;
-    try {
-      const r = await fetch('/api/csrf', { credentials: 'include' });
-      const j = await r.json();
-      window.csrfToken = j.csrfToken;
-    } catch (e) { console.error("CSRF Fail", e); }
-  };
-  // Call immediately
-  window.ensureCsrf();
+  // 1. Setup CSRF Helper
+  async function fetchCsrf() {
+    const r = await fetch('/api/csrf', { credentials: 'include' });
+    const j = await r.json();
+    window.csrfToken = j.csrfToken;
+    return j.csrfToken;
+  }
 
+  // 2. Setup Wallet Link Helper
   async function ensureLinked() {
     const r = await fetch('/api/wallet/status', { credentials: 'include' });
     const j = await r.json().catch(() => null);
@@ -1507,78 +1528,97 @@ async function onClaimPayout() {
   }
 
   addEventListener('DOMContentLoaded', async () => {
-    await window.ensureCsrf(); // Double check
+    await fetchCsrf(); // Init security token
     
+    // Check wallet connection
     const linked = await ensureLinked();
     const betBtn = document.getElementById('betBtn');
-    
-    // Update Button State
+    const drawBtn = document.getElementById('draw');
+
+    // Setup initial button states
     if (betBtn) {
       betBtn.disabled = !linked;
-      betBtn.textContent = linked 
-        ? (betBtn.getAttribute('data-default-text') || betBtn.textContent) 
-        : 'Connect Wallet to Play';
-      
-      if (!linked) {
-        betBtn.onclick = () => window.location.href = '/connect.html';
-        // Remove other listeners to prevent betting
-        return; 
-      }
+      betBtn.textContent = 'Place 10 KIBL Bet';
     }
+    if (drawBtn) drawBtn.disabled = true; // Can't draw until we deal
 
     if (linked?.address) {
       window.loadWalletBalances?.(linked.address);
     }
 
-    // Betting Logic with Modal
+    // --- SINGLE CLICK HANDLER FOR BETTING ---
     betBtn?.addEventListener('click', async () => {
-      if (betBtn.classList.contains('busy')) return;
+      if (betBtn.disabled || betBtn.classList.contains('busy')) return;
 
       try {
-        betBtn.classList.add('busy');
-        betBtn.textContent = 'Unlocking...';
-        
-        // 1. GET PASSWORD FROM MODAL
-        const passphrase = await getSigner();
-        
-        betBtn.textContent = 'Signing...';
-        
-        // 2. PLACE BET
-        // Detect game type by button text or ID
-        const isBJ = window.location.pathname.includes('blackjack');
-        const amount = isBJ ? 100000 : 10000; // 100 KIBL vs 100 KIBL
+        if (!linked) return alert('Link a wallet on the Connect page first.');
 
+        // Lock UI
+        betBtn.classList.add('busy');
+        betBtn.textContent = 'Signing...';
+        betBtn.disabled = true;
+
+        const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
+        if (!passphrase) throw new Error('Cancelled');
+
+        // 1. Send the Crypto (The "Fee")
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: amount,
+          kiblAmount: 10000, 
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
-        toast(`Bet sent!`, { type: 'win' });
+        toast(`Bet sent! Transaction: ${txId.slice(0, 8)}…`, { type: 'win' });
         
-        // 3. START GAME
+        // 2. Start the Game Logic (The "Deal")
         betBtn.textContent = 'Dealing...';
         
-        if (window.startGame) {
-            await window.startGame(); // Poker
-        } else if (window.startRound) {
-            await window.startRound(); // Blackjack
-            betBtn.style.display = 'none';
-        }
+        // We call the existing startGame() function you have defined globally
+        // This triggers /api/start-hand and /api/deal
+        await window.startGame(); 
 
+        // 3. Update UI for the "Draw" phase
+        betBtn.style.display = 'none'; // Hide bet button during the hand
+        drawBtn.disabled = false;      // Enable draw button
+        
+        // Refresh wallet balances
         loadProfile();
         if (linked?.address) loadWalletBalances(linked.address);
 
       } catch (e) {
-        if (e.message !== 'Cancelled') toast(e.message, { type: 'error' });
+        if (e.message !== 'Cancelled') {
+          toast(`Bet failed: ${e.message}`, { type: 'error' });
+          betBtn.disabled = false;
+          betBtn.textContent = 'Place 10 KIBL Bet';
+        } else {
+          betBtn.disabled = false;
+          betBtn.textContent = 'Place 10 KIBL Bet';
+        }
       } finally {
         betBtn.classList.remove('busy');
-        if (betBtn.style.display !== 'none') {
-            betBtn.textContent = betBtn.getAttribute('data-default-text') || 'Place Bet';
-        }
       }
     });
+
+    // --- HOOK INTO DRAW TO RESET ---
+    // We need to bring the Bet button back after the hand is over.
+    // Since draw() is global, we can attach a listener to the draw button
+    // to verify when it's done, or simpler: modify the global draw() to reset UI.
+    // For now, let's use a MutationObserver to see when draw disables itself.
+    const obs = new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        if (m.attributeName === 'disabled' && drawBtn.disabled === true) {
+          // If draw became disabled, the hand is likely over. Show bet button again.
+          // Small delay to let the win animation play
+          setTimeout(() => {
+             betBtn.style.display = 'inline-flex';
+             betBtn.disabled = false;
+             betBtn.textContent = 'Place 10 KIBL Bet';
+          }, 2000);
+        }
+      });
+    });
+    obs.observe(drawBtn, { attributes: true });
   });
 </script>
 <footer style="opacity:.9;color:var(--text-dim);font-size:12px;text-align:center;padding:14px 0 6px;">
