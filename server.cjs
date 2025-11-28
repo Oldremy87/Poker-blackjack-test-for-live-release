@@ -1205,20 +1205,16 @@ app.post('/api/payout', async (req, res) => {
     ensureBank(req);
 
     // ----- which wallet(s) to pay from? default = both -----
-   let targetAddress = null;
-    if (hasDb) {
-        const p = await db();
-        const { rows } = await p.query('SELECT wallet_addr FROM users WHERE user_id=$1', [req.uid]);
-        targetAddress = rows[0]?.wallet_addr;
-    } else {
-        targetAddress = req.session.linkedWallet?.address;
-    }
-
-    if (!targetAddress) {
-        return res.status(400).json({ error: 'No linked wallet found. Please connect your wallet first.' });
-    }
+    const game = (req.body?.game || 'all').toString().toLowerCase(); // 'poker' | 'blackjack' | 'all'
+    const pokerMinor = Math.max(0, Number(req.session.wallet?.poker || 0));
+    const bjMinor    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
+    const availableMinor =
+      game === 'poker'     ? pokerMinor :
+      game === 'blackjack' ? bjMinor    :
+      (pokerMinor + bjMinor);
 
     const {
+      playerAddress,
       'h-captcha-response': hcapStd,
       hcaptchaToken: hcapCustom,
     } = req.body || {};
@@ -1244,10 +1240,10 @@ app.post('/api/payout', async (req, res) => {
     }
 
     if (!availableMinor) return res.status(400).json({ error: 'No balance to withdraw' });
-    if (!looksLikeNexaAddress(targetAddress)) return res.status(400).json({ error: 'Invalid Nexa address' });
+    if (!looksLikeNexaAddress(playerAddress)) return res.status(400).json({ error: 'Invalid Nexa address' });
 
     // per-address cooldown
-    const lastAt = lastPayoutByAddress.get(targetAddress) || 0;
+    const lastAt = lastPayoutByAddress.get(playerAddress) || 0;
     if (Date.now() - lastAt < PAYOUT_COOLDOWN_MS) {
       const wait = PAYOUT_COOLDOWN_MS - (Date.now() - lastAt);
       return res.status(429).json({ error: 'address_cooldown', retryInMs: wait });
@@ -1279,7 +1275,7 @@ app.post('/api/payout', async (req, res) => {
       jsonrpc: '1.0',
       id: 'kibl',
       method: 'token',
-      params: ['send', process.env.KIBL_GROUP_ID, targetAddress, String(sendMinor)]
+      params: ['send', process.env.KIBL_GROUP_ID, playerAddress, String(sendMinor)]
     });
 
     // RPC send with retry
@@ -1302,7 +1298,7 @@ app.post('/api/payout', async (req, res) => {
     req.session.wallet.blackjack = Math.max(0, bjMinor    - deductBJ);
     req.session.bank = Math.max(0, Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0));
 
-    lastPayoutByAddress.set(targetAddress, Date.now());
+    lastPayoutByAddress.set(playerAddress, Date.now());
 
     // persist session
     await new Promise((resolve, reject) => {
@@ -1316,7 +1312,7 @@ app.post('/api/payout', async (req, res) => {
       await p.query(
         `INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status)
          VALUES ($1,$2,$3,$4,$5,'success')`,
-        [targetAddress, sendWholeKibl, txId, req.sessionID, req.ip]
+        [playerAddress, sendWholeKibl, txId, req.sessionID, req.ip]
       );
       // decrement both game balances to mirror session
       if (deductPoker > 0) {
@@ -1347,7 +1343,7 @@ app.post('/api/payout', async (req, res) => {
         blackjack: Math.floor((req.session.wallet?.blackjack || 0) / 100),
         total:     remainingKibl
       },
-      message: `Sent ${sendWholeKibl} KIBL to ${targetAddress}`
+      message: `Sent ${sendWholeKibl} KIBL to ${playerAddress}`
     });
 
   } catch (error) {
