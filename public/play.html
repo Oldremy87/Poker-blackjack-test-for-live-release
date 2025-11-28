@@ -1474,15 +1474,28 @@ async function onClaimPayout() {
     hideGate();
   });
 })();
-(function(){
+document.addEventListener('DOMContentLoaded', () => {
+  // --- How to Play (Dismiss Logic) ---
   const KEY = 'kk_vp_help_hidden';
-  const el  = document.getElementById('vpHow');
-  if (!el) return;
-  if (localStorage.getItem(KEY) === '1') el.hidden = true;
-  el.querySelector('.close')?.addEventListener('click', () => {
-    el.hidden = true; localStorage.setItem(KEY, '1');
-  });
-})();
+  const el = document.getElementById('vpHow');
+  
+  if (el) {
+    // 1. Check storage immediately to hide if needed
+    if (localStorage.getItem(KEY) === '1') {
+      el.style.display = 'none'; // Safer than .hidden = true for some CSS resets
+    }
+
+    // 2. Attach click listener safely
+    const closeBtn = el.querySelector('.close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault(); // Stop any weird anchor behavior
+        el.style.display = 'none';
+        localStorage.setItem(KEY, '1');
+      });
+    }
+  }
+});
 </script>
 <script type="module">
   import { placeBet } from "/assets/walletBet.bundle.js?v=20250303";
