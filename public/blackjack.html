@@ -824,12 +824,27 @@ body.compact {
 
   
 <script>
+  window.loadWalletBalances = async function(address) {
+  if (!address) return;
+  try {
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
+    const j = await r.json();
+    if (!j?.ok) return;
+
+    const kiblEl = document.getElementById('kiblBalance');
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
+
+    const nexaEl = document.getElementById('nexaBalance');
+    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
+  } catch (e) {
+    console.error('loadWalletBalances failed:', e);  
+  }
+};
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await fetchCsrf();
     await (window.loadProfile?.());
     await (window.loadLeaderboard?.());
-    await showHowtoOnce();
   } catch {
     alert('Could not initialize security token. Refresh to try again.');
   }
@@ -964,22 +979,7 @@ function setChip(el, kind, text) {
   el.className = `chip ${kind}`;
   el.textContent = text;
 }
-window.loadWalletBalances = async function(address) {
-  if (!address) return;
-  try {
-    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
-    const j = await r.json();
-    if (!j?.ok) return;
 
-    const kiblEl = document.getElementById('kiblBalance');
-    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
-
-    const nexaEl = document.getElementById('nexaBalance');
-    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
-  } catch (e) {
-    console.error('loadWalletBalances failed:', e);  
-  }
-};
 
 function updatePlayerPanelFromSnapshot(data) {
   const pTotalsEl  = document.getElementById('playerTotals');
