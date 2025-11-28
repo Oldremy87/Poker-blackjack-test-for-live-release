@@ -841,14 +841,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
- let __csrf = null;
-    async function fetchCsrf(){
-      const r = await fetch('/api/csrf', { credentials:'include' });
-      if (!r.ok) throw new Error('CSRF bootstrap failed');
-      const { csrfToken } = await r.json();
-      __csrf = csrfToken;
-    }
-    // --- RESTORED UI HELPER ---
 function fitBjToScreen(){
       const panel = document.getElementById('bjPanel');
       if (!panel) return;
@@ -1070,50 +1062,34 @@ function updateBjPanels(snapshotJson) {
     updateDealerPanelFromSnapshot(snapshotJson || {});
   } catch (_) {}
 }
-
+ window.KIBL_TOKEN_ID_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
    const API = Object.freeze({
   profile:'/api/profile',
   daily:'/api/daily-reward',
   payout:'/api/payout',
   bj: { start:'/api/bj/start', hit:'/api/bj/hit', stand:'/api/bj/stand', double:'/api/bj/double', split:'/api/bj/split' }
 });
-  window.KIBL_TOKEN_ID_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
-
-
-    const payoutEl = document.getElementById('payoutTotal');
-    const payoutBtn = document.getElementById('ClaimPayout');
-    const addressInput = document.getElementById('addressInput');
-    const dailyBtn = document.getElementById('dailyReward');
-    const loading  = document.getElementById('loading');
-
-    const bjFair   = document.getElementById('bjFair');
-    const bjDealer = document.getElementById('bjDealer');
-    const bjPlayer = document.getElementById('bjPlayer');
-   const IDS = { payout: 'payoutTotal', deal: 'bjStart', hit: 'bjHit', stand: 'bjStand', double: 'bjDoubleBtn', split: 'bjSplitBtn' };
-const btnStart  = document.getElementById(IDS.deal);
-const btnHit    = document.getElementById(IDS.hit);
-const btnStand  = document.getElementById(IDS.stand);
-const btnDouble = document.getElementById(IDS.double);
-const btnSplit  = document.getElementById(IDS.split);
+ const IDS = { payout: 'payoutTotal', deal: 'bjStart', hit: 'bjHit', stand: 'bjStand', double: 'bjDoubleBtn', split: 'bjSplitBtn' };
+  
+  // DEFINE BUTTONS IMMEDIATELY so they are never null
+  const btnStart  = document.getElementById(IDS.deal);
+  const btnHit    = document.getElementById(IDS.hit);
+  const btnStand  = document.getElementById(IDS.stand);
+  const btnDouble = document.getElementById(IDS.double);
+  const btnSplit  = document.getElementById(IDS.split);
+  
   const bjMsg = document.getElementById('bjStatus');
+  const bjDealer = document.getElementById('bjDealer');
+  const bjPlayer = document.getElementById('bjPlayer');
+  const bjFair   = document.getElementById('bjFair');
+  const payoutEl = document.getElementById('payoutTotal');
+  const payoutBtn = document.getElementById('ClaimPayout'); // Might be null if you removed it, that's ok
+  const addressInput = document.getElementById('addressInput');
+  const dailyBtn = document.getElementById('dailyReward');
+  const loading  = document.getElementById('loading');
 const leaderboardList = document.getElementById('leaderboardList');
 
-  // SAFE VERSION: Checks if buttons exist before touching them
-function applyBJCan(can = {}) {
-  if (btnHit)    btnHit.disabled    = !(can.hit ?? true);
-  if (btnStand)  btnStand.disabled  = !(can.stand ?? true);
-  if (btnDouble) btnDouble.disabled = !(can.double ?? false);
 
-  // Split logic
-  const allowSplit = !!(can.split);
-  if (btnSplit) {
-    btnSplit.disabled = !allowSplit;
-    if (allowSplit) btnSplit.classList.remove('hidden');
-    else btnSplit.classList.add('hidden');
-  }
-}
-
-    let totalPayout = 0;
      function formatWait(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return 'a bit';
   const m = Math.ceil(ms / 60000);
@@ -1123,53 +1099,193 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const REVEAL_EXTRA_MS = 600 ; 
 const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
 
- function afterActionSnapshot(d){
-  const dealer = d.dealer.full ? d.dealer : d.dealer;
-  renderHands({ dealer, player:d.players });
-  fitBjToScreen();
-  
-  const status = document.getElementById('bjStatus');
-  if (status){
-    if (d.settled){
-      const res = Array.isArray(d.results) && d.results[0]?.result;
-      status.textContent = res === 'bj' ? 'Blackjack!' :
-                           res === 'win' ? 'Win' :
-                           res === 'push' ? 'Push' :
-                           (res === 'bust' || res === 'loss') ? 'Loss' : 'Hand settled';
-    } else {
-      status.textContent = 'Your move';
-    }
+ let __csrf = null;
+  let totalPayout = 0;
+
+  // --- 2. HELPERS ---
+  async function fetchCsrf(){
+    const r = await fetch('/api/csrf', { credentials:'include' });
+    if (!r.ok) throw new Error('CSRF bootstrap failed');
+    const { csrfToken } = await r.json();
+    __csrf = csrfToken;
+    window.csrfToken = csrfToken;
   }
 
-  // keep the side panels in sync
-  updateBjPanels(d);
+  async function postWithCsrf(input, init = {}) {
+    if (!__csrf) await fetchCsrf();
+    const baseHeaders = init.headers ? {...init.headers} : {};
+    if (!baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
+    
+    const makeReq = async () => fetch(input, {
+      ...init, method: init.method || 'POST', credentials: 'include',
+      headers: { 'x-csrf-token': __csrf, ...baseHeaders }
+    });
 
-  if (d.settled){
-    applyBJCan({ hit:false, stand:false, double:false, split:false });
-    announceAndRefresh(d);
+    let resp = await makeReq();
+    if (resp.status === 403) {
+      await fetchCsrf();
+      resp = await makeReq();
+    }
+    return resp.json();
+  }
 
-    // --- CRITICAL FIX: Direct Bridge to UI ---
-    if (window.onGameSettled) {
-        console.log("Calling Bridge: onGameSettled"); // Add this log to debug
-        window.onGameSettled();
+  function fitBjToScreen(){
+    const panel = document.getElementById('bjPanel');
+    if (!panel) return;
+    const gap = 10;
+    const dealerCount = document.querySelectorAll('#bjDealer .card').length || 2;
+    const rowCounts = Array.from(document.querySelectorAll('#bjPlayer .hand-row')).map(r => r.querySelectorAll('.card').length);
+    const n = Math.max(dealerCount, ...(rowCounts.length ? rowCounts : [2]));
+    const available = panel.clientWidth - 32;
+    const perCard = (available - gap * (n - 1)) / n;
+    const base = Math.max(64, Math.min(perCard, 136)); 
+    document.documentElement.style.setProperty('--cardBaseW', base + 'px');
+  }
+
+  function renderCard(c, hidden=false) {
+    const d = document.createElement('div'); d.className='card';
+    const i = document.createElement('img');
+    i.src = hidden ? 'cards/card-back.png' : `cards/${c.filename}`;
+    d.appendChild(i);
+    return d;
+  }
+
+  function renderHands({ dealer, player }) {
+    bjDealer.innerHTML = '';
+    if (dealer.full) dealer.full.forEach(c => bjDealer.appendChild(renderCard(c)));
+    else {
+      bjDealer.appendChild(renderCard(dealer.up));
+      bjDealer.appendChild(renderCard(dealer.up, true)); // hole card
     }
     
-    bjMsg.textContent = 'Round settled.';
-  } else {
-    // Enable controls if game is ongoing
-    applyBJCan(d.can || { hit:true, stand:true, double:false, split:false });
+    bjPlayer.innerHTML = '';
+    (player || []).forEach(h => {
+      const row = document.createElement('div'); row.className='hand-row';
+      (h.cards || []).forEach(c => row.appendChild(renderCard(c)));
+      bjPlayer.appendChild(row);
+    });
+    fitBjToScreen();
   }
-}
-function setButtons({ deal, hit, stand }) {
-  // Use the global variables if defined, or getElementById for safety
-  const sStart = document.getElementById('bjStart');
-  const sHit   = document.getElementById('bjHit');
-  const sStand = document.getElementById('bjStand');
 
-  if (sStart && deal  !== undefined) sStart.disabled = !deal;
-  if (sHit   && hit   !== undefined) sHit.disabled   = !hit;
-  if (sStand && stand !== undefined) sStand.disabled = !stand;
-}
+  // SAFE CONTROLS FUNCTION (Fixes "cannot set property of null")
+  function applyBJCan(can = {}) {
+    if (btnHit)    btnHit.disabled    = !(can.hit ?? true);
+    if (btnStand)  btnStand.disabled  = !(can.stand ?? true);
+    if (btnDouble) btnDouble.disabled = !(can.double ?? false);
+    
+    if (btnSplit) {
+      const allowSplit = !!can.split;
+      btnSplit.disabled = !allowSplit;
+      if (allowSplit) btnSplit.classList.remove('hidden');
+      else btnSplit.classList.add('hidden');
+    }
+  }
+
+  // --- 3. GAME ACTIONS ---
+  async function startRound() {
+    try {
+      const d = await postWithCsrf(API.bj.start);
+      if (!d.ok) throw new Error(d.error || 'Start failed');
+      
+      if (d.fair?.commit) bjFair.textContent = `Commit: ${d.fair.commit.slice(0,10)}...`;
+
+      // Render initial state
+      renderHands({ dealer: d.dealer, player: [{ cards: d.player }] });
+      updateBjPanels(d);
+      
+      if (d.settled) {
+        // Natural Blackjack or instant settle
+        afterActionSnapshot(d);
+      } else {
+        applyBJCan(d.can);
+        bjMsg.textContent = 'Your move.';
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function hit() { action(API.bj.hit); }
+  async function stand() { action(API.bj.stand); }
+  async function doubleDown() { action(API.bj.double); }
+  async function split() { action(API.bj.split); }
+
+  async function action(url) {
+    try {
+      const d = await postWithCsrf(url);
+      if (!d.ok) throw new Error(d.error);
+      afterActionSnapshot(d);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function afterActionSnapshot(d) {
+    const dealer = d.dealer.full ? d.dealer : d.dealer;
+    renderHands({ dealer, player: d.players });
+    updateBjPanels(d);
+    
+    if (d.settled) {
+      applyBJCan({ hit:false, stand:false, double:false, split:false });
+      
+      // Update status text
+      const res = Array.isArray(d.results) && d.results[0]?.result;
+      bjMsg.textContent = res === 'bj' ? 'Blackjack!' : 
+                          res === 'win' ? 'You Win!' : 
+                          res === 'push' ? 'Push' : 'Round Over';
+
+      announceAndRefresh(d);
+
+      // --- BRIDGE: TELL BETTING UI TO SHOW BUTTON ---
+      if (window.onGameSettled) window.onGameSettled(); 
+      
+    } else {
+      applyBJCan(d.can || { hit:true, stand:true, double:false, split:false });
+    }
+  }
+
+  // --- 4. PANELS & EXTRAS ---
+  function bjScore(cards) {
+      let total = 0, aces = 0;
+      for (const c of (cards||[])) {
+          const r = c.rank;
+          if (r === 'Ace') { total += 11; aces++; }
+          else if (['King','Queen','Jack'].includes(r)) total += 10;
+          else total += Number(r) || 0;
+      }
+      while (total > 21 && aces > 0) { total -= 10; aces--; }
+      return { total, soft: aces > 0 };
+  }
+
+  function updateBjPanels(data) {
+      // Player
+      const pTotalsEl = document.getElementById('playerTotals');
+      const hands = data.players || (data.player ? [{cards:data.player}] : []);
+      if(hands.length && pTotalsEl) {
+          pTotalsEl.innerHTML = hands.map((h,i) => `<div>Hand ${i+1}: <strong>${bjScore(h.cards).total}</strong></div>`).join('');
+      }
+      // Dealer
+      const dTotalsEl = document.getElementById('dealerTotals');
+      if(data.dealer && dTotalsEl) {
+          const cards = data.dealer.full || (data.dealer.up ? [data.dealer.up] : []);
+          dTotalsEl.innerHTML = `<div>Total: <strong>${bjScore(cards).total}</strong></div>`;
+      }
+  }
+
+  // --- 5. INITIALIZATION ---
+  if(btnHit) btnHit.addEventListener('click', hit);
+  if(btnStand) btnStand.addEventListener('click', stand);
+  if(btnDouble) btnDouble.addEventListener('click', doubleDown);
+  if(btnSplit) btnSplit.addEventListener('click', split);
+  
+  if(dailyBtn) dailyBtn.addEventListener('click', async () => {
+     const d = await postWithCsrf(API.daily);
+     if(d.ok) alert(`Reward: ${d.credit/100} KIBL`);
+     else alert(d.error || 'Failed');
+  });
+
+  // Make functions global for module script
+  window.startRound = startRound;
 function toast(html, { type = 'info', timeout = 2500 } = {}) {
     let root = document.getElementById('toasts');
     if (!root) {
@@ -1517,15 +1633,15 @@ async function onPayout(){
   import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
   window.placeBet = placeBet;
 
-  // 1. Define Bridge for Game Logic
- window.onGameSettled = async () => {
-    const btn = document.getElementById('betBtn');
-    if (btn) {
-        btn.style.display = 'inline-flex'; // Force visible
-        btn.disabled = false;
-        btn.textContent = 'Place 100 KIBL Bet';
-    }
-      
+  // 1. BRIDGE: Called by Game Logic when round ends (Win/Loss/BJ)
+  window.onGameSettled = async () => {
+      const btn = document.getElementById('betBtn');
+      // Show button immediately
+      if (btn) {
+          btn.style.display = 'inline-flex';
+          btn.disabled = false;
+          btn.textContent = 'Place 100 KIBL Bet';
+      }
       // Refresh balance
       const linked = await fetch('/api/wallet/status').then(r=>r.json()).catch(()=>({}));
       if (linked?.address && window.loadWalletBalances) {
@@ -1533,16 +1649,13 @@ async function onPayout(){
       }
   };
 
-  // 2. Define CSRF Fetcher
+  // 2. SETUP
   async function fetchCsrf() {
     try {
       const r = await fetch('/api/csrf', { credentials: 'include' });
       const j = await r.json();
       window.csrfToken = j.csrfToken;
-      return j.csrfToken;
-    } catch (e) {
-      console.error("CSRF Init Failed", e);
-    }
+    } catch (e) { console.error("CSRF Init Failed", e); }
   }
 
   async function ensureLinked() {
@@ -1553,11 +1666,10 @@ async function onPayout(){
 
   addEventListener('DOMContentLoaded', async () => {
     await fetchCsrf();
-
     const linked = await ensureLinked();
     const btn = document.getElementById('betBtn');
-    
     const oldStart = document.getElementById('bjStart');
+    
     if (oldStart) oldStart.style.display = 'none';
 
     if (btn) {
@@ -1574,46 +1686,34 @@ async function onPayout(){
     }
 
     btn?.addEventListener('click', async () => {
-      if (btn.disabled || btn.classList.contains('busy')) return;
+      if (btn.classList.contains('busy')) return;
 
       try {
-        if (!linked) return alert('Link a wallet on the Connect page first.');
-        
         btn.classList.add('busy');
+        btn.textContent = 'Unlocking...';
+        const pass = await getSigner();
+        
         btn.textContent = 'Signing...';
-        btn.disabled = true;
-
-        const passphrase = await getSigner();
-        if (!passphrase) throw new Error('Cancelled');
-
-        // A. Place Bet
         const { txId } = await placeBet({
-          passphrase,
+          passphrase: pass,
           kiblAmount: 100000, 
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
-        // Use global toast to avoid null crash
         if (window.toast) window.toast(`Bet sent!`, { type: 'win' });
         
-        loadProfile();
-        if (linked?.address && window.loadWalletBalances) window.loadWalletBalances(linked.address);
-
-        // B. AUTO-START BLACKJACK ♠️
-        btn.textContent = 'Dealing...';
-        
-        // Hide button BEFORE logic to prevent race conditions
+        // Hide button BEFORE starting game to prevent race conditions
         btn.style.display = 'none';
 
         await window.startRound(); 
 
       } catch (e) {
-        // If error, force button back
         if (e.message !== 'Cancelled') {
-          if (window.toast) window.toast(`Bet failed: ${e.message}`, { type: 'error' });
-          else alert(e.message);
+           if(window.toast) window.toast(`Bet failed: ${e.message}`, { type: 'error' });
+           else alert(e.message);
         }
+        // Restore button on error
         btn.style.display = 'inline-flex';
         btn.textContent = 'Place 100 KIBL Bet';
         btn.disabled = false;
