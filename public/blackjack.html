@@ -1089,25 +1089,29 @@ function updateBjPanels(snapshotJson) {
     const bjFair   = document.getElementById('bjFair');
     const bjDealer = document.getElementById('bjDealer');
     const bjPlayer = document.getElementById('bjPlayer');
-      const btnStart  = document.getElementById('bjStart');
-  const btnHit    = document.getElementById('bjHit');
-  const btnStand  = document.getElementById('bjStand');
-  const btnDouble = document.getElementById('bjDoubleBtn');
-  const btnSplit  = document.getElementById('bjSplitBtn');
+   const IDS = { payout: 'payoutTotal', deal: 'bjStart', hit: 'bjHit', stand: 'bjStand', double: 'bjDoubleBtn', split: 'bjSplitBtn' };
+const btnStart  = document.getElementById(IDS.deal);
+const btnHit    = document.getElementById(IDS.hit);
+const btnStand  = document.getElementById(IDS.stand);
+const btnDouble = document.getElementById(IDS.double);
+const btnSplit  = document.getElementById(IDS.split);
   const bjMsg = document.getElementById('bjStatus');
 const leaderboardList = document.getElementById('leaderboardList');
 
-  function applyBJCan(can = {}) {
-  btnHit.disabled    = !(can.hit ?? true);
-  btnStand.disabled  = !(can.stand ?? true);
-  btnDouble.disabled = !(can.double ?? false);
+  // SAFE VERSION: Checks if buttons exist before touching them
+function applyBJCan(can = {}) {
+  if (btnHit)    btnHit.disabled    = !(can.hit ?? true);
+  if (btnStand)  btnStand.disabled  = !(can.stand ?? true);
+  if (btnDouble) btnDouble.disabled = !(can.double ?? false);
 
-  // Split: show only when server says it’s allowed AND enable the button
+  // Split logic
   const allowSplit = !!(can.split);
-  btnSplit.disabled = !allowSplit;
-  btnSplit.classList.toggle('hidden', !allowSplit);
+  if (btnSplit) {
+    btnSplit.disabled = !allowSplit;
+    if (allowSplit) btnSplit.classList.remove('hidden');
+    else btnSplit.classList.add('hidden');
+  }
 }
-
 
     let totalPayout = 0;
      function formatWait(ms) {
@@ -1496,12 +1500,13 @@ async function onPayout(){
   window.placeBet = placeBet;
 
   // 1. Define Bridge for Game Logic
-  window.onGameSettled = async () => {
-      const btn = document.getElementById('betBtn');
-      // Force button visible immediately
-      btn.style.display = 'inline-flex';
-      btn.disabled = false;
-      btn.textContent = 'Place 100 KIBL Bet';
+ window.onGameSettled = async () => {
+    const btn = document.getElementById('betBtn');
+    if (btn) {
+        btn.style.display = 'inline-flex'; // Force visible
+        btn.disabled = false;
+        btn.textContent = 'Place 100 KIBL Bet';
+    }
       
       // Refresh balance
       const linked = await fetch('/api/wallet/status').then(r=>r.json()).catch(()=>({}));
