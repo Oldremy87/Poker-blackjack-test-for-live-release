@@ -677,26 +677,28 @@ body.compact {
      <p id="nexaBalance">NEXA: —</p>
   </div>
 
+  <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
   <div class="panel panel-claim">
-  <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
-    
-    <button id="dailyReward" class="btn btn-ghost" style="width:100%">Claim Daily Reward</button>
-    
-    <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
-      Withdraw Winnings
+    <div class="controls">
+      <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
+      <div class="panel" id="leaderboardPanel">
+  <h2>Season Points Window (Skill Points)</h2>
+  <ol id="leaderboardList" class="leaderboard"></ol>
+  <div class="readout" style="margin-top:6px;">
+   <a class="btn btn-ghost" href="/leaderboard.html?game=poker">See full leaderboard →</a>
+</div>
+</div>
+
+    </div>
+<section id="claim" class="claim-block">
+  <h2>Claim</h2>
+  
+    <div class="row">
+       <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
+      FEED ME! 🐾
     </a>
 
-    <div class="panel" id="leaderboardPanel" style="margin-top:10px; background:rgba(0,0,0,0.2);">
-      <h2 style="font-size:1.1em; margin-top:0;">Season Points</h2>
-      <ol id="leaderboardList" class="leaderboard"></ol>
-      <div class="readout" id="lbHint" style="margin-top:6px; font-size:0.85em;"></div>
-      <div class="readout" style="margin-top:6px;">
-         <a class="btn btn-ghost" href="/leaderboard.html?game=poker" style="font-size:0.8em; width:100%">Full Leaderboard</a>
-      </div>
-    </div>
-
-  </div>
-</div>
+</section>
       
     </div>
 

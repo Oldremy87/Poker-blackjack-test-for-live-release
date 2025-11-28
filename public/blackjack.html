@@ -787,28 +787,23 @@ body.compact {
        
       </div>
 
- </section>
+ 
 </div>
-<div class="panel panel-claim">
-  <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
-    
-    <button id="dailyReward" class="btn btn-ghost" style="width:100%">Claim Daily Reward</button>
-    
-    <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
-      Withdraw Winnings
-    </a>
 
-    <div class="panel" id="leaderboardPanel" style="margin-top:10px; background:rgba(0,0,0,0.2);">
-      <h2 style="font-size:1.1em; margin-top:0;">Season Points</h2>
-      <ol id="leaderboardList" class="leaderboard"></ol>
-      <div class="readout" id="lbHint" style="margin-top:6px; font-size:0.85em;"></div>
-      <div class="readout" style="margin-top:6px;">
-         <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack" style="font-size:0.8em; width:100%">Full Leaderboard</a>
-      </div>
+<section class="panel claim-block" style="margin-top:10px;">
+   </div>
+  <section class="panel" style="margin-top:10px;">
+    <h2>Season Points Window (Skill Points)</h2>
+    <ol id="leaderboardList" class="leaderboard"></ol>
+    <div class="readout" id="lbHint" style="margin-top:6px;"></div>
+    <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
+    <h2>Claim</h2>
+    <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
+      FEED ME! 🐾
+    </a>
+     
     </div>
-</section>
-  </div>
-</div>
+  </section>
   
 </div>
 
@@ -1502,7 +1497,7 @@ async function onPayout(){
 
 
   </script>
-<script type="module">
+ <script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
   import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
   window.placeBet = placeBet;
