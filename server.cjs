@@ -1200,158 +1200,116 @@ const payoutLimiter = rateLimit({
 });
 app.use('/api/payout', payoutLimiter);
 
-app.post('/api/payout', async (req, res) => {
+app.post('/api/payout', payoutLimiter, async (req, res) => {
   try {
     ensureBank(req);
 
-    // ----- which wallet(s) to pay from? default = both -----
-    const game = (req.body?.game || 'all').toString().toLowerCase(); // 'poker' | 'blackjack' | 'all'
-    const pokerMinor = Math.max(0, Number(req.session.wallet?.poker || 0));
-    const bjMinor    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
-    const availableMinor =
-      game === 'poker'     ? pokerMinor :
-      game === 'blackjack' ? bjMinor    :
-      (pokerMinor + bjMinor);
+    // 1. DETERMINE TARGET ADDRESS (Secure Lookup)
+    let targetAddress = null;
+    
+    // Check DB first
+    if (hasDb) {
+        const p = await db();
+        const { rows } = await p.query('SELECT wallet_addr FROM users WHERE user_id=$1', [req.uid]);
+        targetAddress = rows[0]?.wallet_addr;
+    } 
+    // Fallback to session (if DB is down or using memory store)
+    if (!targetAddress) {
+        targetAddress = req.session.linkedWallet?.address;
+    }
 
-    const {
-      playerAddress,
-      'h-captcha-response': hcapStd,
-      hcaptchaToken: hcapCustom,
-    } = req.body || {};
+    if (!targetAddress) {
+        return res.status(400).json({ error: 'No linked wallet found. Please Connect Wallet first.' });
+    }
 
+    // 2. Validate Address Format
+    if (!looksLikeNexaAddress(targetAddress)) {
+        return res.status(400).json({ error: 'Linked address is invalid.' });
+    }
+
+    // 3. CAPTCHA & BALANCE CHECKS (Standard Logic)
+    const { 'h-captcha-response': hcapStd, hcaptchaToken: hcapCustom } = req.body || {};
     const captchaToken = hcapCustom || hcapStd;
-    if (!captchaToken) return res.status(400).json({ error: 'Please complete the hCaptcha challenge!' });
+    
+    if (!captchaToken) return res.status(400).json({ error: 'Please complete the captcha!' });
     if (usedCaptchaTokens.has(captchaToken)) return res.status(400).json({ error: 'captcha_replay' });
     usedCaptchaTokens.add(captchaToken);
 
-    // verify hCaptcha (with retries)
+    // Verify Captcha
     let captchaResponse;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
+    try {
         captchaResponse = await hcaptcha.verify(process.env.HCAPTCHA_SECRET, captchaToken, req.ip);
-        break;
-      } catch (err) {
-        if (attempt === 3) throw err;
-        await new Promise(r => setTimeout(r, 1000 * attempt));
-      }
-    }
-    if (!captchaResponse?.success) {
-      return res.status(400).json({ error: 'hCaptcha verification failed', detail: captchaResponse?.['error-codes'] || null });
-    }
+    } catch(e) {}
+    
+    if (!captchaResponse?.success) return res.status(400).json({ error: 'Captcha failed' });
 
-    if (!availableMinor) return res.status(400).json({ error: 'No balance to withdraw' });
-    if (!looksLikeNexaAddress(playerAddress)) return res.status(400).json({ error: 'Invalid Nexa address' });
+    // Check Balance
+    const game = (req.body?.game || 'all').toString().toLowerCase();
+    const pokerMinor = Math.max(0, Number(req.session.wallet?.poker || 0));
+    const bjMinor    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
+    const availableMinor = (game === 'poker') ? pokerMinor : (game === 'blackjack') ? bjMinor : (pokerMinor + bjMinor);
 
-    // per-address cooldown
-    const lastAt = lastPayoutByAddress.get(playerAddress) || 0;
-    if (Date.now() - lastAt < PAYOUT_COOLDOWN_MS) {
-      const wait = PAYOUT_COOLDOWN_MS - (Date.now() - lastAt);
-      return res.status(429).json({ error: 'address_cooldown', retryInMs: wait });
-    }
+    if (!availableMinor || availableMinor <= 0) return res.status(400).json({ error: 'No balance to withdraw' });
 
-    // compute send amount (minor units)
+    // 4. PREPARE RPC SEND
     const sendMinor = Math.min(availableMinor, MAX_PAYOUT);
     const sendWholeKibl = Math.floor(sendMinor / 100);
 
-    // breakdown deduction by wallet
+    // Deduction logic
     let deductPoker = 0, deductBJ = 0;
-    if (game === 'poker') {
-      deductPoker = sendMinor;
-    } else if (game === 'blackjack') {
-      deductBJ = sendMinor;
-    } else {
-      // take from poker first, then blackjack
-      deductPoker = Math.min(pokerMinor, sendMinor);
-      deductBJ = sendMinor - deductPoker;
+    if (game === 'poker') deductPoker = sendMinor;
+    else if (game === 'blackjack') deductBJ = sendMinor;
+    else {
+        deductPoker = Math.min(pokerMinor, sendMinor);
+        deductBJ = sendMinor - deductPoker;
     }
 
-    // RPC config
+    // 5. EXECUTE RPC
     const rpcUrl = process.env.RPC_URL || `http://localhost:${process.env.RPC_PORT || 7227}`;
-    if (!process.env.RPC_USER || !process.env.RPC_PASSWORD || !process.env.KIBL_GROUP_ID) {
-      return res.status(500).json({ error: 'Server configuration error' });
-    }
     const auth = Buffer.from(`${process.env.RPC_USER}:${process.env.RPC_PASSWORD}`).toString('base64');
+    
     const rpcBody = JSON.stringify({
-      jsonrpc: '1.0',
-      id: 'kibl',
-      method: 'token',
-      params: ['send', process.env.KIBL_GROUP_ID, playerAddress, String(sendMinor)]
+      jsonrpc: '1.0', id: 'kibl', method: 'token',
+      params: ['send', process.env.KIBL_GROUP_ID, targetAddress, String(sendMinor)] // <--- USES targetAddress
     });
 
-    // RPC send with retry
-    let txId = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const response = await fetch(rpcUrl, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':`Basic ${auth}` }, body: rpcBody });
-        const data = await response.json().catch(async () => { throw new Error(`RPC ${response.status} ${await response.text()}`); });
-        if (data.error) throw new Error(`RPC error: ${JSON.stringify(data.error)}`);
-        txId = data.result;
-        break;
-      } catch (err) {
-        if (attempt === 3) throw err;
-        await new Promise(r => setTimeout(r, 1000 * attempt));
-      }
-    }
-
-    // post-send bookkeeping
-    req.session.wallet.poker     = Math.max(0, pokerMinor - deductPoker);
-    req.session.wallet.blackjack = Math.max(0, bjMinor    - deductBJ);
-    req.session.bank = Math.max(0, Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0));
-
-    lastPayoutByAddress.set(playerAddress, Date.now());
-
-    // persist session
-    await new Promise((resolve, reject) => {
-      if (typeof req.session.save === 'function') req.session.save(err => (err ? reject(err) : resolve()));
-      else resolve();
+    const rpcRes = await fetch(rpcUrl, { 
+        method:'POST', 
+        headers:{'Content-Type':'application/json', 'Authorization':`Basic ${auth}`}, 
+        body: rpcBody 
     });
+    const rpcJson = await rpcRes.json();
+    
+    if (rpcJson.error) throw new Error(JSON.stringify(rpcJson.error));
+    const txId = rpcJson.result;
 
-    // DB audit (best-effort)
-    try {
-      const p = await db();
-      await p.query(
-        `INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status)
-         VALUES ($1,$2,$3,$4,$5,'success')`,
-        [playerAddress, sendWholeKibl, txId, req.sessionID, req.ip]
-      );
-      // decrement both game balances to mirror session
-      if (deductPoker > 0) {
-        await p.query(
-          'UPDATE user_stats SET bank_minor = GREATEST(bank_minor - $2, 0), last_seen_at = now() WHERE user_id = $1',
-          [req.uid, deductPoker]
-        );
-      }
-      if (deductBJ > 0) {
-        await p.query(
-          'UPDATE user_stats_blackjack SET bank_minor = GREATEST(bank_minor - $2, 0), last_seen_at = now() WHERE user_id = $1',
-          [req.uid, deductBJ]
-        );
-      }
-    } catch (e) {
-      logger.error('payout bookkeeping failed', { e: String(e) });
-      // don’t fail the request; tokens are already sent
+    // 6. UPDATE STATE
+    req.session.wallet.poker = Math.max(0, pokerMinor - deductPoker);
+    req.session.wallet.blackjack = Math.max(0, bjMinor - deductBJ);
+    req.session.bank = req.session.wallet.poker + req.session.wallet.blackjack;
+    
+    // DB Update
+    if (hasDb) {
+        const p = await db();
+        await p.query(`INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status) VALUES ($1,$2,$3,$4,$5,'success')`, 
+            [targetAddress, sendWholeKibl, txId, req.sessionID, req.ip]);
+            
+        if (deductPoker > 0) await p.query('UPDATE user_stats SET bank_minor = GREATEST(bank_minor - $2, 0) WHERE user_id = $1', [req.uid, deductPoker]);
+        if (deductBJ > 0) await p.query('UPDATE user_stats_blackjack SET bank_minor = GREATEST(bank_minor - $2, 0) WHERE user_id = $1', [req.uid, deductBJ]);
     }
 
-    const remainingKibl = Math.floor((req.session.bank || 0) / 100);
     return res.json({
-      success: true,
-      txId,
-      sentKIBL: sendWholeKibl,
-      remainingKIBL: remainingKibl,
-      remainingByGame: {
-        poker:     Math.floor((req.session.wallet?.poker || 0) / 100),
-        blackjack: Math.floor((req.session.wallet?.blackjack || 0) / 100),
-        total:     remainingKibl
-      },
-      message: `Sent ${sendWholeKibl} KIBL to ${playerAddress}`
+        success: true,
+        txId,
+        sentKIBL: sendWholeKibl,
+        remainingKIBL: Math.floor(req.session.bank / 100)
     });
 
   } catch (error) {
-    logger.error('Token send failed', { error: String(error) });
-    return res.status(500).json({ error: 'Failed to send tokens due to a server issue. Please try again later.' });
+    logger.error('Payout failed', { error: String(error) });
+    return res.status(500).json({ error: 'Payout failed. Please try again.' });
   }
 });
-
 // =================== BLACKJACK ENGINE (non-wagering, points-driven) ===================
 
 function bjEnsure(req){

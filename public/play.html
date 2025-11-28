@@ -677,52 +677,26 @@ body.compact {
      <p id="nexaBalance">NEXA: —</p>
   </div>
 
-  <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
   <div class="panel panel-claim">
-    <div class="controls">
-      <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
-      <div class="panel" id="leaderboardPanel">
-  <h2>Season Points Window (Skill Points)</h2>
-  <ol id="leaderboardList" class="leaderboard"></ol>
-  <div class="readout" style="margin-top:6px;">
-   <a class="btn btn-ghost" href="/leaderboard.html?game=poker">See full leaderboard →</a>
+  <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
+    
+    <button id="dailyReward" class="btn btn-ghost" style="width:100%">Claim Daily Reward</button>
+    
+    <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
+      Withdraw Winnings
+    </a>
+
+    <div class="panel" id="leaderboardPanel" style="margin-top:10px; background:rgba(0,0,0,0.2);">
+      <h2 style="font-size:1.1em; margin-top:0;">Season Points</h2>
+      <ol id="leaderboardList" class="leaderboard"></ol>
+      <div class="readout" id="lbHint" style="margin-top:6px; font-size:0.85em;"></div>
+      <div class="readout" style="margin-top:6px;">
+         <a class="btn btn-ghost" href="/leaderboard.html?game=poker" style="font-size:0.8em; width:100%">Full Leaderboard</a>
+      </div>
+    </div>
+
+  </div>
 </div>
-</div>
-
-    </div>
-<section id="claim" class="claim-block">
-  <h2>Claim</h2>
-  <form class="faucet-form" id="faucetForm" onsubmit="return false;" autocomplete="off">
-    <div class="field">
-      <label for="addressInput">Wallet address</label>
-      <input
-  type="text"
-  id="addressInput"
-  placeholder="Enter your Nexa address (e.g., nexa:...)"
-  aria-label="Nexa address input"
-  required
-  spellcheck="false"
-  autocapitalize="off"
-  autocomplete="off"
-  inputmode="latin"
-/>
-
-    </div>
-    <div class="field">
-      <label>Human check</label>
-      <div id="payoutCaptcha" class="h-captcha"
-     data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
-     data-size="normal"></div>
-
-    </div>
-    <div class="row">
-      <button class="btn btn-primary" id="ClaimPayout" type="button" aria-label="Claim Payout">FEED ME! 🐾</button>
-
-    </div>
-  </form>
-  <div id="loading" class="status" aria-live="polite" style="display:none;">Processing your request...</div>
-  <p id="result" aria-live="polite">Idle</p>
-</section>
       
     </div>
 
@@ -1591,10 +1565,10 @@ async function onClaimPayout() {
         if (e.message !== 'Cancelled') {
           toast(`Bet failed: ${e.message}`, { type: 'error' });
           betBtn.disabled = false;
-          betBtn.textContent = 'Place 10 KIBL Bet';
+          betBtn.textContent = 'Place 100 KIBL Bet';
         } else {
           betBtn.disabled = false;
-          betBtn.textContent = 'Place 10 KIBL Bet';
+          betBtn.textContent = 'Place 100 KIBL Bet';
         }
       } finally {
         betBtn.classList.remove('busy');

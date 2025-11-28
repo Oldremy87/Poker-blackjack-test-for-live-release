@@ -790,29 +790,26 @@ body.compact {
  
 </div>
 
-<section class="panel claim-block" style="margin-top:10px;">
-   </div>
-  <section class="panel" style="margin-top:10px;">
-    <h2>Season Points Window (Skill Points)</h2>
-    <ol id="leaderboardList" class="leaderboard"></ol>
-    <div class="readout" id="lbHint" style="margin-top:6px;"></div>
-    <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
-    <h2>Claim</h2>
-    <div class="field">
-      <label class="readout" for="addressInput">Wallet address</label>
-      <input id="addressInput" placeholder="nexa:..." style="width:100%; padding:10px 12px; border-radius:10px;
-             border:1px solid rgba(58,245,217,.35); background:#0f1425; color:var(--text)"/>
-    <div class="field">
-      <label class="readout">Human check</label>
-      <div id="payoutCaptcha" class="h-captcha"
-           data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
-           data-size="normal"></div>
-    <div class="controls">
-      <button id="ClaimPayout" class="btn btn-primary" type="button">FEED ME! 🐾</button>
+<div class="panel panel-claim">
+  <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
+    
+    <button id="dailyReward" class="btn btn-ghost" style="width:100%">Claim Daily Reward</button>
+    
+    <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
+      Withdraw Winnings
+    </a>
+
+    <div class="panel" id="leaderboardPanel" style="margin-top:10px; background:rgba(0,0,0,0.2);">
+      <h2 style="font-size:1.1em; margin-top:0;">Season Points</h2>
+      <ol id="leaderboardList" class="leaderboard"></ol>
+      <div class="readout" id="lbHint" style="margin-top:6px; font-size:0.85em;"></div>
+      <div class="readout" style="margin-top:6px;">
+         <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack" style="font-size:0.8em; width:100%">Full Leaderboard</a>
+      </div>
     </div>
-    <div id="loading" class="readout" style="display:none;">Processing…</div>
-    <p id="result" class="readout">Idle</p>
-  </section>
+
+  </div>
+</div>
   
 </div>
 
@@ -1506,7 +1503,7 @@ async function onPayout(){
 
 
   </script>
- <script type="module">
+<script type="module">
   import { placeBet } from '/assets/walletBet.bundle.js';
   import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
   window.placeBet = placeBet;
@@ -1536,17 +1533,22 @@ async function onPayout(){
     const linked = await ensureLinked();
     const btn = document.getElementById('betBtn');
     
-    // Hide the "Feed the Dealer" button since Bet replaces it
     const oldStart = document.getElementById('bjStart');
     if (oldStart) oldStart.style.display = 'none';
 
     if (btn) {
       btn.disabled = !linked;
-      btn.textContent = 'Place 100 KIBL Bet';
+      btn.textContent = linked ? 'Place 100 KIBL Bet' : 'Connect Wallet to Play';
+      if (!linked) {
+         btn.onclick = () => window.location.href = '/connect.html';
+         return; 
+      }
     }
+
     if (linked?.address) {
       window.loadWalletBalances(linked.address);
     }
+
     btn?.addEventListener('click', async () => {
       if (btn.disabled || btn.classList.contains('busy')) return;
 
@@ -1563,27 +1565,31 @@ async function onPayout(){
         // A. Place Bet
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: 10000, 
+          kiblAmount: 100000, 
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
-        toast(`Bet sent! ${txId.slice(0, 8)}…`, { type: 'win' });
+        toast(`Bet sent!`, { type: 'win' });
         loadProfile();
+        if (linked?.address) window.loadWalletBalances(linked.address);
 
         // B. AUTO-START BLACKJACK ♠️
         btn.textContent = 'Dealing...';
         
-        // Wait for the game to start rendering
-        await window.startRound(); 
-        
-        // Hide bet button while hand is active
+        // --- FIX: Hide button BEFORE starting logic ---
+        // This prevents the race condition where a Natural BJ shows the button,
+        // and then this line immediately hides it again.
         btn.style.display = 'none';
 
+        await window.startRound(); 
+
       } catch (e) {
+        // If error, ensure button comes back
         if (e.message !== 'Cancelled') {
           toast(`Bet failed: ${e.message}`, { type: 'error' });
         }
+        btn.style.display = 'inline-flex'; // Force show
         btn.textContent = 'Place 100 KIBL Bet';
         btn.disabled = false;
       } finally {
@@ -1592,13 +1598,15 @@ async function onPayout(){
     });
     
     // Monitor for round end to show bet button again
-    // We check if the 'bjMsg' text says "Round settled"
     const statusMsg = document.getElementById('bjStatus');
     const obs = new MutationObserver(() => {
         if (statusMsg.textContent.includes('Round settled')) {
             btn.style.display = 'inline-flex';
             btn.disabled = false;
             btn.textContent = 'Place 100 KIBL Bet';
+            
+            // Refresh balance on game over
+            if (linked?.address) window.loadWalletBalances(linked.address);
         }
     });
     if (statusMsg) obs.observe(statusMsg, { childList: true });
