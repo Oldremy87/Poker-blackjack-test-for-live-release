@@ -743,12 +743,13 @@ body.compact {
         <div id="bjDealer" class="card-hand" aria-live="polite"></div>
 
         <div class="readout">You</div>
-        <p id="payoutTotal">Total Payout: 0 KIBL</p>
+       <p id="payoutTotal">Total Payout: 0 KIBL</p>
         <p id="kiblBalance">KIBL: —</p>
+        <p id="nexaBalance">NEXA: —</p>
         <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
 
         <div class="controls">
-          <button id="betBtn" class="btn">Place 100 KIBL bet</button>
+          <button id="betBtn" class="btn btn-primary" data-default-text="Place 10 KIBL Bet">Place 10 KIBL bet</button>
           
           <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
           <button id="bjHit"    class="btn" disabled>Hit</button>
@@ -798,16 +799,7 @@ body.compact {
     <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
     <h2>Claim</h2>
     <div class="field">
-      <label class="readout" for="addressInput">Wallet address</label>
-      <input id="addressInput" placeholder="nexa:..." style="width:100%; padding:10px 12px; border-radius:10px;
-             border:1px solid rgba(58,245,217,.35); background:#0f1425; color:var(--text)"/>
-    <div class="field">
-      <label class="readout">Human check</label>
-      <div id="payoutCaptcha" class="h-captcha"
-           data-sitekey="170a6dc4-35b6-4266-a2ce-6f3eb8c85d9c"
-           data-size="normal"></div>
-    <div class="controls">
-      <button id="ClaimPayout" class="btn btn-primary" type="button">FEED ME! 🐾</button>
+     <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; margin-top:10px;">Withdraw Winnings</a>
     </div>
     <div id="loading" class="readout" style="display:none;">Processing…</div>
     <p id="result" class="readout">Idle</p>
@@ -823,6 +815,22 @@ body.compact {
 
   
 <script>
+window.loadWalletBalances = async function(address) {
+  if (!address) return;
+  try {
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
+    const j = await r.json();
+    if (!j?.ok) return;
+
+    const kiblEl = document.getElementById('kiblBalance');
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
+
+    const nexaEl = document.getElementById('nexaBalance');
+    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
+  } catch (e) {
+    console.error('loadWalletBalances failed:', e);  
+  }
+};
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await fetchCsrf();
@@ -1475,20 +1483,22 @@ async function onPayout(){
 
   </script>
  <script type="module">
-  import { placeBet } from '/assets/walletBet.bundle.js';
+  import { placeBet } from "/assets/walletBet.bundle.js?v=Christmas";
+  import { getSigner } from "/assets/wallet-modal.js?v=Christmas";
+  
   window.placeBet = placeBet;
 
-  // 1. Define CSRF Fetcher explicitly
-  async function fetchCsrf() {
+  // 1. Global CSRF Init (Fixes BJ "Security Token" error)
+  window.ensureCsrf = async function() {
+    if (window.csrfToken) return;
     try {
       const r = await fetch('/api/csrf', { credentials: 'include' });
       const j = await r.json();
       window.csrfToken = j.csrfToken;
-      return j.csrfToken;
-    } catch (e) {
-      console.error("CSRF Init Failed", e);
-    }
-  }
+    } catch (e) { console.error("CSRF Fail", e); }
+  };
+  // Call immediately
+  window.ensureCsrf();
 
   async function ensureLinked() {
     const r = await fetch('/api/wallet/status', { credentials: 'include' });
@@ -1497,76 +1507,78 @@ async function onPayout(){
   }
 
   addEventListener('DOMContentLoaded', async () => {
-    // Init CSRF immediately
-    await fetchCsrf();
-
-    const linked = await ensureLinked();
-    const btn = document.getElementById('betBtn');
+    await window.ensureCsrf(); // Double check
     
-    // Hide the "Feed the Dealer" button since Bet replaces it
-    const oldStart = document.getElementById('bjStart');
-    if (oldStart) oldStart.style.display = 'none';
-
-    if (btn) {
-      btn.disabled = !linked;
-      btn.textContent = 'Place 100 KIBL Bet';
+    const linked = await ensureLinked();
+    const betBtn = document.getElementById('betBtn');
+    
+    // Update Button State
+    if (betBtn) {
+      betBtn.disabled = !linked;
+      betBtn.textContent = linked 
+        ? (betBtn.getAttribute('data-default-text') || betBtn.textContent) 
+        : 'Connect Wallet to Play';
+      
+      if (!linked) {
+        betBtn.onclick = () => window.location.href = '/connect.html';
+        // Remove other listeners to prevent betting
+        return; 
+      }
     }
 
-    btn?.addEventListener('click', async () => {
-      if (btn.disabled || btn.classList.contains('busy')) return;
+    if (linked?.address) {
+      window.loadWalletBalances?.(linked.address);
+    }
+
+    // Betting Logic with Modal
+    betBtn?.addEventListener('click', async () => {
+      if (betBtn.classList.contains('busy')) return;
 
       try {
-        if (!linked) return alert('Link a wallet on the Connect page first.');
+        betBtn.classList.add('busy');
+        betBtn.textContent = 'Unlocking...';
         
-        btn.classList.add('busy');
-        btn.textContent = 'Signing...';
-        btn.disabled = true;
+        // 1. GET PASSWORD FROM MODAL
+        const passphrase = await getSigner();
+        
+        betBtn.textContent = 'Signing...';
+        
+        // 2. PLACE BET
+        // Detect game type by button text or ID
+        const isBJ = window.location.pathname.includes('blackjack');
+        const amount = isBJ ? 100000 : 10000; // 100 KIBL vs 10 KIBL
 
-        const passphrase = prompt('Enter your wallet passphrase to sign the bet:') || '';
-        if (!passphrase) throw new Error('Cancelled');
-
-        // A. Place Bet
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: 10000, 
+          kiblAmount: amount,
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
-        toast(`Bet sent! ${txId.slice(0, 8)}…`, { type: 'win' });
-        loadProfile();
+        toast(`Bet sent!`, { type: 'win' });
+        
+        // 3. START GAME
+        betBtn.textContent = 'Dealing...';
+        
+        if (window.startGame) {
+            await window.startGame(); // Poker
+        } else if (window.startRound) {
+            await window.startRound(); // Blackjack
+            betBtn.style.display = 'none';
+        }
 
-        // B. AUTO-START BLACKJACK ♠️
-        btn.textContent = 'Dealing...';
-        
-        // Wait for the game to start rendering
-        await window.startRound(); 
-        
-        // Hide bet button while hand is active
-        btn.style.display = 'none';
+        loadProfile();
+        if (linked?.address) loadWalletBalances(linked.address);
 
       } catch (e) {
-        if (e.message !== 'Cancelled') {
-          toast(`Bet failed: ${e.message}`, { type: 'error' });
-        }
-        btn.textContent = 'Place 100 KIBL Bet';
-        btn.disabled = false;
+        if (e.message !== 'Cancelled') toast(e.message, { type: 'error' });
       } finally {
-        btn.classList.remove('busy');
+        betBtn.classList.remove('busy');
+        if (betBtn.style.display !== 'none') {
+            betBtn.textContent = betBtn.getAttribute('data-default-text') || 'Place Bet';
+        }
       }
     });
-    
-    // Monitor for round end to show bet button again
-    // We check if the 'bjMsg' text says "Round settled"
-    const statusMsg = document.getElementById('bjStatus');
-    const obs = new MutationObserver(() => {
-        if (statusMsg.textContent.includes('Round settled')) {
-            btn.style.display = 'inline-flex';
-            btn.disabled = false;
-            btn.textContent = 'Place 100 KIBL Bet';
-        }
-    });
-    if (statusMsg) obs.observe(statusMsg, { childList: true });
   });
 </script>
 

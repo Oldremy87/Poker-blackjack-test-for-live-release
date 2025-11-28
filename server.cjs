@@ -320,21 +320,28 @@ function getClientIp(req) {
 // hash-stream PRNG (deterministic, verifiable)
 const sha256hex = (s) => createHash('sha256').update(String(s)).digest('hex');
 const randHex = (n = 32) => randomBytes(n).toString('hex');
+// --- FIX: Unbiased Rejection Sampling Shuffle ---
 function* hashStream(seedHex) {
   let h = seedHex;
-  for (;;) {
+  while (true) {
     h = sha256hex(h);
-    // use first 8 hex chars as a 32-bit integer → [0,1)
-    const u32 = parseInt(h.slice(0, 8), 16) >>> 0;
-    yield u32 / 0xffffffff;
+    // Yield the full 32-bit integer value (0 to 4294967295)
+    yield parseInt(h.slice(0, 8), 16) >>> 0;
   }
 }
-// Fisher–Yates with a provided random stream
+
 function shuffleDeterministic(deck, rng) {
   const a = deck.slice();
   for (let i = a.length - 1; i > 0; i--) {
-    const r = rng.next().value;                      // 0..1
-    const j = Math.floor(r * (i + 1));              // 0..i
+    // Implements Rejection Sampling to eliminate modulo bias
+    const max = i + 1;
+    const limit = 0xFFFFFFFF - (0xFFFFFFFF % max);
+    let r;
+    do {
+      r = rng.next().value; // Get next 32-bit int
+    } while (r >= limit); // Discard if in the "biased zone"
+    
+    const j = r % max;
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -1198,16 +1205,20 @@ app.post('/api/payout', async (req, res) => {
     ensureBank(req);
 
     // ----- which wallet(s) to pay from? default = both -----
-    const game = (req.body?.game || 'all').toString().toLowerCase(); // 'poker' | 'blackjack' | 'all'
-    const pokerMinor = Math.max(0, Number(req.session.wallet?.poker || 0));
-    const bjMinor    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
-    const availableMinor =
-      game === 'poker'     ? pokerMinor :
-      game === 'blackjack' ? bjMinor    :
-      (pokerMinor + bjMinor);
+   let targetAddress = null;
+    if (hasDb) {
+        const p = await db();
+        const { rows } = await p.query('SELECT wallet_addr FROM users WHERE user_id=$1', [req.uid]);
+        targetAddress = rows[0]?.wallet_addr;
+    } else {
+        targetAddress = req.session.linkedWallet?.address;
+    }
+
+    if (!targetAddress) {
+        return res.status(400).json({ error: 'No linked wallet found. Please connect your wallet first.' });
+    }
 
     const {
-      playerAddress,
       'h-captcha-response': hcapStd,
       hcaptchaToken: hcapCustom,
     } = req.body || {};
@@ -1233,10 +1244,10 @@ app.post('/api/payout', async (req, res) => {
     }
 
     if (!availableMinor) return res.status(400).json({ error: 'No balance to withdraw' });
-    if (!looksLikeNexaAddress(playerAddress)) return res.status(400).json({ error: 'Invalid Nexa address' });
+    if (!looksLikeNexaAddress(targetAddress)) return res.status(400).json({ error: 'Invalid Nexa address' });
 
     // per-address cooldown
-    const lastAt = lastPayoutByAddress.get(playerAddress) || 0;
+    const lastAt = lastPayoutByAddress.get(targetAddress) || 0;
     if (Date.now() - lastAt < PAYOUT_COOLDOWN_MS) {
       const wait = PAYOUT_COOLDOWN_MS - (Date.now() - lastAt);
       return res.status(429).json({ error: 'address_cooldown', retryInMs: wait });
@@ -1268,7 +1279,7 @@ app.post('/api/payout', async (req, res) => {
       jsonrpc: '1.0',
       id: 'kibl',
       method: 'token',
-      params: ['send', process.env.KIBL_GROUP_ID, playerAddress, String(sendMinor)]
+      params: ['send', process.env.KIBL_GROUP_ID, targetAddress, String(sendMinor)]
     });
 
     // RPC send with retry
@@ -1291,7 +1302,7 @@ app.post('/api/payout', async (req, res) => {
     req.session.wallet.blackjack = Math.max(0, bjMinor    - deductBJ);
     req.session.bank = Math.max(0, Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0));
 
-    lastPayoutByAddress.set(playerAddress, Date.now());
+    lastPayoutByAddress.set(targetAddress, Date.now());
 
     // persist session
     await new Promise((resolve, reject) => {
@@ -1305,7 +1316,7 @@ app.post('/api/payout', async (req, res) => {
       await p.query(
         `INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status)
          VALUES ($1,$2,$3,$4,$5,'success')`,
-        [playerAddress, sendWholeKibl, txId, req.sessionID, req.ip]
+        [targetAddress, sendWholeKibl, txId, req.sessionID, req.ip]
       );
       // decrement both game balances to mirror session
       if (deductPoker > 0) {
@@ -1336,7 +1347,7 @@ app.post('/api/payout', async (req, res) => {
         blackjack: Math.floor((req.session.wallet?.blackjack || 0) / 100),
         total:     remainingKibl
       },
-      message: `Sent ${sendWholeKibl} KIBL to ${playerAddress}`
+      message: `Sent ${sendWholeKibl} KIBL to ${targetAddress}`
     });
 
   } catch (error) {
