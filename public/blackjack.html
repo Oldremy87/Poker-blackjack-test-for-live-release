@@ -1160,14 +1160,16 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
     applyBJCan(d.can || { hit:true, stand:true, double:false, split:false });
   }
 }
-    function setButtons({ deal, hit, stand }) {
-    const btnStart = document.getElementById('bjStart');
-    const btnHit   = document.getElementById('bjHit');
-    const btnStand = document.getElementById('bjStand');
-    if (btnStart && deal  !== undefined) btnStart.disabled = !deal;
-    if (btnHit   && hit   !== undefined) btnHit.disabled   = !hit;
-    if (btnStand && stand !== undefined) btnStand.disabled = !stand;
-  }
+function setButtons({ deal, hit, stand }) {
+  // Use the global variables if defined, or getElementById for safety
+  const sStart = document.getElementById('bjStart');
+  const sHit   = document.getElementById('bjHit');
+  const sStand = document.getElementById('bjStand');
+
+  if (sStart && deal  !== undefined) sStart.disabled = !deal;
+  if (sHit   && hit   !== undefined) sHit.disabled   = !hit;
+  if (sStand && stand !== undefined) sStand.disabled = !stand;
+}
 function toast(html, { type = 'info', timeout = 2500 } = {}) {
     let root = document.getElementById('toasts');
     if (!root) {
