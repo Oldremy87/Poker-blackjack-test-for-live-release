@@ -1090,8 +1090,6 @@ function updateBjPanels(snapshotJson) {
 
 
     const payoutEl = document.getElementById('payoutTotal');
-    const payoutBtn = document.getElementById('ClaimPayout');
-    const addressInput = document.getElementById('addressInput');
     const dailyBtn = document.getElementById('dailyReward');
     const loading  = document.getElementById('loading');
 
@@ -1232,7 +1230,6 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
 
   payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
   totalPayout = balanceUnits;
-  payoutBtn.disabled = (totalPayout === 0);
   // Always refresh profile + leaderboard so numbers are current
   loadProfile();
   loadLeaderboard();
@@ -1245,7 +1242,6 @@ function toast(html, { type = 'info', timeout = 2500 } = {}) {
     const bankUnits = Math.floor((d.bank||0)/100);
     totalPayout = bankUnits;
     payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
-    payoutBtn.disabled = (totalPayout === 0);
       // NEW: show player tag
   const tagEl = document.getElementById('userTag');
   if (tagEl && d.displayId) tagEl.textContent = `Your tag: ${d.displayId}`;
@@ -1440,7 +1436,6 @@ async function onPayout(){
     btnHit.addEventListener('click',   hit);
     btnStand.addEventListener('click', stand);
     dailyBtn.addEventListener('click', onDaily);
-    payoutBtn.addEventListener('click', onPayout);
     btnDouble.addEventListener('click', doubleDown);
     btnSplit .addEventListener('click', split);
 
