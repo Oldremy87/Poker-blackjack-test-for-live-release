@@ -1544,7 +1544,9 @@ async function onPayout(){
       btn.disabled = !linked;
       btn.textContent = 'Place 100 KIBL Bet';
     }
-
+    if (linked?.address) {
+      window.loadWalletBalances(linked.address);
+    }
     btn?.addEventListener('click', async () => {
       if (btn.disabled || btn.classList.contains('busy')) return;
 
