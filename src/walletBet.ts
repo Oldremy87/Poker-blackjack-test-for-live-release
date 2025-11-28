@@ -124,7 +124,8 @@ export async function placeBet({
 
   
   const signedTx = await wallet
-    .newTransaction(account)        
+    .newTransaction(account)     
+    .parseTxHex(j.unsignedTx)    
     .sign()                      
     .build();                   
 

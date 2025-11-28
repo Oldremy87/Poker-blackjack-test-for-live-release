@@ -85,7 +85,7 @@ async function placeBet({
   });
   const j = await r.json();
   if (!r.ok || !j.ok) throw new Error(j?.error || "build_unsigned_failed");
-  const signedTx = await wallet.newTransaction(account).sign().build();
+  const signedTx = await wallet.newTransaction(account).parseTxHex(j.unsignedTx).sign().build();
   const br = await fetch("/api/tx/broadcast", {
     method: "POST",
     credentials: "include",
