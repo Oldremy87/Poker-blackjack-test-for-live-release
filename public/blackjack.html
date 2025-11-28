@@ -890,7 +890,22 @@ function fitBjToScreen(){
     b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
   }
 })();
+async function loadWalletBalances(address) {
+  if (!address) return;
+  try {
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
+    const j = await r.json();
+    if (!j?.ok) return;
 
+    const kiblEl = document.getElementById('kiblBalance');
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
+
+    const nexaEl = document.getElementById('nexaBalance');
+    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
+  } catch (e) {
+    console.error('loadWalletBalances failed:', e);  
+  }
+}
 async function postWithCsrf(url, body = {}) {
   // Ensure we have a token
   if (!window.csrfToken) {
