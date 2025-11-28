@@ -1421,12 +1421,6 @@ async function onClaimPayout() {
   dealBtn?.addEventListener('click', startGame);
   drawBtn?.addEventListener('click', draw);
 
-  // Minor UX: address field hint border
-  addressInput.addEventListener('input', () => {
-    const v = addressInput.value.trim();
-    addressInput.style.borderColor = (v && !/^nexa:/.test(v)) ? '#ff5555' : 'rgba(58,245,217,0.35)';
-  });
-
 (() => {
   const LS_KEY = 'ageVerified';
   const ageGate = document.getElementById('ageGate');

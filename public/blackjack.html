@@ -1149,7 +1149,10 @@ const setDisabled = (el, v) => { if (el) el.disabled = !!v; };
     announceAndRefresh(d);
 
     // --- CRITICAL FIX: Direct Bridge to UI ---
-    if (window.onGameSettled) window.onGameSettled();
+    if (window.onGameSettled) {
+        console.log("Calling Bridge: onGameSettled"); // Add this log to debug
+        window.onGameSettled();
+    }
     
     bjMsg.textContent = 'Round settled.';
   } else {
@@ -1352,18 +1355,31 @@ fitBjToScreen();
 
 async function stand(){
   try{
-    setButtons({ hit:false, stand:false });
+    // Disable buttons immediately to prevent double-clicks
+    if (btnHit) btnHit.disabled = true;
+    if (btnStand) btnStand.disabled = true;
+
     const d = await postWithCsrf(API.bj.stand, {});
+    
     if (!d.ok) throw new Error(d.error || 'Stand failed');
 
+    // SUCCESS PATH
     afterActionSnapshot(d);
+    
     if (d.fair?.serverSeed) {
-      bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}… • verify: /api/fair/${d.fair.handId}`;
+      if (bjFair) bjFair.textContent = `Reveal: seed=${d.fair.serverSeed.slice(0,12)}…`;
     }
     await sleep(600);
+
   } catch(e){
-    toast(`Stand failed: ${e.message || e}`, { type:'error' });
-    setButtons({ deal:true, hit:false, stand:false });
+    console.error(e);
+    // Only show error toast if it wasn't a standard game-over
+    if (window.toast) window.toast(`Stand failed: ${e.message || e}`, { type:'error' });
+    else alert(`Stand failed: ${e.message}`);
+    
+    // Recovery: Try to re-enable buttons so user isn't stuck
+    if (btnHit) btnHit.disabled = false;
+    if (btnStand) btnStand.disabled = false;
   }
 }
 
