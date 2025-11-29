@@ -12,7 +12,17 @@ const IV = 'kk_wallet_iv_v1';
 async function sdk() {
   return await import('nexa-wallet-sdk');
 }
-
+const MAINNET = {
+  scheme: 'wss' as const,
+  host: 'electrum.nexa.org',
+  port: 20004,
+};
+async function connectMainnet(rostrumProvider: any) {
+  // reuse a global flag to avoid duplicate connects across hot reloads
+  if ((globalThis as any).__kk_rostrum_mainnet_ok) return;
+  await rostrumProvider.connect(MAINNET); // explicit mainnet endpoint
+  (globalThis as any).__kk_rostrum_mainnet_ok = true;
+}
 async function ensureCsrf() {
   if ((window as any).csrfToken) return (window as any).csrfToken;
   const r = await fetch('/api/csrf', { credentials: 'include' });
@@ -106,12 +116,8 @@ async function init() {
 
   async function bootFromSeed(seed: string, net: 'mainnet') {
     const { Wallet, rostrumProvider } = await sdk();
-    
-    // Explicit Connect (Fixes "request undefined" error)
-    try {
-        await rostrumProvider.connect({ scheme: 'wss', host: 'electrum.nexa.org', port: 20004 });
-    } catch(e) { console.log('Rostrum connect:', e); }
 
+  await connectMainnet(rostrumProvider);
     const wallet = new Wallet(seed, net);
     await wallet.initialize();
     
