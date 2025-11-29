@@ -695,10 +695,8 @@ const nexaBal   = await w.getBalance();
 const tokenBals = await w.getTokenBalances();
 const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const unsignedTx = await w.newTransaction()
-    .melt(tokenId, kiblAmount.toString())
       .sendTo(house, feeNexa.toString())  
-     .sendToToken(house, kiblAmount.toString(), tokenId)
-     .consolidate(fromAddress)  
+      .sendToToken(house, kiblAmount.toString(), tokenId)
       .populate()
       .build();
 
@@ -1114,22 +1112,16 @@ app.get('/api/fair/:handId', async (req, res) => {
 
 const rewardLimiter = rateLimit({ windowMs: 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false });
 // DAILY REWARD (minor units throughout)
-// --- FAUCET / DAILY REWARD ROUTE ---
-// --- FAUCET / DAILY REWARD ROUTE ---
 app.post('/api/daily-reward', async (req, res) => {
-  // Use req.ip directly if getClientIp helper isn't available
   const ip = (typeof getClientIp === 'function') ? getClientIp(req) : req.ip;
   const uid = req.uid; // From session
   const FAUCET_AMOUNT = 1000 * 100; // 1,000 KIBL (in minor units)
   
-  // Hardcoded cooldown for production, but skippable for testing if you commented out the check below
   const COOLDOWN = 24 * 60 * 60 * 1000; 
 
   try {
-    // 0. CHECK ENV VARS (Common cause of 500 errors)
     if (!process.env.KIBL_GROUP_ID) throw new Error('Server Config Error: Missing KIBL_GROUP_ID');
 
-    // 1. CHECK LIMITS (DB)
     if (hasDb) {
       const p = await db();
       const { rows } = await p.query(
@@ -1144,13 +1136,13 @@ app.post('/api/daily-reward', async (req, res) => {
         const diff = Date.now() - last;
         
         // --- RATE LIMIT CHECK (Comment out ONLY for testing) ---
-      //  if (diff < COOLDOWN) {
-      //     return res.status(429).json({ 
-      //       ok: false, 
-      //       error: 'Daily reward already claimed.', 
-      //       retryInMs: COOLDOWN - diff 
-      //     });
-      //  }
+        if (diff < COOLDOWN) {
+           return res.status(429).json({ 
+            ok: false, 
+            error: 'Daily reward already claimed.', 
+           retryInMs: COOLDOWN - diff 
+           });
+        }
         // ------------------------------------------------------
       }
     }
