@@ -1134,13 +1134,13 @@ app.post('/api/daily-reward', async (req, res) => {
       if (rows.length > 0) {
         const last = new Date(rows[0].created_at).getTime();
         const diff = Date.now() - last;
-        if (diff < COOLDOWN) {
-          return res.status(429).json({ 
-            ok: false, 
-            error: 'Daily reward already claimed.', 
-            retryInMs: COOLDOWN - diff 
-          });
-        }
+//if (diff < COOLDOWN) {
+  //        return res.status(429).json({ 
+  //          ok: false, 
+  //          error: 'Daily reward already claimed.', 
+  //          retryInMs: COOLDOWN - diff 
+     //     });
+   //     }
       }
     }
 
