@@ -1572,22 +1572,25 @@ async function onPayout(){
         });
 
         if (window.toast) window.toast(`Bet sent!`, { type: 'win' });
-
+        betBtn.textContent = 'Dealing...';
         await window.startRound(); 
+         // Refresh wallet balances
+        loadProfile();
+        if (linked?.address) loadWalletBalances(linked.address);
 
       } catch (e) {
         if (e.message !== 'Cancelled') {
            if(window.toast) window.toast(`Bet failed: ${e.message}`, { type: 'error' });
            else alert(e.message);
+           // Restore button on error
+        btn.style.display = 'inline-flex';
+        btn.textContent = 'Place 100 KIBL Bet';
+        btn.disabled = false;
         }
         else {
           betBtn.disabled = false;
           betBtn.textContent = 'Place 100 KIBL Bet';
-        }
-        // Restore button on error
-        btn.style.display = 'inline-flex';
-        btn.textContent = 'Place 100 KIBL Bet';
-        btn.disabled = false;
+        } 
       } finally {
         btn.classList.remove('busy');
       }
