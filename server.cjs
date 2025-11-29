@@ -1112,70 +1112,89 @@ app.get('/api/fair/:handId', async (req, res) => {
 
 const rewardLimiter = rateLimit({ windowMs: 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false });
 // DAILY REWARD (minor units throughout)
-app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
+// --- FAUCET / DAILY REWARD ROUTE ---
+app.post('/api/daily-reward', async (req, res) => {
+  const ip = getClientIp(req);
+  const uid = req.uid; // From session
+  const FAUCET_AMOUNT = 1000 * 100; // 1,000 KIBL (in minor units)
+  const COOLDOWN = 24 * 60 * 60 * 1000; // 24 Hours
+
   try {
-    ensureBank(req); // guarantees req.session.bank is a finite number
-
-    const now     = Date.now();
-    const last    = Number(req.session.lastDailyRewardAt) || 0;
-    const elapsed = now - last;
-
-    if (elapsed < ONE_DAY_MS) {
-      return res.status(429).json({
-        ok: false,
-        error: 'already_claimed',
-        retryInMs: ONE_DAY_MS - elapsed,
-        nextClaimAt: last + ONE_DAY_MS
-      });
-    }
-
-    // award in MINOR units; front-end divides by 100 when displaying KIBL
-    const DAILY_REWARD = 100 * 100; // 100 KIBL → minor units
-
-    req.session.wallet ||= { poker: 0, blackjack: 0 };
-    req.session.wallet.poker = Math.max(0, Number(req.session.wallet.poker || 0) + DAILY_REWARD);
-
-    const cap = Number(process.env.BANK_CAP ?? BANK_CAP ?? 5_000_000);
-    req.session.bank = Math.min(
-    cap,
-     Number(req.session.wallet.poker || 0) + Number(req.session.wallet.blackjack || 0)
-      );
-
-req.session.lastDailyRewardAt = now;
-
-    // Mirror to DB (cap-safe); do NOT fail the request if DB write has an issue
-    try {
-      await getOrCreateUser(req.uid);
+    // 1. CHECK LIMITS (DB)
+    if (hasDb) {
       const p = await db();
-      const cap = Number(process.env.BANK_CAP ?? process.env.BANK_CAP ?? BANK_CAP ?? 5_000_000);
-      await p.query(
-        'UPDATE user_stats SET bank_minor = LEAST(bank_minor + $2, $3), last_seen_at = now() WHERE user_id = $1',
-        [req.uid, DAILY_REWARD, cap]
+      // Check last claim by IP or UserID
+      const { rows } = await p.query(
+        `SELECT created_at FROM payouts 
+         WHERE (ip = $1 OR user_id = $2) AND type = 'faucet' 
+         ORDER BY created_at DESC LIMIT 1`,
+        [ip, uid]
       );
-    } catch (e) {
-      logger.error('db bank increment failed on daily', { e: String(e) });
-      // continue; session already updated so user still gets reward
+
+      if (rows.length > 0) {
+        const last = new Date(rows[0].created_at).getTime();
+        const diff = Date.now() - last;
+        if (diff < COOLDOWN) {
+          return res.status(429).json({ 
+            ok: false, 
+            error: 'Daily reward already claimed.', 
+            retryInMs: COOLDOWN - diff 
+          });
+        }
+      }
     }
 
-    // Persist session before replying
-    await new Promise((resolve, reject) => {
-      if (typeof req.session.save === 'function') {
-        req.session.save(err => (err ? reject(err) : resolve()));
-      } else {
-        resolve();
-      }
+    // 2. GET USER ADDRESS
+    let targetAddress = req.session.linkedWallet?.address;
+    if (hasDb && uid) {
+       const p = await db();
+       const { rows } = await p.query('SELECT wallet_addr FROM users WHERE user_id=$1', [uid]);
+       if (rows[0]?.wallet_addr) targetAddress = rows[0].wallet_addr;
+    }
+
+    if (!targetAddress) {
+      return res.status(400).json({ ok: false, error: 'Link wallet to claim daily reward.' });
+    }
+
+    // 3. SEND TOKENS (Using your Node RPC)
+    // Using the logic from your uploaded faucet code
+    const rpcUrl = process.env.RPC_URL || `http://localhost:${process.env.RPC_PORT || 7227}`;
+    const auth = Buffer.from(`${process.env.RPC_USER}:${process.env.RPC_PASSWORD}`).toString('base64');
+    
+    const rpcBody = JSON.stringify({
+      jsonrpc: '1.0', id: 'faucet', method: 'token',
+      params: ['send', process.env.KIBL_GROUP_ID, targetAddress, String(FAUCET_AMOUNT)]
     });
 
-    return res.json({
-      ok: true,
-      credit: DAILY_REWARD,              // minor units
-      sessionBalance: req.session.bank,  // minor units
-      nextClaimAt: now + ONE_DAY_MS
+    const rpcRes = await fetch(rpcUrl, { 
+        method:'POST', 
+        headers:{'Content-Type':'application/json', 'Authorization':`Basic ${auth}`}, 
+        body: rpcBody 
+    });
+    const rpcData = await rpcRes.json();
+    
+    if (rpcData.error) throw new Error('RPC Error: ' + JSON.stringify(rpcData.error));
+    const txId = rpcData.result;
+
+    // 4. LOG CLAIM
+    if (hasDb) {
+      const p = await db();
+      await p.query(
+        `INSERT INTO payouts(user_id, address, amount_kibl, tx_id, ip, type, status) 
+         VALUES ($1, $2, $3, $4, $5, 'faucet', 'success')`,
+        [uid, targetAddress, FAUCET_AMOUNT/100, txId, ip]
+      );
+    }
+
+    return res.json({ 
+      ok: true, 
+      credit: FAUCET_AMOUNT, 
+      txId 
     });
 
-  } catch (err) {
-    // don’t leak internals
-    return res.status(500).json({ ok: false, error: 'server_error' });
+  } catch (e) {
+    console.error('Faucet Error:', e);
+    return res.status(500).json({ ok: false, error: 'Faucet dry or error.' });
   }
 });
 
