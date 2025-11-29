@@ -1,12 +1,10 @@
-<!-- public/connect.html -->
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Connect Wallet – PixelPup</title>
   <script>
-  // Make CSRF available to modules early
   (async () => {
     try {
       const r = await fetch('/api/csrf', { credentials: 'include' });
@@ -14,14 +12,7 @@
       window.csrfToken = j.csrfToken;
     } catch {}
   })();
-</script>
-
-<!-- Load the Connect module -->
-<script type="module" src="/assets/connect.bundle.js">
-
-</script>
-
-
+  </script>
   <style>
     :root{
       --bg:#0b0f19; --panel:#111827; --text:#00ffc6; --text-dim:#7fffe6;
@@ -49,86 +40,74 @@
     .btn-primary{background:var(--accent-2); color:#120016; box-shadow:0 3px 0 #a2259c, 0 0 14px rgba(255,61,247,.35)}
     .btn-ghost{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02)); color:var(--text);
       border:1px solid rgba(58,245,217,.35); box-shadow:0 0 12px rgba(0,255,198,.18) inset,0 0 12px rgba(0,255,198,.12)}
-    .wrap{max-width:1100px; margin:0 auto}
+    .wrap{max-width:600px; margin:0 auto}
     .panel{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
-      border:1px solid rgba(58,245,217,.3); border-radius:16px; padding:16px; backdrop-filter:blur(4px);
+      border:1px solid rgba(58,245,217,.3); border-radius:16px; padding:24px; backdrop-filter:blur(4px);
       box-shadow:0 0 24px rgba(0,255,198,.06) inset, 0 0 24px rgba(0,255,198,.08)}
-    .hero{display:grid; gap:12px; text-align:center; padding:24px}
-    .cta{display:flex; justify-content:center; gap:12px; flex-wrap:wrap}
-    .grid{display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); margin-top:12px}
-    .readout{color:var(--text-dim); font-size:12px}
-    footer{opacity:.9; color:var(--text-dim); font-size:12px; text-align:center; padding:14px 0 6px; margin-top:24px}
-    /* Priorities + tidy header layout */
-.header-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.header-nav{display:flex;gap:8px;flex-wrap:wrap}
-.header-actions{display:flex;gap:8px;align-items:center}
-
-/* Compact icon buttons for socials */
-.btn-icon{padding:8px 10px}
-.btn-icon svg{width:18px;height:18px;margin:0}
-
-/* Telegram brand (matches your other pages) */
-.btn-telegram{
-  background: var(--accent-3);
-  box-shadow: 0 3px 0 #2aa7bf, 0 0 14px rgba(106,227,255,.35);
-  color:#021018;
-}
-
-/* Make the hero CTA stand out a bit more */
-.cta .btn-primary{transform:translateZ(0); box-shadow:0 4px 0 #a2259c,0 0 18px rgba(255,61,247,.45)}
-nav.kk-nav{
-  position:sticky; top:0;
-  display:flex; gap:.5rem; align-items:center;
-  padding:.5rem .75rem;
-  background:#111; color:#fff;
-  border-bottom:1px solid #333; z-index:1000;
-}
-nav.kk-nav a{
-  display:inline-flex; align-items:center; gap:.35rem;
-  padding:.4rem .7rem; border-radius:.5rem; text-decoration:none;
-  background:#222; color:#fff; font-weight:600;
-}
-nav.kk-nav a:hover{ background:#2a2a2a; }
-
-</style>
+    .controls{ display:grid; gap:16px; margin-bottom:20px; }
+    label{ display:block; margin-bottom:6px; color:var(--text-dim); font-size:14px; }
+    input, select, textarea {
+      width:100%; padding:12px; border-radius:8px; border:1px solid rgba(58,245,217,.3);
+      background:#0f1425; color:var(--text); font-family:inherit;
+    }
+    input:focus, textarea:focus { outline:none; border-color:var(--accent); }
+    .readout { color:var(--text-dim); font-size:14px; line-height:1.5; margin-bottom:20px; }
+    small { display:block; margin-top:4px; color:var(--danger); }
+    [hidden] { display: none !important; }
+  </style>
 </head>
 <body>
   <header>
+    <div class="brand"><div class="brand-badge">KK</div><h1>Connect Wallet</h1></div>
     <nav>
       <a class="btn btn-ghost" href="/play.html">Poker</a>
       <a class="btn btn-ghost" href="/blackjack.html">Blackjack</a>
     </nav>
-    <div class="brand"><div class="brand-badge">KK</div><h1>Connect Wallet</h1></div>
   </header>
 
   <main class="wrap panel">
-    <p class="readout">Create or import a wallet. Your seed is encrypted locally; the server never sees it.</p>
+    <p class="readout">
+      Create a new wallet or import an existing seed phrase. 
+      Your keys are encrypted locally in your browser and never sent to our server.
+    </p>
 
     <div class="controls">
-      <select id="net">
-        <option value="mainnet">Mainnet</option>
-      </select>
-      <label>Password (min 8)</label>
-<input id="pass" type="password" minlength="8" required />
-<label>Confirm password</label>
-<input id="pass2" type="password" minlength="8" required />
-<small id="passHint" hidden>Passwords must match and be 8+ chars</small>
+      <div>
+        <label>Network</label>
+        <select id="net">
+          <option value="mainnet">Mainnet</option>
+        </select>
+      </div>
+      <div>
+        <label>Set Password (min 8 chars)</label>
+        <input id="pass" type="password" minlength="8" placeholder="Enter a strong password" required />
+      </div>
+      <div>
+        <label>Confirm Password</label>
+        <input id="pass2" type="password" minlength="8" placeholder="Repeat password" required />
+        <small id="passHint" hidden>Passwords must match and be 8+ chars</small>
+      </div>
     </div>
 
-    <div class="controls">
-      <button id="btnCreate" class="btn btn-primary">Create Wallet</button>
-      <button id="btnImport" class="btn">Import Seed (12 words)</button>
+    <div class="controls" style="grid-template-columns: 1fr 1fr; display: grid; gap: 10px;">
+      <button id="btnCreate" class="btn btn-primary" disabled>Create New Wallet</button>
+      <button id="btnImport" class="btn btn-ghost" disabled>Import Seed</button>
     </div>
 
-    <div id="importArea" class="panel" hidden>
-      <textarea id="seedIn" rows="3" placeholder="twelve words..." style="width:100%"></textarea>
-      <button id="btnDoImport" class="btn">Use Seed</button>
+    <div id="importArea" class="panel" style="margin-top:20px;" hidden>
+      <label>Seed Phrase (12 words)</label>
+      <textarea id="seedIn" rows="3" placeholder="word1 word2 word3 ..."></textarea>
+      <button id="btnDoImport" class="btn btn-primary" style="margin-top:10px; width:100%;">Load Wallet</button>
     </div>
 
-    <div id="linked" class="panel" hidden>
-      <p id="addr" class="readout"></p>
-      <button id="btnLink" class="btn">Link to my account</button>
+    <div id="linked" class="panel" style="margin-top:20px; border-color:var(--ok);" hidden>
+      <h3 style="margin-top:0; color:var(--ok);">Wallet Ready</h3>
+      <p id="addr" class="readout" style="word-break:break-all; font-family:monospace;"></p>
+      <p id="kiblBalance" class="readout"></p>
+      <button id="btnLink" class="btn btn-primary" style="width:100%;">Link to this Browser Session</button>
     </div>
   </main>
+
+  <script type="module" src="/assets/connect.bundle.js"></script>
 </body>
 </html>
