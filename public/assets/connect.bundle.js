@@ -7,16 +7,6 @@ const IV = "kk_wallet_iv_v1";
 async function sdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
-const MAINNET = {
-  scheme: "wss",
-  host: "electrum.nexa.org",
-  port: 20004
-};
-async function connectMainnet(rostrumProvider) {
-  if (globalThis.__kk_rostrum_mainnet_ok) return;
-  await rostrumProvider.connect(MAINNET);
-  globalThis.__kk_rostrum_mainnet_ok = true;
-}
 async function ensureCsrf() {
   if (window.csrfToken) return window.csrfToken;
   const r = await fetch("/api/csrf", { credentials: "include" });
@@ -92,7 +82,33 @@ async function init() {
   pass2El.addEventListener("input", passOk);
   async function bootFromSeed(seed, net) {
     const { Wallet, rostrumProvider } = await sdk();
-    await connectMainnet(rostrumProvider);
+    let connected = false;
+    try {
+      await rostrumProvider.disconnect();
+    } catch {
+    }
+    for (let i = 0; i < 3; i++) {
+      try {
+        if (!rostrumProvider.isConnected) {
+          console.log(`[Connect] Connecting attempt ${i + 1}...`);
+          await rostrumProvider.connect({
+            scheme: "wss",
+            host: "electrum.nexa.org",
+            port: 20004
+          });
+        }
+        if (rostrumProvider.isConnected) {
+          connected = true;
+          break;
+        }
+      } catch (e) {
+        console.warn(`[Connect] Retry ${i + 1}:`, e);
+        await new Promise((r) => setTimeout(r, 1500 + i * 1e3));
+      }
+    }
+    if (!connected) {
+      throw new Error("Network Error: Could not connect to Nexa. Please check your signal and try again.");
+    }
     const wallet = new Wallet(seed, net);
     await wallet.initialize();
     const account = wallet.accountStore.getAccount("2.0");

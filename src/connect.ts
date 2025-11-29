@@ -12,17 +12,7 @@ const IV = 'kk_wallet_iv_v1';
 async function sdk() {
   return await import('nexa-wallet-sdk');
 }
-const MAINNET = {
-  scheme: 'wss' as const,
-  host: 'electrum.nexa.org',
-  port: 20004,
-};
-async function connectMainnet(rostrumProvider: any) {
-  // reuse a global flag to avoid duplicate connects across hot reloads
-  if ((globalThis as any).__kk_rostrum_mainnet_ok) return;
-  await rostrumProvider.connect(MAINNET); // explicit mainnet endpoint
-  (globalThis as any).__kk_rostrum_mainnet_ok = true;
-}
+
 async function ensureCsrf() {
   if ((window as any).csrfToken) return (window as any).csrfToken;
   const r = await fetch('/api/csrf', { credentials: 'include' });
@@ -71,7 +61,6 @@ async function enc(pass: string, data: string) {
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(data));
   localStorage.setItem(IV, btoa(String.fromCharCode(...iv)));
   localStorage.setItem(KEY, btoa(String.fromCharCode(...new Uint8Array(ct))));
-  // This flag tells the UI that a wallet exists
   localStorage.setItem('kk_has_pass', '1');
 }
 
@@ -114,17 +103,45 @@ async function init() {
   passEl.addEventListener('input', passOk);
   pass2El.addEventListener('input', passOk);
 
+  // --- MOBILE HARDENED BOOT FUNCTION ---
   async function bootFromSeed(seed: string, net: 'mainnet') {
     const { Wallet, rostrumProvider } = await sdk();
 
-  await connectMainnet(rostrumProvider);
+    // 1. Mobile Hardening: Force kill zombie connections
+    let connected = false;
+    try { await rostrumProvider.disconnect(); } catch {}
+
+    // 2. Aggressive Retry Loop
+    for (let i = 0; i < 3; i++) {
+        try {
+            if (!rostrumProvider.isConnected) {
+                console.log(`[Connect] Connecting attempt ${i+1}...`);
+                await rostrumProvider.connect({
+                  scheme: 'wss',
+                  host: 'electrum.nexa.org',
+                  port: 20004,
+                });
+            }
+            if (rostrumProvider.isConnected) {
+                connected = true;
+                break; 
+            }
+        } catch (e) {
+            console.warn(`[Connect] Retry ${i+1}:`, e);
+            await new Promise(r => setTimeout(r, 1500 + (i * 1000))); 
+        }
+    }
+    
+    if (!connected) {
+        throw new Error("Network Error: Could not connect to Nexa. Please check your signal and try again.");
+    }
+
     const wallet = new Wallet(seed, net);
     await wallet.initialize();
     
     const account = wallet.accountStore.getAccount('2.0');
     const k = account.getPrimaryAddressKey();
     
-    // Get Balance
     const tokenId = process.env.KIBL_TOKEN_ID_HEX || '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
     const kiblBal = account.tokenBalances[tokenId]?.confirmed || 0;
     
@@ -133,7 +150,7 @@ async function init() {
     return { address: k.address };
   }
 
-btnCreate.addEventListener('click', async () => {
+  btnCreate.addEventListener('click', async () => {
     try {
       const pass = passEl.value;
       const net = 'mainnet';
@@ -141,7 +158,6 @@ btnCreate.addEventListener('click', async () => {
       const w = Wallet.create();
       const seed = w.export().phrase;
       
-      // Save to LocalStorage
       await enc(pass, JSON.stringify({ seed, net }));
       
       const r = await bootFromSeed(seed, net);
@@ -149,10 +165,9 @@ btnCreate.addEventListener('click', async () => {
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
       
-      // --- FIX: Show the Seed Phrase ---
-      importArea.hidden = false; // Reveal the text area
-      seedIn.value = seed;       // Fill it with the new seed
-      // Visual cue to user
+      // SHOW SEED PHRASE TO USER
+      importArea.hidden = false;
+      seedIn.value = seed;
       alert('Wallet Created! \n\nIMPORTANT: Your seed phrase is shown in the box below. Write it down now. It will disappear when you leave this page.');
       
     } catch (e: any) {
@@ -193,10 +208,9 @@ btnCreate.addEventListener('click', async () => {
     }
   });
 
-  // Auto-unlock check
+  // Auto-unlock logic
   if (localStorage.getItem(KEY)) {
       passEl.placeholder = "Enter password to unlock existing wallet";
-      // We can't auto-unlock without the user typing the password first
   }
   
   ensureCsrf();
