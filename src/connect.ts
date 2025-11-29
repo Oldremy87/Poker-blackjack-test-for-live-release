@@ -97,7 +97,19 @@ async function init() {
   let address: string | null = null;
 
 async function bootFromSeed(seed: string, net: 'mainnet') {
-  const { Wallet } = await sdk();
+  const { Wallet, rostrumProvider } = await sdk(); // Import provider too
+  
+  // Explicitly connect to Rostrum
+  try {
+      await rostrumProvider.connect({
+        scheme: 'wss',
+        host: 'electrum.nexa.org',
+        port: 20004,
+      });
+  } catch (e) {
+      console.warn("Rostrum connect warning:", e);
+  }
+
   const wallet = new Wallet(seed, net);
   await wallet.initialize();
   const account = wallet.accountStore.getAccount('2.0');

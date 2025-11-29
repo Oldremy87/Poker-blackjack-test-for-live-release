@@ -80,7 +80,16 @@ async function init() {
   const btnLink = document.getElementById("btnLink");
   let address = null;
   async function bootFromSeed(seed, net) {
-    const { Wallet } = await sdk();
+    const { Wallet, rostrumProvider } = await sdk();
+    try {
+      await rostrumProvider.connect({
+        scheme: "wss",
+        host: "electrum.nexa.org",
+        port: 20004
+      });
+    } catch (e) {
+      console.warn("Rostrum connect warning:", e);
+    }
     const wallet2 = new Wallet(seed, net);
     await wallet2.initialize();
     const account3 = wallet2.accountStore.getAccount("2.0");
