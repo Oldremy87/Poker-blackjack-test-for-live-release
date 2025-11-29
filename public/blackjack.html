@@ -1566,15 +1566,12 @@ async function onPayout(){
         btn.textContent = 'Signing...';
         const { txId } = await placeBet({
           passphrase: pass,
-          kiblAmount: 100000, 
+          kiblAmount: 10000, 
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });
 
         if (window.toast) window.toast(`Bet sent!`, { type: 'win' });
-        
-        // Hide button BEFORE starting game to prevent race conditions
-        btn.style.display = 'none';
 
         await window.startRound(); 
 

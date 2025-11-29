@@ -1113,17 +1113,23 @@ app.get('/api/fair/:handId', async (req, res) => {
 const rewardLimiter = rateLimit({ windowMs: 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false });
 // DAILY REWARD (minor units throughout)
 // --- FAUCET / DAILY REWARD ROUTE ---
+// --- FAUCET / DAILY REWARD ROUTE ---
 app.post('/api/daily-reward', async (req, res) => {
-  const ip = getClientIp(req);
+  // Use req.ip directly if getClientIp helper isn't available
+  const ip = (typeof getClientIp === 'function') ? getClientIp(req) : req.ip;
   const uid = req.uid; // From session
   const FAUCET_AMOUNT = 1000 * 100; // 1,000 KIBL (in minor units)
-//  const COOLDOWN = 24 * 60 * 60 * 1000; // 24 Hours
+  
+  // Hardcoded cooldown for production, but skippable for testing if you commented out the check below
+  const COOLDOWN = 24 * 60 * 60 * 1000; 
 
   try {
+    // 0. CHECK ENV VARS (Common cause of 500 errors)
+    if (!process.env.KIBL_GROUP_ID) throw new Error('Server Config Error: Missing KIBL_GROUP_ID');
+
     // 1. CHECK LIMITS (DB)
     if (hasDb) {
       const p = await db();
-      // Check last claim by IP or UserID
       const { rows } = await p.query(
         `SELECT created_at FROM payouts 
          WHERE (ip = $1 OR user_id = $2) AND type = 'faucet' 
@@ -1134,49 +1140,71 @@ app.post('/api/daily-reward', async (req, res) => {
       if (rows.length > 0) {
         const last = new Date(rows[0].created_at).getTime();
         const diff = Date.now() - last;
-//if (diff < COOLDOWN) {
-  //        return res.status(429).json({ 
-  //          ok: false, 
-  //          error: 'Daily reward already claimed.', 
-  //          retryInMs: COOLDOWN - diff 
-     //     });
-   //     }
+        
+        // --- RATE LIMIT CHECK (Comment out ONLY for testing) ---
+      //  if (diff < COOLDOWN) {
+      //     return res.status(429).json({ 
+      //       ok: false, 
+      //       error: 'Daily reward already claimed.', 
+      //       retryInMs: COOLDOWN - diff 
+      //     });
+      //  }
+        // ------------------------------------------------------
       }
     }
 
-    // 2. GET USER ADDRESS
-    let targetAddress = req.session.linkedWallet?.address;
+    // 2. GET TARGET ADDRESS (Secure Lookup - Matches /api/payout)
+    let targetAddress = null;
     if (hasDb && uid) {
        const p = await db();
        const { rows } = await p.query('SELECT wallet_addr FROM users WHERE user_id=$1', [uid]);
        if (rows[0]?.wallet_addr) targetAddress = rows[0].wallet_addr;
+    }
+    // Fallback to session
+    if (!targetAddress) {
+        targetAddress = req.session.linkedWallet?.address;
     }
 
     if (!targetAddress) {
       return res.status(400).json({ ok: false, error: 'Link wallet to claim daily reward.' });
     }
 
-    // 3. SEND TOKENS (Using your Node RPC)
-    // Using the logic from your uploaded faucet code
+    // 3. VALIDATE ADDRESS (Prevents RPC crashes)
+    if (!targetAddress.startsWith('nexa:')) {
+        return res.status(400).json({ ok: false, error: 'Invalid linked address format.' });
+    }
+
+    // 4. SEND TOKENS (Using Node RPC)
     const rpcUrl = process.env.RPC_URL || `http://localhost:${process.env.RPC_PORT || 7227}`;
     const auth = Buffer.from(`${process.env.RPC_USER}:${process.env.RPC_PASSWORD}`).toString('base64');
     
+    // Log the attempt (helps debug)
+    console.log(`[Faucet] Sending ${FAUCET_AMOUNT} to ${targetAddress}...`);
+
     const rpcBody = JSON.stringify({
       jsonrpc: '1.0', id: 'faucet', method: 'token',
       params: ['send', process.env.KIBL_GROUP_ID, targetAddress, String(FAUCET_AMOUNT)]
     });
 
+    // Ensure 'fetch' is available (Node 18+ has it global, older needs import)
     const rpcRes = await fetch(rpcUrl, { 
         method:'POST', 
         headers:{'Content-Type':'application/json', 'Authorization':`Basic ${auth}`}, 
         body: rpcBody 
     });
+    
+    if (!rpcRes.ok) {
+        throw new Error(`RPC HTTP Error: ${rpcRes.status} ${rpcRes.statusText}`);
+    }
+
     const rpcData = await rpcRes.json();
     
-    if (rpcData.error) throw new Error('RPC Error: ' + JSON.stringify(rpcData.error));
+    if (rpcData.error) {
+        throw new Error('RPC Logic Error: ' + JSON.stringify(rpcData.error));
+    }
     const txId = rpcData.result;
 
-    // 4. LOG CLAIM
+    // 5. LOG CLAIM TO DB
     if (hasDb) {
       const p = await db();
       await p.query(
@@ -1193,8 +1221,8 @@ app.post('/api/daily-reward', async (req, res) => {
     });
 
   } catch (e) {
-    console.error('Faucet Error:', e);
-    return res.status(500).json({ ok: false, error: 'Faucet dry or error.' });
+    console.error('Faucet Route Error:', e); // Check your server console for this!
+    return res.status(500).json({ ok: false, error: 'Faucet error: ' + e.message });
   }
 });
 
