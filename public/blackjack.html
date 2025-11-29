@@ -1398,7 +1398,7 @@ async function split(){
     const balanceUnits = Math.floor((data.sessionBalance||0)/100);
     alert(`Daily reward claimed: +${creditUnits} KIBL`);
     payoutEl.textContent = `Total Payout: ${balanceUnits} KIBL`;
-    totalPayout = balanceUnits; payoutBtn.disabled = (totalPayout===0);
+    totalPayout = balanceUnits;
   } catch(e){
     alert(`Daily failed: ${e.message || e}`);
   }
@@ -1554,7 +1554,7 @@ async function onPayout(){
         // A. Place Bet
         const { txId } = await placeBet({
           passphrase,
-          kiblAmount: 100000, // Blackjack is usually 100 KIBL (100,000 minor)
+          kiblAmount: 10000, // Blackjack is usually 100 KIBL (100,000 minor)
           tokenIdHex: window.KIBL_TOKEN_ID_HEX,
           feeNexa: 600
         });

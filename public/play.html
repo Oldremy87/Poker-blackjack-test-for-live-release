@@ -1332,7 +1332,6 @@ async function onDailyReward() {
     // Display server balance only (already /100)
     totalPayout = balanceUnits;
     if (payoutEl) payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
-    payoutBtn.disabled = (totalPayout === 0);
   } catch (e) {
     console.error(e);
     alert('Failed to claim daily reward, please try again.');
@@ -1354,12 +1353,6 @@ async function onClaimPayout() {
     } catch {}
     if (totalPayout === 0) { alert('No payout to claim!'); return; }
  }
-
-  const playerAddress = addressInput.value.trim();
-  if (!/^nexa:/.test(playerAddress)) {
-    alert('Please enter a valid Nexa address (nexa:...)');
-    return;
-  }
 
   // Visible hCaptcha: ensure the user solved the challenge first
   const token = window.hcaptcha?.getResponse?.();
@@ -1397,7 +1390,6 @@ async function onClaimPayout() {
 
     totalPayout = data.remainingKIBL ?? 0;
     payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
-    payoutBtn.disabled = (totalPayout === 0);
     // Reset so the user can claim again in the future
     try { window.hcaptcha?.reset?.(); } catch {}
 
@@ -1407,7 +1399,7 @@ async function onClaimPayout() {
     alert(e?.message || 'Payout failed. Try again.');
   } finally {
     hide(payoutLoading);
-    payoutBtn.disabled = (totalPayout === 0);
+    
   }
 }
 
