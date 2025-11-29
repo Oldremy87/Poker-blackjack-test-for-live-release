@@ -695,7 +695,7 @@ const nexaBal   = await w.getBalance();
 const tokenBals = await w.getTokenBalances();
 const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const unsignedTx = await w.newTransaction()
-      .sendTo(house, feeNexa.toString())  
+    //  .sendTo(house, feeNexa.toString())  
     //  .sendToToken(house, kiblAmount.toString(), tokenId)  
        .melt(tokenId, kiblAmount.toString())
       .populate()
