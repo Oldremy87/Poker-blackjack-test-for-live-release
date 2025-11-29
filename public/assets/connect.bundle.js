@@ -114,8 +114,9 @@ async function init() {
       address = r.address;
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
-      alert("Wallet Created! Write down your seed words immediately.");
-      console.log("Seed:", seed);
+      importArea.hidden = false;
+      seedIn.value = seed;
+      alert("Wallet Created! \n\nIMPORTANT: Your seed phrase is shown in the box below. Write it down now. It will disappear when you leave this page.");
     } catch (e) {
       alert(e.message || "Create failed");
     }

@@ -133,7 +133,7 @@ async function init() {
     return { address: k.address };
   }
 
-  btnCreate.addEventListener('click', async () => {
+btnCreate.addEventListener('click', async () => {
     try {
       const pass = passEl.value;
       const net = 'mainnet';
@@ -141,7 +141,7 @@ async function init() {
       const w = Wallet.create();
       const seed = w.export().phrase;
       
-      // Save to LocalStorage (Handoff to walletBet.ts)
+      // Save to LocalStorage
       await enc(pass, JSON.stringify({ seed, net }));
       
       const r = await bootFromSeed(seed, net);
@@ -149,9 +149,12 @@ async function init() {
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
       
-      alert('Wallet Created! Write down your seed words immediately.');
-      // Ideally show seed here or provide a "Show Seed" button
-      console.log('Seed:', seed); // For debug/user copy
+      // --- FIX: Show the Seed Phrase ---
+      importArea.hidden = false; // Reveal the text area
+      seedIn.value = seed;       // Fill it with the new seed
+      // Visual cue to user
+      alert('Wallet Created! \n\nIMPORTANT: Your seed phrase is shown in the box below. Write it down now. It will disappear when you leave this page.');
+      
     } catch (e: any) {
       alert(e.message || 'Create failed');
     }

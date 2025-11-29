@@ -1580,6 +1580,10 @@ async function onPayout(){
            if(window.toast) window.toast(`Bet failed: ${e.message}`, { type: 'error' });
            else alert(e.message);
         }
+        else {
+          betBtn.disabled = false;
+          betBtn.textContent = 'Place 100 KIBL Bet';
+        }
         // Restore button on error
         btn.style.display = 'inline-flex';
         btn.textContent = 'Place 100 KIBL Bet';
