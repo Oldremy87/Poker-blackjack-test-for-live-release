@@ -8,6 +8,17 @@ import * as nodeCrypto from 'crypto-browserify';
 async function sdk() {
   // thanks to the alias, this resolves to dist/index.web.mjs
   return await import('nexa-wallet-sdk');}
+  const MAINNET = {
+  scheme: 'wss' as const,
+  host: 'electrum.nexa.org',
+  port: 20004,
+};
+async function connectMainnet(rostrumProvider: any) {
+  // reuse a global flag to avoid duplicate connects across hot reloads
+  if ((globalThis as any).__kk_rostrum_mainnet_ok) return;
+  await rostrumProvider.connect(MAINNET); // explicit mainnet endpoint
+  (globalThis as any).__kk_rostrum_mainnet_ok = true;
+}
 
 const KEY = 'kk_wallet_v1';
 const IV  = 'kk_wallet_iv_v1';
