@@ -1317,9 +1317,15 @@ async function onDailyReward() {
 });
     
     const data = await res.json();
-    if (!res.ok || !data.ok) {
-      const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
-      alert('Daily reward already claimed. Try again in ~' + mins + ' minutes.');
+    if (!data.ok){
+      // Check if it's actually the rate limit error
+      if (data.error === 'Daily reward already claimed.') {
+          const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
+          alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
+      } else {
+          // Show the REAL error (e.g. "Link wallet..." or "RPC Error")
+          alert('Daily Reward Failed: ' + (data.error || 'Unknown error'));
+      }
       return;
     }
 

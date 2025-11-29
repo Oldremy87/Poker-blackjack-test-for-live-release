@@ -1390,8 +1390,14 @@ async function split(){
   try{
     const data = await postWithCsrf(API.daily, {});
     if (!data.ok){
-      const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
-      alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
+      // Check if it's actually the rate limit error
+      if (data.error === 'Daily reward already claimed.') {
+          const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
+          alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
+      } else {
+          // Show the REAL error (e.g. "Link wallet..." or "RPC Error")
+          alert('Daily Reward Failed: ' + (data.error || 'Unknown error'));
+      }
       return;
     }
     const creditUnits  = Math.floor((data.credit||0)/100);
