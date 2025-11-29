@@ -1117,7 +1117,7 @@ app.post('/api/daily-reward', async (req, res) => {
   const ip = getClientIp(req);
   const uid = req.uid; // From session
   const FAUCET_AMOUNT = 1000 * 100; // 1,000 KIBL (in minor units)
-  const COOLDOWN = 24 * 60 * 60 * 1000; // 24 Hours
+//  const COOLDOWN = 24 * 60 * 60 * 1000; // 24 Hours
 
   try {
     // 1. CHECK LIMITS (DB)
