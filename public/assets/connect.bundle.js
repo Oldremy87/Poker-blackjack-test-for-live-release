@@ -1,12 +1,12 @@
 import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-C_zbkbH-.js";
-globalThis.Buffer ||= Buffer$1;
-globalThis.process ||= process$1;
+globalThis.Buffer = Buffer$1;
+globalThis.process = process$1;
 globalThis.__nodeCrypto = nodeCrypto;
+const KEY = "kk_wallet_v1";
+const IV = "kk_wallet_iv_v1";
 async function sdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
-const KEY = "kk_wallet_v1";
-const IV = "kk_wallet_iv_v1";
 async function ensureCsrf() {
   if (window.csrfToken) return window.csrfToken;
   const r = await fetch("/api/csrf", { credentials: "include" });
@@ -29,8 +29,7 @@ async function postJSON(url, body) {
   } catch {
   }
   if (!r.ok || j && j.ok === false) {
-    const msg = j?.error || `HTTP ${r.status}`;
-    throw new Error(msg);
+    throw new Error(j?.error || `HTTP ${r.status}`);
   }
   return j;
 }
@@ -39,9 +38,7 @@ function normalizeSeed(raw) {
 }
 function require12Words(seed) {
   const words = seed.split(" ");
-  if (words.length !== 12) {
-    throw new Error(`Seed must be exactly 12 words (got ${words.length}).`);
-  }
+  if (words.length !== 12) throw new Error(`Seed must be 12 words (got ${words.length}).`);
   return seed;
 }
 async function aesKey(pass) {
@@ -50,7 +47,7 @@ async function aesKey(pass) {
   return crypto.subtle.importKey("raw", h, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 async function enc(pass, data) {
-  if (!pass || pass.length < 8) throw new Error("Password must be 8+ characters.");
+  if (!pass || pass.length < 8) throw new Error("Password must be 8+ chars.");
   const key = await aesKey(pass);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(data));
@@ -58,130 +55,97 @@ async function enc(pass, data) {
   localStorage.setItem(KEY, btoa(String.fromCharCode(...new Uint8Array(ct))));
   localStorage.setItem("kk_has_pass", "1");
 }
-async function dec(pass) {
-  const key = await aesKey(pass);
-  const ivb = atob(localStorage.getItem(IV) || "");
-  const iv = new Uint8Array([...ivb].map((c) => c.charCodeAt(0)));
-  const ctb = atob(localStorage.getItem(KEY) || "");
-  const ct = new Uint8Array([...ctb].map((c) => c.charCodeAt(0)));
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
-  return new TextDecoder().decode(pt);
-}
 async function init() {
-  const netSel = document.getElementById("net");
-  const passEl2 = document.getElementById("pass");
-  const btnCreate2 = document.getElementById("btnCreate");
-  const btnImport2 = document.getElementById("btnImport");
+  document.getElementById("net");
+  const passEl = document.getElementById("pass");
+  const pass2El = document.getElementById("pass2");
+  const btnCreate = document.getElementById("btnCreate");
+  const btnImport = document.getElementById("btnImport");
   const importArea = document.getElementById("importArea");
   const seedIn = document.getElementById("seedIn");
   const btnDoImport = document.getElementById("btnDoImport");
   const linked = document.getElementById("linked");
   const addrText = document.getElementById("addr");
   const btnLink = document.getElementById("btnLink");
+  const passHint = document.getElementById("passHint");
+  const kiblBalanceEl = document.getElementById("kiblBalance");
   let address = null;
+  function passOk() {
+    const p1 = passEl.value;
+    const p2 = pass2El.value;
+    const ok = p1.length >= 8 && p1 === p2;
+    btnCreate.disabled = !ok;
+    btnImport.disabled = !ok;
+    passHint.hidden = ok;
+  }
+  passEl.addEventListener("input", passOk);
+  pass2El.addEventListener("input", passOk);
   async function bootFromSeed(seed, net) {
     const { Wallet, rostrumProvider } = await sdk();
     try {
-      await rostrumProvider.connect({
-        scheme: "wss",
-        host: "electrum.nexa.org",
-        port: 20004
-      });
+      await rostrumProvider.connect({ scheme: "wss", host: "electrum.nexa.org", port: 20004 });
     } catch (e) {
-      console.warn("Rostrum connect warning:", e);
+      console.log("Rostrum connect:", e);
     }
-    const wallet2 = new Wallet(seed, net);
-    await wallet2.initialize();
-    const account3 = wallet2.accountStore.getAccount("2.0");
-    const k = account3.getPrimaryAddressKey();
-    const kiblBalance = account3.tokenBalances[process$1.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
-    const nexaBalance = account3.balance.confirmed || 0;
-    return { wallet: wallet2, account: account3, address: k.address, kiblBalance, nexaBalance };
+    const wallet = new Wallet(seed, net);
+    await wallet.initialize();
+    const account = wallet.accountStore.getAccount("2.0");
+    const k = account.getPrimaryAddressKey();
+    const tokenId = process$1.env.KIBL_TOKEN_ID_HEX || "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
+    const kiblBal = account.tokenBalances[tokenId]?.confirmed || 0;
+    if (kiblBalanceEl) kiblBalanceEl.textContent = `Balance: ${(Number(kiblBal) / 100).toFixed(2)} KIBL`;
+    return { address: k.address };
   }
-  btnCreate2?.addEventListener("click", async () => {
+  btnCreate.addEventListener("click", async () => {
     try {
-      const pass = passEl2.value || "";
-      const net = netSel.value === "mainnet";
+      const pass = passEl.value;
+      const net = "mainnet";
       const { Wallet } = await sdk();
       const w = Wallet.create();
       const seed = w.export().phrase;
       await enc(pass, JSON.stringify({ seed, net }));
-      const r = await bootFromSeed(seed, "mainnet");
-      address = r.address;
-      addrText.textContent = `Linked address (${net}): ${address}`;
-      linked.hidden = false;
-      alert("New wallet created. Write down your seed!");
-    } catch (e) {
-      alert(e?.message || "Failed to create wallet.");
-    }
-  });
-  btnImport2?.addEventListener("click", () => {
-    importArea.hidden = !importArea.hidden;
-  });
-  btnDoImport?.addEventListener("click", async () => {
-    try {
-      const pass = passEl2.value || "";
-      const net = netSel.value === "mainnet";
-      const seed = require12Words(normalizeSeed(seedIn.value));
-      await enc(pass, JSON.stringify({ seed, net }));
-      const r = await bootFromSeed(seed, "mainnet");
-      address = r.address;
-      addrText.textContent = `Linked address (${net}): ${address}`;
-      linked.hidden = false;
-      alert("Imported wallet. Seed stored encrypted locally.");
-    } catch (e) {
-      alert(e?.message || "Failed to import seed.");
-    }
-  });
-  btnLink?.addEventListener("click", async () => {
-    try {
-      if (!address) return alert("No address yet.");
-      const net = netSel.value === "mainnet";
-      const j = await postJSON("/api/wallet/link", { address, network: net });
-      alert("Wallet linked!");
-      location.href = "/play.html";
-    } catch (e) {
-      alert("Link failed: " + (e?.message || "unknown"));
-    }
-  });
-  addEventListener("DOMContentLoaded", () => {
-    ensureCsrf().catch(() => {
-    });
-  });
-  passEl2?.addEventListener("change", async () => {
-    try {
-      if (!localStorage.getItem(KEY)) return;
-      const { seed, net } = JSON.parse(await dec(passEl2.value || ""));
-      netSel.value = net;
       const r = await bootFromSeed(seed, net);
       address = r.address;
-      addrText.textContent = `Linked address (${net}): ${address}`;
+      addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
-    } catch {
+      alert("Wallet Created! Write down your seed words immediately.");
+      console.log("Seed:", seed);
+    } catch (e) {
+      alert(e.message || "Create failed");
     }
   });
+  btnImport.addEventListener("click", () => {
+    importArea.hidden = !importArea.hidden;
+  });
+  btnDoImport.addEventListener("click", async () => {
+    try {
+      const pass = passEl.value;
+      const net = "mainnet";
+      const seed = require12Words(normalizeSeed(seedIn.value));
+      await enc(pass, JSON.stringify({ seed, net }));
+      const r = await bootFromSeed(seed, net);
+      address = r.address;
+      addrText.textContent = `Address: ${address}`;
+      linked.hidden = false;
+      alert("Wallet Imported & Encrypted!");
+    } catch (e) {
+      alert(e.message || "Import failed");
+    }
+  });
+  btnLink.addEventListener("click", async () => {
+    try {
+      if (!address) return alert("No address loaded.");
+      await postJSON("/api/wallet/link", { address, network: "mainnet" });
+      alert("Wallet Linked Successfully!");
+      window.location.href = "/play.html";
+    } catch (e) {
+      alert("Link failed: " + e.message);
+    }
+  });
+  if (localStorage.getItem(KEY)) {
+    passEl.placeholder = "Enter password to unlock existing wallet";
+  }
+  ensureCsrf();
 }
-function passOk(p, p2) {
-  return (p?.length ?? 0) >= 8 && p === p2;
-}
-try {
-  const bal = await account.tokenBalances[process$1.env.KIBL_TOKEN_ID_HEX]?.confirmed || 0;
-  const balEl = document.getElementById("kiblBalance");
-  if (balEl) balEl.textContent = `KIBL: ${bal.kibl} (${bal.kiblMinor} minor)`;
-} catch {
-}
-const passEl = document.getElementById("pass");
-const pass2El = document.getElementById("pass2");
-const btnCreate = document.getElementById("btnCreate");
-const btnImport = document.getElementById("btnImport");
-const passHint = document.getElementById("passHint");
-function refreshPassUI() {
-  const ok = passOk(passEl.value, pass2El.value);
-  btnCreate.disabled = btnImport.disabled = !ok;
-  passHint.hidden = ok;
-}
-passEl.addEventListener("input", refreshPassUI);
-pass2El.addEventListener("input", refreshPassUI);
-refreshPassUI();
 addEventListener("DOMContentLoaded", init);
 //# sourceMappingURL=connect.bundle.js.map
