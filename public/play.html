@@ -638,7 +638,7 @@ body.compact {
   </a>
       <a class="btn btn-ghost" href="/"              class="kk-home" aria-label="Go to Home">🏠 Home</a>
      <a class = "btn btn-primary" href="blackjack.html">Play BlackJack</a>
-     <a class = "btn btn-ghost" href="/connect.html" aria-current="page">Connect Wallet</a>
+    <a id="navConnect" class="btn btn-ghost" href="/connect.html" aria-current="page">Connect Wallet</a>
 
 
 
@@ -672,6 +672,9 @@ body.compact {
     <p class="readout">Tap a card to keep it for the draw.</p>
     <a class="btn btn-ghost" href="achievements.html">Achievements</a>
      <a class="btn btn-ghost" href="pointstable.html">Point Table</Table></a>
+     <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:11px;">
+  ⬇️ Deposit / Show Address
+</button>
      <p id="payoutTotal">Total Payout: 0 KIBL</p>
      <p id="kiblBalance">KIBL: —</p>
      <p id="nexaBalance">NEXA: —</p>
@@ -1309,35 +1312,31 @@ async function draw() {
     alert('Draw failed.');
   }
 }
-
 async function onDailyReward() {
-  try {
-    const res = await postWithCsrf(API.daily, { method: 'POST',
-  credentials: 'include',
-});
-    
+try {
+    const res = await postWithCsrf(API.daily, { method: 'POST', credentials: 'include' });
     const data = await res.json();
+
     if (!data.ok){
-      // Check if it's actually the rate limit error
       if (data.error === 'Daily reward already claimed.') {
           const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
           alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
       } else {
-          // Show the REAL error (e.g. "Link wallet..." or "RPC Error")
           alert('Daily Reward Failed: ' + (data.error || 'Unknown error'));
       }
       return;
     }
 
-    // Convert minor units -> standard units
-    const creditUnits  = Math.floor((data.credit || 0) / 100);
-    const balanceUnits = Math.floor((data.sessionBalance || 0) / 100);
+    // SUCCESS: It was sent directly to the wallet
+    const creditUnits = Math.floor((data.credit || 0) / 100);
+    alert(`Daily Reward Sent! \n\n+${creditUnits} KIBL have been sent directly to your linked wallet.\nTxID: ${data.txId?.slice(0,10)}...`);
 
-    alert(`Daily reward claimed: +${creditUnits} KIBL`);
+    // Refresh the WALLET balance, not the payout total
+    const linked = await fetch('/api/wallet/status').then(r=>r.json()).catch(()=>({}));
+    if (linked?.address && window.loadWalletBalances) {
+        window.loadWalletBalances(linked.address);
+    }
 
-    // Display server balance only (already /100)
-    totalPayout = balanceUnits;
-    if (payoutEl) payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
   } catch (e) {
     console.error(e);
     alert('Failed to claim daily reward, please try again.');
@@ -1515,7 +1514,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const linked = await ensureLinked();
     const betBtn = document.getElementById('betBtn');
     const drawBtn = document.getElementById('draw');
-
+const depositBtn = document.getElementById('depositBtn');
+    const navConnect = document.getElementById('navConnect');
+    // Only show if wallet is actually linked
+    if (linked?.address && depositBtn) {
+        depositBtn.style.display = 'inline-flex'; // Make visible
+        
+        depositBtn.onclick = () => {
+            // Copy address to clipboard
+            navigator.clipboard.writeText(linked.address)
+                .then(() => alert(`Address Copied!\n\n${linked.address}\n\nSend KIBL (and a little NEXA for gas) to this address to play.`))
+                .catch(() => prompt("Copy your address:", linked.address)); // Fallback
+        };
+    }
+    if (linked && navConnect) navConnect.style.display = 'none';
     // Setup initial button states
     if (betBtn) {
       betBtn.disabled = !linked;
@@ -1568,7 +1580,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (linked?.address) loadWalletBalances(linked.address);
 
       } catch (e) {
-        if (e.message !== 'Cancelled') {
+        // 1. Safe Error Extraction
+        const msg = e ? (e.message || String(e)) : 'Unknown error occurred';
+        
+        // 2. Filter out "Cancelled" (User closed modal)
+        if (msg !== 'Cancelled' && !msg.includes('User rejected')) {
+           if(window.toast) window.toast(`Bet failed: ${msg}`, { type: 'error' });
+           else alert(msg);
+        }
+        
+        // 3. Always restore the button
+        if (betBtn) {
+             betBtn.style.display = 'inline-flex';
+             betBtn.textContent = 'Place 100 KIBL Bet';
+             betBtn.disabled = false;
+        }if (e.message !== 'Cancelled') {
           toast(`Bet failed: ${e.message}`, { type: 'error' });
           betBtn.disabled = false;
           betBtn.textContent = 'Place 100 KIBL Bet';
@@ -1581,25 +1607,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // --- HOOK INTO DRAW TO RESET ---
-    // We need to bring the Bet button back after the hand is over.
-    // Since draw() is global, we can attach a listener to the draw button
-    // to verify when it's done, or simpler: modify the global draw() to reset UI.
-    // For now, let's use a MutationObserver to see when draw disables itself.
-    const obs = new MutationObserver((mutations) => {
-      mutations.forEach((m) => {
-        if (m.attributeName === 'disabled' && drawBtn.disabled === true) {
-          // If draw became disabled, the hand is likely over. Show bet button again.
-          // Small delay to let the win animation play
-          setTimeout(() => {
-             betBtn.style.display = 'inline-flex';
-             betBtn.disabled = false;
-             betBtn.textContent = 'Place 100 KIBL Bet';
-          }, 2000);
-        }
-      });
-    });
-    obs.observe(drawBtn, { attributes: true });
   });
 </script>
 <footer style="opacity:.9;color:var(--text-dim);font-size:12px;text-align:center;padding:14px 0 6px;">
