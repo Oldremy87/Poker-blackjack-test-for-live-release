@@ -1208,9 +1208,6 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
 
     // 2. SEND TOKENS (The New SDK Way)
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
-     await serverWallet.initialize()
-    const spendingAccount = serverWallet.accountStore.getAccount('1.0')
-    const address = spendingAccount.getPrimaryAddressKey().address
     const tx = await serverWallet.newTransaction(spendingAccount)
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA for gas
