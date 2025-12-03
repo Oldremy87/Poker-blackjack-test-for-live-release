@@ -1340,9 +1340,11 @@ app.post('/api/payout', payoutLimiter, async (req, res) => {
     const tx = await cachedServerWallet.newTransaction(spendingAccount)
       .sendToToken(targetAddress, String(sendMinor), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA
+      .populate()
+      .sign()
       .build();
 
-    const txId = await rostrumProvider.sendTransaction(tx);
+    const txId = await cachedServerWallet.sendTransaction(tx);
     console.log('[Payout] Broadcast success:', txId);
 
      req.session.wallet.poker = Math.max(0, pokerMinor - deductPoker);
