@@ -33,8 +33,9 @@ export async function initOnboarding(gameType = null) {
         body: `
           <p>We've upgraded the Arcade! Here is what is new:</p>
           <ul>
-            <li><strong>Wallet Connect:</strong> Link your wallet once. Play for 15 minutes without signing every hand.</li>
-            <li><strong>Auto-Payouts:</strong> Winnings go directly to your wallet instantly. No manual withdrawals.</li>
+            <li><strong>Wallet Connect:</strong> Link your wallet once. Play for 15 minutes without signing every hand, </li>
+            <li>unlock wallet with password to play for another 15 minutes.</li>
+            <li><strong>Auto-Payouts:</strong> Winnings go directly to your wallet via Claim, no need to enter your address.</li>
             <li><strong>Achievements:</strong> Earn badges and bonus KIBL for winning streaks.</li>
           </ul>
           <p>Ready to start? Link your wallet to get a session key.</p>
@@ -55,6 +56,7 @@ export async function initOnboarding(gameType = null) {
       body: `
         <p>To play the Christmas Beta, you must link a Nexa wallet.</p>
         <p>This creates a secure <strong>Session Key</strong> so you can bet fast without popups on every hand.</p>
+        <p>You can import an Otoplo or Wally wallet seed phrase, or create a wallet and save your seed to import to Otoplo or Wally"
       `,
       btnText: 'Connect Now',
       btnAction: () => window.location.href = '/connect.html'
@@ -68,7 +70,7 @@ export async function initOnboarding(gameType = null) {
       title: '⬇️ Deposit to Play',
       body: `
         <p>Your wallet is linked, but you need <strong>KIBL</strong> to bet.</p>
-        <p>Send KIBL (plus a tiny bit of NEXA for gas) to your session address:</p>
+        <p>Send KIBL (plus a tiny bit of NEXA for fees) to your session address:</p>
         <div class="address-box" onclick="navigator.clipboard.writeText(this.innerText); alert('Copied!');">
           ${wallet.address}
         </div>
@@ -90,7 +92,7 @@ export async function initOnboarding(gameType = null) {
           <li><strong>One Draw:</strong> Tap cards to HOLD, then draw replacement cards.</li>
           <li><strong>Royal Flush:</strong> Pays 250x!</li>
         </ul>
-        <p>Winnings are paid <strong>instantly</strong> to your wallet.</p>
+        <p>Winnings are paid <strong></strong> to your wallet via Claim.</p>
       `
       : `
         <p><strong>Blackjack Rules:</strong></p>
@@ -99,7 +101,7 @@ export async function initOnboarding(gameType = null) {
           <li><strong>Payouts:</strong> 3:2 for Blackjack. Dealer stands on Soft 17.</li>
           <li><strong>Controls:</strong> Hit, Stand, Double, and Split are supported.</li>
         </ul>
-        <p>Winnings are paid <strong>instantly</strong> to your wallet.</p>
+        <p>Winnings are paid <strong></strong> to your wallet via FeedMe.</p>
       `;
 
     showModal({
