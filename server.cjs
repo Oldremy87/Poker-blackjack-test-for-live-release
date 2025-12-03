@@ -633,7 +633,6 @@ function ensureBank(req) {
 // /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-    await ensureRostrum();
 
     const address = String(req.query.address || '');
     if (!/^nexa:[a-z0-9]+$/i.test(address)) {
@@ -732,7 +731,6 @@ app.post('/api/bet/build-unsigned', async (req, res) => {
     return res.status(500).json({ ok: false, error: msg });
   }
 });
-
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
     const { hex } = req.body || {};
@@ -740,32 +738,54 @@ app.post('/api/tx/broadcast', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bad_hex' });
     }
 
-    // 1. Ensure Infrastructure
+    // 1. Connection
     await ensureRostrum();
 
-    // 2. Ensure Server Wallet is Loaded
-    // (We reuse the cached instance to avoid re-initializing keys)
+    // 2. LAZY LOAD WALLET (Inline, same as daily-reward)
     if (!cachedServerWallet) {
-        // If the server restarted and no one used the faucet yet, init it now.
-        // Copy the lazy-load logic from daily-reward here or call initServerWallet() if you made it exportable.
-        // For safety, assuming initServerWallet was run at startup or lazy loaded:
-        await initServerWallet(); // Make sure this function populates 'serverWallet' global
+        console.log('[Broadcast] Initializing Hot Wallet...');
+        const secret = process.env.HOT_WALLET_SECRET;
+        if (!secret) throw new Error('HOT_WALLET_SECRET missing');
+
+        let w;
+        // Import
+        if (secret.trim().startsWith('xprv') || secret.trim().startsWith('F6rxz')) {
+             w = Wallet.fromXpriv(secret.trim(), 'mainnet');
+        } else {
+             w = new Wallet(secret, 'mainnet');
+        }
+
+        // Scan Chain
+        await w.initialize();
+        
+        // Ensure Account
+        if (!w.accountStore.getAccount('2.0')) {
+             console.log('[Broadcast] Creating Account 2.0...');
+             await w.newAccount('NEXA'); 
+        }
+        
+        cachedServerWallet = w;
+        console.log('[Broadcast] Wallet Cached.');
     }
     
-    const walletToUse = cachedServerWallet || serverWallet;
+    // 3. Select Wallet
+    const walletToUse = cachedServerWallet;
     if (!walletToUse) throw new Error('Server wallet not initialized');
 
     console.log(`[Broadcast] Sending via Server Wallet...`);
 
-    // 3. BROADCAST VIA WALLET CLASS
-    // This sends the signed hex string to the network
+    // 4. BROADCAST
     const txid = await walletToUse.sendTransaction(hex);
-
+    
     console.log('[Broadcast] Success! TxId:', txid);
     return res.json({ ok: true, txid });
 
   } catch (e) {
     console.error('broadcast_error', e);
+    // Self-healing: if inputs are missing, clear cache to force rescan next time
+    if (e.message && (e.message.includes('inputs') || e.message.includes('UTXO'))) {
+        cachedServerWallet = null;
+    }
     return res.status(500).json({ ok: false, error: e.message || 'broadcast_failed' });
   }
 });
