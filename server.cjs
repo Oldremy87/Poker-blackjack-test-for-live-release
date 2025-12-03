@@ -90,7 +90,7 @@ async function initServerWallet() {
         await serverWallet.newAccount('NEXA'); 
         
         // Grab it again now that it exists
-        spendingAccount = serverWallet.accountStore.getAccount('2.0');
+     const   spendingAccount = serverWallet.accountStore.getAccount('2.0');
     }
 
     // 5. Final Verification
