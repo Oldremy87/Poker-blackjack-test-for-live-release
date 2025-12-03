@@ -13,7 +13,7 @@ const csrf = require('csurf');
 const PgSession = require('connect-pg-simple')(session);
 const {randomBytes, createHash, randomUUID } = require('crypto');
 const app = express();
-const { WatchOnlyWallet, Wallet, rostrumProvider } = require('nexa-wallet-sdk');
+const { WatchOnlyWallet, Wallet, rostrumProvider, AccountType } = require('nexa-wallet-sdk');
 app.set('trust proxy', 1);
 // ----- ENV / MODE -----
 process.on('unhandledRejection', (reason) => {
@@ -52,59 +52,7 @@ async function ensureRostrum() {
 }
 
 // INITIALIZE HOT WALLET
-let serverWallet = null;
 
-async function initServerWallet() {
-  const secret = process.env.HOT_WALLET_SECRET;
-  
-  if (!secret) {
-    console.error('⚠️ NO HOT_WALLET_SECRET FOUND. Payouts will fail.');
-    return;
-  }
-
-  try {
-    // 1. Detect Key Type
-    if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
-      console.log('[Wallet] Detected xprv key. Initializing via fromXpriv...');
-      // Static method handles the HDPrivateKey conversion internally [cite: 3]
-      serverWallet = Wallet.fromXpriv(secret.trim()); 
-    } else {
-      console.log('[Wallet] Detected seed phrase. Initializing standard wallet...');
-      serverWallet = new Wallet(secret);
-    }
-    
-    // 2. Discover accounts (scans chain)
-    console.log('[Wallet] Scanning chain for accounts...');
-    await serverWallet.initialize();
-
-    // 3. GET ACCOUNT 2.0 (Standard Nexa Account)
-    // We explicitly look for the standard account ID
-    let spendingAccount = serverWallet.accountStore.getAccount('2.0');
-
-    // 4. Force Create if missing (Fresh Wallet)
-    if (!spendingAccount) {
-        console.log('[Wallet] ⚠️ Account 2.0 not found. Creating new NEXA account...');
-        
-        // Pass the string 'NEXA' instead of the Enum. 
-        // This instructs the SDK to generate the '2.0' derivation path.
-        await serverWallet.newAccount('NEXA'); 
-        
-        // Grab it again now that it exists
-     const   spendingAccount = serverWallet.accountStore.getAccount('2.0');
-    }
-
-    // 5. Final Verification
-    if (!spendingAccount) {
-        throw new Error('Failed to load Account 2.0 even after creation.');
-    }
-
-    console.log(`[Wallet] ✅ Initialized. Active Account ID: ${spendingAccount.id}`);
-
-  } catch (e) {
-    console.error('❌ [Wallet] Init Failed:', e.message);
-    process.exit(1); 
-  }
-}
 // Start everything
 (async () => {
   await ensureRostrum();
@@ -122,7 +70,58 @@ function must(name) {
   return v;
 }
 
-function mustBeURL(name) {
+function mustBeURL(name) {// - REPLACED FUNCTION
+let serverWallet = null;
+
+async function initServerWallet() {
+  const secret = process.env.HOT_WALLET_SECRET;
+  
+  if (!secret) {
+    console.error('⚠️ NO HOT_WALLET_SECRET FOUND. Payouts will fail.');
+    return;
+  }
+
+  try {
+    // 1. Initialize Wallet from Key
+    if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
+      console.log('[Wallet] Importing xprv key...');
+      serverWallet = Wallet.fromXpriv(secret.trim());
+    } else {
+      console.log('[Wallet] Importing seed phrase...');
+      serverWallet = new Wallet(secret);
+    }
+    
+    // 2. Scan for Accounts
+    await serverWallet.initialize();
+
+    // 3. Ensure a Spending Account Exists
+    let accounts = serverWallet.accountStore.listAccounts();
+    
+    if (accounts.length === 0) {
+        console.log('[Wallet] No accounts found. Creating new Standard Account...');
+        // FIX: Use AccountType.NEXA (Enum) to ensure keys are generated correctly
+        await serverWallet.newAccount(AccountType.NEXA); 
+        
+        // Refresh list
+        accounts = serverWallet.accountStore.listAccounts();
+    }
+
+    const spendingAccount = accounts[0];
+
+    if (!spendingAccount) {
+        throw new Error('Critical: Wallet initialized but no account could be created.');
+    }
+
+    // 4. Sanity Check
+    // We log the address to prove the keys are working
+    const checkAddr = spendingAccount.getNewAddress();
+    console.log(`[Wallet] ✅ Ready! Active Address: ${checkAddr}`);
+
+  } catch (e) {
+    console.error('❌ [Wallet] Init Failed:', e.message);
+    process.exit(1);
+  }
+}
   const v = must(name);
   try { new URL(v); } catch (e) {
     throw new Error(`Invalid URL in ${name}: ${v}`);
