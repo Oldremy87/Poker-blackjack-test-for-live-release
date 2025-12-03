@@ -1209,11 +1209,15 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
     // 2. SEND TOKENS (The New SDK Way)
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
     const tx = await serverWallet.newTransaction(spendingAccount)
+      .onNetwork('mainnet')
+      .sendTo(targetAddress, '546')
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
-      .sendTo(targetAddress, '546') // Dust NEXA for gas
+       // Dust NEXA for gas
+      .populate()
+      .sign()
       .build(); // Builds and Signs
 
-    const txId = await rostrumProvider.sendTransaction(tx); // Broadcasts via your Node
+    const txId = await serverWallet.sendTransaction(tx); // Broadcasts via your Node
     console.log('[Faucet] Success! TxId:', txId);
 
     // 3. Log to DB (Same as before) 
