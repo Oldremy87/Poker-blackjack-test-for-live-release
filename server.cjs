@@ -92,7 +92,7 @@ if (hasDb) {
   if (!hasDb) throw new Error('DB disabled');
   return pool;
 }
-
+let cachedServerWallet = null;
 
 // ----- MIDDLEWARE ORDER -----
 app.use(cookieParser());
@@ -1153,50 +1153,46 @@ const rewardLimiter = rateLimit({ windowMs: 60 * 1000, max: 12, standardHeaders:
 app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
   const ip = getClientIp(req);
   const uid = req.uid;
-  const FAUCET_AMOUNT = 1000 * 100; // 1000 KIBL (minor units)
-  const COOLDOWN = 24 * 60 * 60 * 1000;
+  const FAUCET_AMOUNT = 1000 * 100; // 1000 KIBL
 
   try {
-    const secret = process.env.HOT_WALLET_SECRET;
-    const serverWallet = Wallet.fromXpriv(secret, 'mainnet');
-    await serverWallet.initialize();
-    const spendingAccount = serverWallet.accountStore.getAccount('2.0');
+    // 1. Ensure Network Connection
+    await ensureRostrum();
 
-    // 1. Get Balances (Using SDK methods ensures fresh data)
-    // We use getBalance() to get the object { confirmed, unconfirmed }
-    // FIX: Access .balance as a property directly
-    const nexaBalanceObj = spendingAccount.balance; 
-    const nexaConfirmed = Number(nexaBalanceObj?.confirmed || 0) / 100; 
-    console.log(`[Wallet] NEXA Balance: ${nexaConfirmed} NEXA`);
+    // 2. LAZY LOAD WALLET (The Speed Fix)
+    // Only run the slow init/scan if we haven't done it yet.
+    if (!cachedServerWallet) {
+        console.log('[Wallet] Initializing Hot Wallet for the first time...');
+        const secret = process.env.HOT_WALLET_SECRET;
+        if (!secret) throw new Error('HOT_WALLET_SECRET missing');
 
-    // 2. Check KIBL Balance
-    // FIX: Access .tokenBalances as a property directly
-    const tokenBalances = spendingAccount.tokenBalances || {};
-    
-    const kiblHex = process.env.KIBL_GROUP_ID || '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
-    const kiblRaw = tokenBalances[kiblHex]?.confirmed || 0;
-    const kiblWhole = Math.floor(Number(kiblRaw) / 100); 
+        // Import
+        let w;
+        if (secret.trim().startsWith('xprv') || secret.trim().startsWith('F6rxz')) {
+             w = Wallet.fromXpriv(secret.trim(), 'mainnet');
+        } else {
+             w = new Wallet(secret, 'mainnet');
+        }
 
-    console.log(`[Wallet] KIBL Balance: ${kiblWhole.toLocaleString()} KIBL`);
-
-    if (kiblWhole < 1000) {
-        console.warn('⚠️ WARNING: Low KIBL balance for faucet!');
-        console.log(`[Wallet] Status: ${nexaConfirmed} NEXA | ${kiblWhole.toLocaleString()} KIBL`);
-
-    // 2. FORCE ADDRESS DISPLAY IF EMPTY
-    if (kiblWhole < 1000 || nexaConfirmed < 1) {
-        // We get a fresh address to deposit into
-        const depositAddress = spendingAccount.getNewAddress();
+        // Scan Chain (The slow part - happens once)
+        await w.initialize();
         
-        console.warn('\n==================================================');
-        console.warn('⚠️  WARNING: SERVER WALLET IS EMPTY');
-        console.warn('--------------------------------------------------');
-        console.warn('You funded the Node, but you need to fund the SDK.');
-        console.warn(`👉 SEND FUNDS TO:  ${depositAddress}`);
-        console.warn('==================================================\n');
+        // Ensure Account 2.0 exists
+        if (!w.accountStore.getAccount('2.0')) {
+             console.log('[Wallet] Creating Account 2.0...');
+             await w.newAccount('NEXA'); 
+        }
+        
+        // Save to cache
+        cachedServerWallet = w;
+        console.log('[Wallet] Initialization Complete. Cached for future requests.');
     }
-    }
-    // 1. Get Target Address (Same as before) 
+
+    // 3. Use the Cached Wallet
+    const spendingAccount = cachedServerWallet.accountStore.getAccount('2.0');
+    if (!spendingAccount) throw new Error('Hot Wallet Account 2.0 missing');
+
+    // 4. Address Lookup
     let targetAddress = null;
     if (hasDb && uid) {
        const p = await db();
@@ -1208,20 +1204,22 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Link valid wallet first.' });
     }
 
-    // 2. SEND TOKENS (The New SDK Way)
+    // 5. Build & Send (Instant now)
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
-    const tx = await serverWallet.newTransaction(spendingAccount)
+    
+    const tx = await cachedServerWallet.newTransaction(spendingAccount)
       .onNetwork('mainnet')
-      .sendTo(targetAddress, '600')
+      .sendTo(targetAddress, '546') 
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .populate()
       .sign()
-      .build(); // Builds and Signs
+      .build();
 
-    const txId = await serverWallet.sendTransaction(tx); // Broadcasts via your Node
+    // Use provider to broadcast
+    const txId = await rostrumProvider.sendTransaction(tx);
     console.log('[Faucet] Success! TxId:', txId);
 
-    // 3. Log to DB (Same as before) 
+    // 6. DB Logging
     if (hasDb) {
       const p = await db();
       await p.query(
@@ -1235,7 +1233,11 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
 
   } catch (e) {
     console.error('Faucet Error:', e);
-    return res.status(500).json({ ok: false, error: 'Faucet failed: ' + e.message });
+    // If the wallet state got corrupted, clear cache so next try re-initializes
+    if (e.message.includes('UTXO') || e.message.includes('input')) {
+        cachedServerWallet = null;
+    }
+    return res.status(500).json({ ok: false, error: e.message });
   }
 });
 // =================== Payout (minor units throughout) ===================
