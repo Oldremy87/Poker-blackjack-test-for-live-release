@@ -1207,7 +1207,7 @@ app.post('/api/daily-reward', async (req, res) => {
       .build();
 
     // Use provider to broadcast
-    const txId = await serverWallet.sendTransaction(tx);
+    const txId = await w.sendTransaction(tx);
     console.log('[Faucet] Success! TxId:', txId);
 
     // 6. DB Logging
