@@ -1247,20 +1247,97 @@ app.use('/api/payout', payoutLimiter);
 app.post('/api/payout', payoutLimiter, async (req, res) => {
   try {
     ensureBank(req);
+    // 1. Connection Check
     await ensureRostrum();
-    if (!serverWallet) throw new Error('Server wallet not configured');
 
-    // ... (Keep Address Lookup, Captcha, Balance Checks) ... 
-    // ... Assume targetAddress and sendMinor are calculated correctly ...
+    // 2. LAZY LOAD WALLET (Reliability Fix)
+    if (!cachedServerWallet) {
+        console.log('[Payout] Initializing Hot Wallet for the first time...');
+        const secret = process.env.HOT_WALLET_SECRET;
+        if (!secret) throw new Error('HOT_WALLET_SECRET missing');
 
+        let w;
+        // Import based on key type
+        if (secret.trim().startsWith('xprv') || secret.trim().startsWith('F6rxz')) {
+             w = Wallet.fromXpriv(secret.trim(), 'mainnet');
+        } else {
+             w = new Wallet(secret, 'mainnet');
+        }
+
+        // Scan Chain (Slow, happens once)
+        await w.initialize();
+        
+        // Ensure Account 2.0 exists
+        if (!w.accountStore.getAccount('2.0')) {
+             console.log('[Payout] Creating Account 2.0...');
+             await w.newAccount('NEXA'); 
+        }
+        
+        cachedServerWallet = w;
+        console.log('[Payout] Wallet Cached.');
+    }
+
+    // 3. Get Account
+    const spendingAccount = cachedServerWallet.accountStore.getAccount('2.0');
+    if (!spendingAccount) throw new Error('Hot Wallet Account 2.0 missing');
+
+    // (Address Lookup Logic)
+    let targetAddress = null;
+    if (hasDb && req.uid) {
+       const p = await db();
+       const { rows } = await p.query('SELECT wallet_addr FROM users WHERE user_id=$1', [req.uid]);
+       targetAddress = rows[0]?.wallet_addr;
+    }
+    if (!targetAddress) targetAddress = req.session.linkedWallet?.address;
+    
+    if (!targetAddress || !/^nexa:/.test(targetAddress)) {
+        return res.status(400).json({ error: 'Please link a wallet first.' });
+    }
+
+    const { 'h-captcha-response': hcapStd, hcaptchaToken: hcapCustom } = req.body || {};
+    const captchaToken = hcapCustom || hcapStd;
+    
+    if (!captchaToken) return res.status(400).json({ error: 'Please complete the captcha!' });
+    if (usedCaptchaTokens.has(captchaToken)) return res.status(400).json({ error: 'captcha_replay' });
+    usedCaptchaTokens.add(captchaToken);
+
+    // Verify Captcha
+    let captchaResponse;
+    try {
+        captchaResponse = await hcaptcha.verify(process.env.HCAPTCHA_SECRET, captchaToken, req.ip);
+    } catch(e) {}
+    
+    if (!captchaResponse?.success) return res.status(400).json({ error: 'Captcha failed' });
+    // Check Balance
+    const game = (req.body?.game || 'all').toString().toLowerCase();
+    const pokerMinor = Math.max(0, Number(req.session.wallet?.poker || 0));
+    const bjMinor    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
+    const availableMinor = (game === 'poker') ? pokerMinor : (game === 'blackjack') ? bjMinor : (pokerMinor + bjMinor);
+
+    if (!availableMinor || availableMinor <= 0) return res.status(400).json({ error: 'No balance to withdraw' });
+
+    // 4. PREPARE RPC SEND
+    const sendMinor = Math.min(availableMinor, MAX_PAYOUT);
     const sendWholeKibl = Math.floor(sendMinor / 100);
 
+    // Deduction logic
+    let deductPoker = 0, deductBJ = 0;
+    if (game === 'poker') deductPoker = sendMinor;
+    else if (game === 'blackjack') deductBJ = sendMinor;
+    else {
+        deductPoker = Math.min(pokerMinor, sendMinor);
+        deductBJ = sendMinor - deductPoker;
+    }
+
+  
+
+    
     // - REPLACING RPC CALL WITH SDK
     console.log(`[Payout] Sending ${sendMinor} KIBL to ${targetAddress}`);
 
 
 
-    const tx = await serverWallet.newTransaction(spendingAccount)
+    const tx = await cachedServerWallet.newTransaction(spendingAccount)
       .sendToToken(targetAddress, String(sendMinor), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA
       .build();
@@ -1268,7 +1345,19 @@ app.post('/api/payout', payoutLimiter, async (req, res) => {
     const txId = await rostrumProvider.sendTransaction(tx);
     console.log('[Payout] Broadcast success:', txId);
 
-    // ... (Keep Session Deduction and DB Logging) ... 
+     req.session.wallet.poker = Math.max(0, pokerMinor - deductPoker);
+    req.session.wallet.blackjack = Math.max(0, bjMinor - deductBJ);
+    req.session.bank = req.session.wallet.poker + req.session.wallet.blackjack;
+    
+    // DB Update
+    if (hasDb) {
+        const p = await db();
+        await p.query(`INSERT INTO payouts(address, amount_kibl, tx_id, session_id, ip, status) VALUES ($1,$2,$3,$4,$5,'success')`, 
+            [targetAddress, sendWholeKibl, txId, req.sessionID, req.ip]);
+            
+        if (deductPoker > 0) await p.query('UPDATE user_stats SET bank_minor = GREATEST(bank_minor - $2, 0) WHERE user_id = $1', [req.uid, deductPoker]);
+        if (deductBJ > 0) await p.query('UPDATE user_stats_blackjack SET bank_minor = GREATEST(bank_minor - $2, 0) WHERE user_id = $1', [req.uid, deductBJ]);
+    }
 
     return res.json({
         success: true,
