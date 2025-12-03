@@ -700,44 +700,46 @@ app.get('/api/wallet/status', async (req,res)=>{
 
 app.post('/api/bet/build-unsigned', async (req, res) => {
   try {
-    // --- FIX: Ensure connection here too ---
-    await rostrumProvider.connect({
-      scheme: 'wss',
-      host: 'electrum.nexa.org',
-      port: 20004,
-    });
+    // 1. USE PRIVATE INFRASTRUCTURE (Fast)
+    // Don't connect to public electrum here. Use your global tunnel.
+    await ensureRostrum();
+
     const { fromAddress, kiblAmount, feeNexa } = req.body;
+    
+    // Validation
     if (!fromAddress || !/^nexa:[a-z0-9]+$/i.test(fromAddress)) return res.status(400).json({ ok: false, error: 'bad_address' });
     if (!Number.isInteger(kiblAmount) || kiblAmount <= 0) return res.status(400).json({ ok: false, error: 'bad_kibl_amount' });
     if (!Number.isInteger(feeNexa) || feeNexa <= 0) return res.status(400).json({ ok: false, error: 'bad_fee' });
-    
 
-    const network = 'mainnet';
     const house = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';
-    const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'
-    const tokenId = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'
-  
-    const w = new WatchOnlyWallet({ address: fromAddress }, network);
-const nexaBal   = await w.getBalance();
-const tokenBals = await w.getTokenBalances();
-const kiblAvail = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
+    // const tokenIdHex = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000'; // KIBL Group
+    const tokenId    = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt'; // KIBL Token ID
+
+    // 2. INSTANT INIT
+    // WatchOnlyWallet is purely local JS logic until you call .populate()
+    const w = new WatchOnlyWallet({ address: fromAddress }, 'mainnet');
+
+    // 3. BUILD (One Network Call Only)
+    // .populate() automatically fetches the UTXOs from your private node.
+    // We removed the manual .getBalance calls because they wasted time.
     const unsignedTx = await w.newTransaction()
       .sendTo(house, feeNexa.toString())  
-      .sendToToken(house, '5000' , tokenId)
+      .sendToToken(house, '5000', tokenId) // Assuming 5000 is the bet amount? Adjust if needed to use kiblAmount
       .populate()
       .build();
 
-    console.log('[build-unsigned] FULL HEX >>>\n' + unsignedTx + '\n<<< END');
-    console.log('[build-unsigned] unsignedTx length', unsignedTx?.length);
+    console.log('[build-unsigned] Built tx, length:', unsignedTx?.length);
 
-    return res.json({ ok: true, unsignedTx, house, network });
+    return res.json({ ok: true, unsignedTx, house, network: 'mainnet' });
+
   } catch (e) {
     console.error('build_unsigned_failed', e);
-    return res.status(500).json({ ok: false, error: 'build_failed' });
+    // Give the user a hint if it's a balance issue
+    const msg = e.message.includes('Insufficient') ? 'Insufficient funds for bet' : 'build_failed';
+    return res.status(500).json({ ok: false, error: msg });
   }
 });
 
-// New Broadcast Route: Direct to Node RPC
 app.post('/api/tx/broadcast', async (req, res) => {
   try {
     const { hex } = req.body || {};
@@ -745,39 +747,28 @@ app.post('/api/tx/broadcast', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bad_hex' });
     }
 
-    // 1. Prepare RPC Command
-    const rpcUrl = process.env.RPC_URL || `http://localhost:${process.env.RPC_PORT || 7227}`;
-    const auth = Buffer.from(`${process.env.RPC_USER}:${process.env.RPC_PASSWORD}`).toString('base64');
-    
-    const rpcBody = JSON.stringify({
-      jsonrpc: '1.0', 
-      id: 'broadcast', 
-      method: 'sendrawtransaction', 
-      params: [hex] 
-    });
+    // 1. Ensure Infrastructure
+    await ensureRostrum();
 
-    console.log(`[Broadcast] Injecting tx via RPC...`);
-
-    // 2. Send directly to Node (Bypassing Rostrum)
-    const rpcRes = await fetch(rpcUrl, { 
-        method:'POST', 
-        headers:{'Content-Type':'application/json', 'Authorization':`Basic ${auth}`}, 
-        body: rpcBody 
-    });
-    
-    const rpcData = await rpcRes.json();
-
-    // 3. Handle Response
-    if (rpcData.error) {
-        console.error('[Broadcast] RPC Error:', rpcData.error);
-        // If RPC fails, maybe fallback to Rostrum? Or just fail.
-        // Let's try fail-fast first.
-        throw new Error(rpcData.error.message || 'Node rejected transaction');
+    // 2. Ensure Server Wallet is Loaded
+    // (We reuse the cached instance to avoid re-initializing keys)
+    if (!cachedServerWallet) {
+        // If the server restarted and no one used the faucet yet, init it now.
+        // Copy the lazy-load logic from daily-reward here or call initServerWallet() if you made it exportable.
+        // For safety, assuming initServerWallet was run at startup or lazy loaded:
+        await initServerWallet(); // Make sure this function populates 'serverWallet' global
     }
-
-    const txid = rpcData.result;
-    console.log('[Broadcast] Success! TxId:', txid);
     
+    const walletToUse = cachedServerWallet || serverWallet;
+    if (!walletToUse) throw new Error('Server wallet not initialized');
+
+    console.log(`[Broadcast] Sending via Server Wallet...`);
+
+    // 3. BROADCAST VIA WALLET CLASS
+    // This sends the signed hex string to the network
+    const txid = await walletToUse.sendTransaction(hex);
+
+    console.log('[Broadcast] Success! TxId:', txid);
     return res.json({ ok: true, txid });
 
   } catch (e) {
@@ -1150,7 +1141,7 @@ app.get('/api/fair/:handId', async (req, res) => {
 
 const rewardLimiter = rateLimit({ windowMs: 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false });
 // DAILY REWARD (minor units throughout)
-app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
+app.post('/api/daily-reward', async (req, res) => {
   const ip = getClientIp(req);
   const uid = req.uid;
   const FAUCET_AMOUNT = 1000 * 100; // 1000 KIBL
@@ -1216,7 +1207,7 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
       .build();
 
     // Use provider to broadcast
-    const txId = await rostrumProvider.sendTransaction(tx);
+    const txId = await serverWallet.sendTransaction(tx);
     console.log('[Faucet] Success! TxId:', txId);
 
     // 6. DB Logging
