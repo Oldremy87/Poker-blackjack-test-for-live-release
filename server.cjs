@@ -53,14 +53,37 @@ async function ensureRostrum() {
 
 // INITIALIZE HOT WALLET
 let serverWallet = null;
+
 async function initServerWallet() {
-  if (!process.env.HOT_WALLET_SECRET) {
+  const secret = process.env.HOT_WALLET_SECRET;
+  
+  if (!secret) {
     console.error('⚠️ NO HOT_WALLET_SECRET FOUND. Payouts will fail.');
     return;
   }
-  // Initialize wallet (Mainnet)
-  serverWallet = new Wallet(process.env.HOT_WALLET_SECRET);
-  console.log('[Wallet] Server wallet initialized.');
+
+  try {
+    // Check if it is an Extended Private Key (starts with "xprv")
+    if (secret.trim().startsWith('xprv')) {
+      console.log('[Wallet] Detected xprv key. Importing...');
+      const masterKey = HDPrivateKey.fromString(secret.trim());
+      serverWallet = new Wallet(masterKey);
+    } else {
+      // Assume it is a Seed Phrase (12 words)
+      console.log('[Wallet] Detected seed phrase. Importing...');
+      serverWallet = new Wallet(secret);
+    }
+    
+    console.log('[Wallet] Server wallet initialized successfully.');
+    
+    // Optional: Log address to confirm it matches your expectation
+    // const address = serverWallet.accountStore.getAccount('1.0').getNewAddress();
+    // console.log('[Wallet] Active Address:', address);
+
+  } catch (e) {
+    console.error('❌ [Wallet] Init Failed:', e.message);
+    process.exit(1); // Crash hard if we can't load money
+  }
 }
 
 // Start everything
