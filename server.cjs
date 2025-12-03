@@ -78,6 +78,7 @@ async function initServerWallet() {
     
     // Initialize (Optional, but good practice to ensure account discovery)
     await serverWallet.initialize();
+    const account = serverWallet.accountStore.getAccount('2.0')
     console.log('[Wallet] Server wallet initialized successfully.');
 
   } catch (e) {
