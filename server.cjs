@@ -64,36 +64,38 @@ async function initServerWallet() {
 
   try {
     // 1. Detect Key Type
-    // (Keeping your F6rxz check since that matches your specific key format)
     if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
       console.log('[Wallet] Detected xprv key. Initializing via fromXpriv...');
-      // Static method avoids "HDPrivateKey is not defined" error
+      [cite_start]// Static method handles the HDPrivateKey conversion internally [cite: 3]
       serverWallet = Wallet.fromXpriv(secret.trim()); 
     } else {
       console.log('[Wallet] Detected seed phrase. Initializing standard wallet...');
       serverWallet = new Wallet(secret);
     }
     
-    // 2. Discover existing accounts (scans chain)
+    // 2. Discover accounts (scans chain)
     console.log('[Wallet] Scanning chain for accounts...');
     await serverWallet.initialize();
 
-    // 3. GET OR CREATE ACCOUNT
-    // We try to grab the first one.
-    let spendingAccount = serverWallet.accountStore.listAccounts()[0];
+    // 3. GET ACCOUNT 2.0 (Standard Nexa Account)
+    // We explicitly look for the standard account ID
+    let spendingAccount = serverWallet.accountStore.getAccount('2.0');
 
-    // If it's undefined, we MUST create one manually
+    // 4. Force Create if missing (Fresh Wallet)
     if (!spendingAccount) {
-        console.log('[Wallet] ⚠️ No accounts found after scan. Creating "DefaultAccount"...');
-        await serverWallet.newAccount('DefaultAccount');
+        console.log('[Wallet] ⚠️ Account 2.0 not found. Creating new NEXA account...');
+        
+        // Pass the string 'NEXA' instead of the Enum. 
+        // This instructs the SDK to generate the '2.0' derivation path.
+        await serverWallet.newAccount('NEXA'); 
         
         // Grab it again now that it exists
-        spendingAccount = serverWallet.accountStore.listAccounts()[0];
+        spendingAccount = serverWallet.accountStore.getAccount('2.0');
     }
 
-    // 4. Final Verification
+    // 5. Final Verification
     if (!spendingAccount) {
-        throw new Error('Failed to create or load an account.');
+        throw new Error('Failed to load Account 2.0 even after creation.');
     }
 
     console.log(`[Wallet] ✅ Initialized. Active Account ID: ${spendingAccount.id}`);
