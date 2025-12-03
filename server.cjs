@@ -1163,17 +1163,14 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
     const serverWallet = Wallet.fromXpriv(secret, 'mainnet');
     await serverWallet.initialize();
     const spendingAccount = serverWallet.accountStore.getAccount('2.0');
-    const nexaBalance = await spendingAccount.getBalance();
+    
     const nexaConfirmed = nexaBalance.confirmed / 100; // Convert to whole NEXA
     console.log(`[Wallet] NEXA Balance: ${nexaConfirmed} NEXA`);
-
+    const kiblBalance = spendingAccount.tokenBalances[KIBL_TOKEN_ID_HEX]?.confirmed || 0;
+    const nexaBalance = spendingAccount.balance.confirmed || 0;
     // 2. Check KIBL Balance
     // The SDK returns tokens as a map: { "TOKEN_ID_HEX": { confirmed: "amount", ... } }
-    const tokenBalances = await spendingAccount.getTokenBalances();
-    const kiblHex = process.env.KIBL_GROUP_ID || '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
-    
-    const kiblRaw = tokenBalances[kiblHex]?.confirmed || 0;
-    const kiblWhole = Math.floor(Number(kiblRaw) / 100); // Convert from minor units
+    const kiblWhole = Math.floor(Number(kiblBalance) / 100); // Convert from minor units
 
     console.log(`[Wallet] KIBL Balance: ${kiblWhole.toLocaleString()} KIBL`);
 
