@@ -1157,20 +1157,26 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
   const COOLDOWN = 24 * 60 * 60 * 1000;
 
   try {
-    
-    await ensureRostrum();
     const secret = process.env.HOT_WALLET_SECRET;
     const serverWallet = Wallet.fromXpriv(secret, 'mainnet');
     await serverWallet.initialize();
     const spendingAccount = serverWallet.accountStore.getAccount('2.0');
-    
-    const nexaConfirmed = nexaBalance.confirmed / 100; // Convert to whole NEXA
+
+    // 1. Get Balances (Using SDK methods ensures fresh data)
+    // We use getBalance() to get the object { confirmed, unconfirmed }
+    const nexaBalanceObj = await spendingAccount.getBalance();
+    const tokenBalances = await spendingAccount.getTokenBalances();
+
+    // 2. Calculate & Log NEXA
+    // Divide by 100 to convert from satoshis/minor units to whole NEXA
+    const nexaConfirmed = Number(nexaBalanceObj.confirmed) / 100; 
     console.log(`[Wallet] NEXA Balance: ${nexaConfirmed} NEXA`);
-    const kiblBalance = spendingAccount.tokenBalances[KIBL_TOKEN_ID_HEX]?.confirmed || 0;
-    const nexaBalance = spendingAccount.balance.confirmed || 0;
-    // 2. Check KIBL Balance
-    // The SDK returns tokens as a map: { "TOKEN_ID_HEX": { confirmed: "amount", ... } }
-    const kiblWhole = Math.floor(Number(kiblBalance) / 100); // Convert from minor units
+
+    // 3. Calculate & Log KIBL
+    // Use the correct hex constant defined in your file (KIBL_GROUP_HEX)
+    const kiblHex = process.env.KIBL_GROUP_ID || '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
+    const kiblRaw = tokenBalances[kiblHex]?.confirmed || 0;
+    const kiblWhole = Math.floor(Number(kiblRaw) / 100); 
 
     console.log(`[Wallet] KIBL Balance: ${kiblWhole.toLocaleString()} KIBL`);
 
