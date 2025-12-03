@@ -63,29 +63,40 @@ async function initServerWallet() {
   }
 
   try {
-    // Check if it is an Extended Private Key (starts with "xprv")
-    if (secret.trim().startsWith('F6rxz')) {
+    // 1. Detect Key Type
+    // (Keeping your F6rxz check since that matches your specific key format)
+    if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
       console.log('[Wallet] Detected xprv key. Initializing via fromXpriv...');
-      
-      // FIX: Use the static method instead of new Wallet()
+      // Static method avoids "HDPrivateKey is not defined" error
       serverWallet = Wallet.fromXpriv(secret.trim()); 
-      } else {
+    } else {
       console.log('[Wallet] Detected seed phrase. Initializing standard wallet...');
       serverWallet = new Wallet(secret);
     }
-// 2. Discover existing accounts
+    
+    // 2. Discover existing accounts (scans chain)
+    console.log('[Wallet] Scanning chain for accounts...');
     await serverWallet.initialize();
 
-    // 3. FORCE ACCOUNT CREATION if none exist
-    // If the wallet is fresh, 'initialize' won't find anything. We must make one.
-    if (serverWallet.accountStore.listAccounts().length === 0) {
-        console.log('[Wallet] No accounts found. Creating default account...');
+    // 3. GET OR CREATE ACCOUNT
+    // We try to grab the first one.
+    let spendingAccount = serverWallet.accountStore.listAccounts()[0];
+
+    // If it's undefined, we MUST create one manually
+    if (!spendingAccount) {
+        console.log('[Wallet] ⚠️ No accounts found after scan. Creating "DefaultAccount"...');
         await serverWallet.newAccount('DefaultAccount');
+        
+        // Grab it again now that it exists
+        spendingAccount = serverWallet.accountStore.listAccounts()[0];
     }
 
-    // Verify we have an account to spend from
-    const spendingAccount = serverWallet.accountStore.listAccounts()[0];
-    console.log('[Wallet] Initialized. Active Account:', spendingAccount.id);
+    // 4. Final Verification
+    if (!spendingAccount) {
+        throw new Error('Failed to create or load an account.');
+    }
+
+    console.log(`[Wallet] ✅ Initialized. Active Account ID: ${spendingAccount.id}`);
 
   } catch (e) {
     console.error('❌ [Wallet] Init Failed:', e.message);
