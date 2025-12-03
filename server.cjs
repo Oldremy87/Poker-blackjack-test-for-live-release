@@ -64,7 +64,7 @@ async function initServerWallet() {
 
   try {
     // Check if it is an Extended Private Key (starts with "xprv")
-    if (secret.trim().startsWith('xprv')) {
+    if (secret.trim().startsWith('F6rxz')) {
       console.log('[Wallet] Detected xprv key. Initializing via fromXpriv...');
       
       // FIX: Use the static method instead of new Wallet()
