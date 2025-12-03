@@ -74,30 +74,8 @@ async function initServerWallet() {
     
     // 2. Scan for Accounts
     await serverWallet.initialize();
-
-    // 3. Ensure a Spending Account Exists
-    let accounts = serverWallet.accountStore.listAccounts();
-    
-    if (accounts.length === 0) {
-        console.log('[Wallet] No accounts found. Creating new Standard Account...');
-        // FIX: Use AccountType.NEXA (Enum) to ensure keys are generated correctly
-        await serverWallet.newAccount(AccountType.NEXA); 
-        
-        // Refresh list
-        accounts = serverWallet.accountStore.listAccounts();
-    }
-
-    const spendingAccount = accounts[0];
-
-    if (!spendingAccount) {
-        throw new Error('Critical: Wallet initialized but no account could be created.');
-    }
-
-    // 4. Sanity Check
-    // We log the address to prove the keys are working
-    const checkAddr = spendingAccount.getNewAddress();
-    console.log(`[Wallet] ✅ Ready! Active Address: ${checkAddr}`);
-
+    const spendingAccount = serverWallet.accountStore.getAccount('1.0')
+    const address = spendingAccount.getPrimaryAddressKey().address
   } catch (e) {
     console.error('❌ [Wallet] Init Failed:', e.message);
     process.exit(1);
@@ -1231,10 +1209,8 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
     // 2. SEND TOKENS (The New SDK Way)
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
      await serverWallet.initialize()
-
-// Get the default account
     const spendingAccount = serverWallet.accountStore.getAccount('1.0')
-    
+    const address = spendingAccount.getPrimaryAddressKey().address
     const tx = await serverWallet.newTransaction(spendingAccount)
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA for gas
