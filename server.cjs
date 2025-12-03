@@ -1164,16 +1164,15 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
 
     // 1. Get Balances (Using SDK methods ensures fresh data)
     // We use getBalance() to get the object { confirmed, unconfirmed }
-    const nexaBalanceObj = await spendingAccount.getBalance();
-    const tokenBalances = await spendingAccount.getTokenBalances();
-
-    // 2. Calculate & Log NEXA
-    // Divide by 100 to convert from satoshis/minor units to whole NEXA
-    const nexaConfirmed = Number(nexaBalanceObj.confirmed) / 100; 
+    // FIX: Access .balance as a property directly
+    const nexaBalanceObj = spendingAccount.balance; 
+    const nexaConfirmed = Number(nexaBalanceObj?.confirmed || 0) / 100; 
     console.log(`[Wallet] NEXA Balance: ${nexaConfirmed} NEXA`);
 
-    // 3. Calculate & Log KIBL
-    // Use the correct hex constant defined in your file (KIBL_GROUP_HEX)
+    // 2. Check KIBL Balance
+    // FIX: Access .tokenBalances as a property directly
+    const tokenBalances = spendingAccount.tokenBalances || {};
+    
     const kiblHex = process.env.KIBL_GROUP_ID || '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
     const kiblRaw = tokenBalances[kiblHex]?.confirmed || 0;
     const kiblWhole = Math.floor(Number(kiblRaw) / 100); 
