@@ -65,27 +65,26 @@ async function initServerWallet() {
   try {
     // Check if it is an Extended Private Key (starts with "xprv")
     if (secret.trim().startsWith('xprv')) {
-      console.log('[Wallet] Detected xprv key. Importing...');
-      const masterKey = HDPrivateKey.fromString(secret.trim());
-      serverWallet = new Wallet(masterKey);
+      console.log('[Wallet] Detected xprv key. Initializing via fromXpriv...');
+      
+      // FIX: Use the static method instead of new Wallet()
+      serverWallet = Wallet.fromXpriv(secret.trim()); 
+
     } else {
       // Assume it is a Seed Phrase (12 words)
-      console.log('[Wallet] Detected seed phrase. Importing...');
+      console.log('[Wallet] Detected seed phrase. Initializing standard wallet...');
       serverWallet = new Wallet(secret);
     }
     
+    // Initialize (Optional, but good practice to ensure account discovery)
+    await serverWallet.initialize();
     console.log('[Wallet] Server wallet initialized successfully.');
-    
-    // Optional: Log address to confirm it matches your expectation
-    // const address = serverWallet.accountStore.getAccount('1.0').getNewAddress();
-    // console.log('[Wallet] Active Address:', address);
 
   } catch (e) {
     console.error('❌ [Wallet] Init Failed:', e.message);
     process.exit(1); // Crash hard if we can't load money
   }
 }
-
 // Start everything
 (async () => {
   await ensureRostrum();
