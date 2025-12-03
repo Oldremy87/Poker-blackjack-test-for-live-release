@@ -69,21 +69,27 @@ async function initServerWallet() {
       
       // FIX: Use the static method instead of new Wallet()
       serverWallet = Wallet.fromXpriv(secret.trim()); 
-
-    } else {
-      // Assume it is a Seed Phrase (12 words)
+      } else {
       console.log('[Wallet] Detected seed phrase. Initializing standard wallet...');
       serverWallet = new Wallet(secret);
     }
-    
-    // Initialize (Optional, but good practice to ensure account discovery)
+// 2. Discover existing accounts
     await serverWallet.initialize();
-    const account = serverWallet.accountStore.getAccount('2.0')
-    console.log('[Wallet] Server wallet initialized successfully.');
+
+    // 3. FORCE ACCOUNT CREATION if none exist
+    // If the wallet is fresh, 'initialize' won't find anything. We must make one.
+    if (serverWallet.accountStore.listAccounts().length === 0) {
+        console.log('[Wallet] No accounts found. Creating default account...');
+        await serverWallet.newAccount('DefaultAccount');
+    }
+
+    // Verify we have an account to spend from
+    const spendingAccount = serverWallet.accountStore.listAccounts()[0];
+    console.log('[Wallet] Initialized. Active Account:', spendingAccount.id);
 
   } catch (e) {
     console.error('❌ [Wallet] Init Failed:', e.message);
-    process.exit(1); // Crash hard if we can't load money
+    process.exit(1); 
   }
 }
 // Start everything
