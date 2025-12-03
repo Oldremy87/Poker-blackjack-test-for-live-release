@@ -51,40 +51,9 @@ async function ensureRostrum() {
   }
 }
 
-// INITIALIZE HOT WALLET
-let serverWallet = null;
 
-async function initServerWallet() {
-  const secret = process.env.HOT_WALLET_SECRET;
-  
-  if (!secret) {
-    console.error('⚠️ NO HOT_WALLET_SECRET FOUND. Payouts will fail.');
-    return;
-  }
-
-  try {
-    // 1. Initialize Wallet from Key
-    if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
-      console.log('[Wallet] Importing xprv key...');
-      serverWallet = Wallet.fromXpriv(secret.trim(),'mainnet');
-    } else {
-      console.log('[Wallet] Importing seed phrase...');
-      serverWallet = new Wallet(secret);
-    }
-    
-    // 2. Scan for Accounts
-    await serverWallet.initialize();
-    const spendingAccount = serverWallet.accountStore.getAccount('1.0')
-    const address = spendingAccount.getPrimaryAddressKey().address
-  } catch (e) {
-    console.error('❌ [Wallet] Init Failed:', e.message);
-    process.exit(1);
-  }
-}
-// Start everything
 (async () => {
   await ensureRostrum();
-  await initServerWallet();
 })();
 
 const KIBL_GROUP_HEX = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
@@ -1190,9 +1159,10 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
   try {
     
     await ensureRostrum();
-    if (!serverWallet) throw new Error('Server wallet not configured');
-
-    // ... (Keep existing DB rate-limit checks here) ... 
+    const secret = process.env.HOT_WALLET_SECRET;
+    const serverWallet = Wallet.fromXpriv(secret, 'mainnet');
+    await serverWallet.initialize();
+    const spendingAccount = serverWallet.accountStore.getAccount('2.0');
 
     // 1. Get Target Address (Same as before) 
     let targetAddress = null;
@@ -1210,9 +1180,8 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
     const tx = await serverWallet.newTransaction(spendingAccount)
       .onNetwork('mainnet')
-      .sendTo(targetAddress, '546')
+      .sendTo(targetAddress, '600')
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
-       // Dust NEXA for gas
       .populate()
       .sign()
       .build(); // Builds and Signs
