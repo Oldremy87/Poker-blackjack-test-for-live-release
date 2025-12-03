@@ -1230,15 +1230,9 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
 
     // 2. SEND TOKENS (The New SDK Way)
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
-    const accounts = serverWallet.accountStore.listAccounts();
-    const spendingAccount = accounts[0]; 
-
-    if (!spendingAccount) {
-        throw new Error('No accounts found in Hot Wallet. Did it initialize?');
-    }
 
     
-    const tx = await serverWallet.newTransaction(spendingAccount)
+    const tx = await serverWallet.newTransaction(2.0)
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA for gas
       .build(); // Builds and Signs
@@ -1297,14 +1291,9 @@ app.post('/api/payout', payoutLimiter, async (req, res) => {
     // - REPLACING RPC CALL WITH SDK
     console.log(`[Payout] Sending ${sendMinor} KIBL to ${targetAddress}`);
 
-    const accounts = serverWallet.accountStore.listAccounts();
-    const spendingAccount = accounts[0]; 
 
-    if (!spendingAccount) {
-        throw new Error('No accounts found in Hot Wallet. Did it initialize?');
-    }
 
-    const tx = await serverWallet.newTransaction(spendingAccount)
+    const tx = await serverWallet.newTransaction(2.0)
       .sendToToken(targetAddress, String(sendMinor), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA
       .build();
