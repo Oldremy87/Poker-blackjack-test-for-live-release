@@ -52,25 +52,6 @@ async function ensureRostrum() {
 }
 
 // INITIALIZE HOT WALLET
-
-// Start everything
-(async () => {
-  await ensureRostrum();
-  await initServerWallet();
-})();
-
-const KIBL_GROUP_HEX = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
-
-
-
-const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
-function must(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env: ${name}`);
-  return v;
-}
-
-function mustBeURL(name) {// - REPLACED FUNCTION
 let serverWallet = null;
 
 async function initServerWallet() {
@@ -122,6 +103,25 @@ async function initServerWallet() {
     process.exit(1);
   }
 }
+// Start everything
+(async () => {
+  await ensureRostrum();
+  await initServerWallet();
+})();
+
+const KIBL_GROUP_HEX = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
+
+
+
+const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+function must(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing required env: ${name}`);
+  return v;
+}
+
+function mustBeURL(name) {// - REPLACED FUNCTION
+
   const v = must(name);
   try { new URL(v); } catch (e) {
     throw new Error(`Invalid URL in ${name}: ${v}`);
