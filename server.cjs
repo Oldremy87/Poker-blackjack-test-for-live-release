@@ -66,7 +66,7 @@ async function initServerWallet() {
     // 1. Initialize Wallet from Key
     if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
       console.log('[Wallet] Importing xprv key...');
-      serverWallet = Wallet.fromXpriv(secret.trim());
+      serverWallet = Wallet.fromXpriv(secret.trim(),'mainnet');
     } else {
       console.log('[Wallet] Importing seed phrase...');
       serverWallet = new Wallet(secret);
