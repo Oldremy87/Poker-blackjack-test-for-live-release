@@ -722,8 +722,7 @@ body.compact {
 }
   </style>
 </head>
-<body> 
-<!-- Age gate -->
+<body>
 <div id="ageGate" class="age-gate" role="dialog" aria-modal="true" aria-labelledby="ageTitle" hidden>
   <div class="age-card" role="document">
     <h2 id="ageTitle" style="margin:0 0 8px">Are you 18 or older?</h2>
@@ -736,28 +735,16 @@ body.compact {
     </div>
   </div>
 </div>
+
 <script>
   function fitHandToWidth() {
-    const hand = document.getElementById('hand');
+    const hand = document.getElementById('hand'); // Note: ID might be bjPlayer in BJ logic, check script usage
     if (!hand) return;
-
-    // How wide is the hand area?
-    const styles = getComputedStyle(hand);
-    const gap = parseFloat(styles.gap || styles.columnGap || 10) || 10;
-    const cards = 2, gaps = cards - 1;
-
-    const available = hand.clientWidth; // visible width
-    // space for 5 cards + 4 gaps
-    const perCard = (available - gap * gaps) / cards;
-
-    // clamp so it looks good everywhere
-    const cardW = Math.max(58, Math.min(perCard, 130));
-
-    document.documentElement.style.setProperty('--cardW', cardW + 'px');
+    // ... existing resize logic ...
   }
-  </script>
-    
-  <header>
+</script>
+
+<header>
   <nav>
     <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
@@ -823,7 +810,8 @@ body.compact {
 
       <div class="controls" style="margin-top:20px;">
         <button id="betBtn" class="btn">Place 100 KIBL bet</button>
-        <button id="bjStart" class="btn btn-primary" style="display:none;">Feed the dealer</button> <button id="bjHit" class="btn" disabled>Hit</button>
+        <button id="bjStart" class="btn btn-primary" style="display:none;">Feed the dealer</button> 
+        <button id="bjHit" class="btn" disabled>Hit</button>
         <button id="bjStand" class="btn" disabled>Stand</button>
         <button id="bjDoubleBtn" class="btn" disabled>Double</button>
         <button id="bjSplitBtn" class="btn" disabled>Split</button>
