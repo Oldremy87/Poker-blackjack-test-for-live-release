@@ -1181,6 +1181,20 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
 
     if (kiblWhole < 1000) {
         console.warn('⚠️ WARNING: Low KIBL balance for faucet!');
+        console.log(`[Wallet] Status: ${nexaConfirmed} NEXA | ${kiblWhole.toLocaleString()} KIBL`);
+
+    // 2. FORCE ADDRESS DISPLAY IF EMPTY
+    if (kiblWhole < 1000 || nexaConfirmed < 1) {
+        // We get a fresh address to deposit into
+        const depositAddress = spendingAccount.getNewAddress();
+        
+        console.warn('\n==================================================');
+        console.warn('⚠️  WARNING: SERVER WALLET IS EMPTY');
+        console.warn('--------------------------------------------------');
+        console.warn('You funded the Node, but you need to fund the SDK.');
+        console.warn(`👉 SEND FUNDS TO:  ${depositAddress}`);
+        console.warn('==================================================\n');
+    }
     }
     // 1. Get Target Address (Same as before) 
     let targetAddress = null;
