@@ -191,6 +191,65 @@
 body.compact {
   --hand-gap: 8px;
 }
+/* ===== New Smart Modal System ===== */
+.smart-modal {
+  position: fixed; inset: 0; z-index: 10000;
+  display: grid; place-items: center;
+  background: rgba(5,7,13,.92);
+  backdrop-filter: blur(5px);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.smart-modal.active { opacity: 1; pointer-events: auto; }
+
+.smart-modal-card {
+  width: min(90vw, 500px);
+  background: var(--panel, #111827);
+  border: 1px solid var(--card-border, #3af5d9);
+  box-shadow: 0 0 40px rgba(0,255,198,0.15);
+  border-radius: 16px;
+  overflow: hidden;
+  transform: translateY(10px); transition: transform 0.2s;
+  display: flex; flex-direction: column;
+}
+.smart-modal.active .smart-modal-card { transform: translateY(0); }
+
+.smart-modal-header {
+  background: rgba(255,255,255,0.03);
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(58,245,217,0.2);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.smart-modal-header h2 { margin: 0; font-size: 1.2rem; color: var(--accent, #ffcc00); }
+.smart-modal-close {
+  background: none; border: none; color: var(--text-dim, #7fffe6);
+  font-size: 1.5rem; cursor: pointer; line-height: 1;
+}
+
+.smart-modal-body { padding: 20px; color: var(--text, #00ffc6); font-size: 0.95rem; line-height: 1.6; }
+.smart-modal-body p { margin: 0 0 12px; }
+.smart-modal-body strong { color: var(--accent-2, #ff3df7); }
+.smart-modal-body ul { padding-left: 20px; margin-bottom: 16px; color: var(--text-dim); }
+.smart-modal-body li { margin-bottom: 6px; }
+
+.smart-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(58,245,217,0.1);
+  display: flex; justify-content: flex-end; gap: 10px;
+  background: rgba(0,0,0,0.2);
+}
+
+.address-box {
+  background: #000; border: 1px dashed var(--accent-3, #6ae3ff);
+  padding: 10px; border-radius: 8px; font-family: monospace;
+  font-size: 0.85rem; word-break: break-all; margin: 10px 0; color: #fff;
+  cursor: pointer; position: relative;
+}
+.address-box:active { opacity: 0.7; }
+.address-box::after {
+  content: 'Click to Copy'; position: absolute; top: -8px; right: 8px;
+  background: var(--accent-3); color: #000; font-size: 10px;
+  padding: 2px 6px; border-radius: 4px; font-weight: bold;
+}
 /* Dealing placeholders centered and unbroken */
 .placeholder {
   display: flex;
@@ -715,20 +774,7 @@ body.compact {
     <div class="hud">
      <div class="panel panel-table" id="bjPanel">
         <h1>Blackjack</h1>
-     <div id="bjHowto" class="modal" style="display:none">
-  <div class="modal-content">
-    <h2>How to Play Blackjack (PixelPup)</h2>
-    <ul>
-      <li>Goal: beat dealer without going over 21.</li>
-      <li>Face cards = 10, Aces = 1 or 11.</li>
-      <li>Natural Blackjack (Ace + 10-value on deal) auto-wins.</li>
-      <li>Actions: Hit, Stand, Double (draw 1 then stand), Split (one split, pairs only).</li>
-      <li>Points/KIBL: Win = +3 credits; Natural BJ = +6; Double win adds +2; Split wins slightly reduced. No wagering.</li>
-      <li>Fairness: provably fair deck (commit-reveal). See “Fairness” in menu.</li>
-      <li>Limits: we pace play to keep it fair for everyone.</li>
-    </ul>
-    <button id="bjHowtoClose">Let’s play</button>
-  </div>
+    
    </div>
          <p id="userTag" class="readout"></p>
          <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
@@ -873,17 +919,8 @@ function fitBjToScreen(){
   const base = Math.max(64, Math.min(perCard, 136)); // px
   document.documentElement.style.setProperty('--cardBaseW', base + 'px');
 }
-// ---------------------------
-(function showHowtoOnce(){
-  const k = 'bj_seen_instructions_v1';
-  if (localStorage.getItem(k)) return;
-  const m = document.getElementById('bjHowto');
-  const b = document.getElementById('bjHowtoClose');
-  if (m && b) {
-    m.style.display = 'flex';
-    b.onclick = () => { m.style.display='none'; localStorage.setItem(k, '1'); };
-  }
-})();
+
+
 async function loadWalletBalances(address) {
   if (!address) return;
   try {
@@ -1672,6 +1709,11 @@ async function onClaimPayout() {
         obs.observe(statusMsg, { childList: true, subtree: true, characterData: true });
     }
   });
+</script>
+<script type="module">
+  import { initOnboarding } from './assets/onboarding.js';
+  // Initialize for "Blackjack" mode
+  document.addEventListener('DOMContentLoaded', () => initOnboarding('blackjack'));
 </script>
   <footer class="readout" style="text-align:center; opacity:.9; padding:14px 0 6px;">
     © 2025 KIBL / PixelPup • Stay shiny 🐶✨ •
