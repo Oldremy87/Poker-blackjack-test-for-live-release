@@ -66,7 +66,7 @@ async function initServerWallet() {
     // 1. Detect Key Type
     if (secret.trim().startsWith('F6rxz') || secret.trim().startsWith('xprv')) {
       console.log('[Wallet] Detected xprv key. Initializing via fromXpriv...');
-      [cite_start]// Static method handles the HDPrivateKey conversion internally [cite: 3]
+      // Static method handles the HDPrivateKey conversion internally [cite: 3]
       serverWallet = Wallet.fromXpriv(secret.trim()); 
     } else {
       console.log('[Wallet] Detected seed phrase. Initializing standard wallet...');
