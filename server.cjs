@@ -1211,6 +1211,7 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
   const COOLDOWN = 24 * 60 * 60 * 1000;
 
   try {
+    await initServerWallet();
     await ensureRostrum();
     if (!serverWallet) throw new Error('Server wallet not configured');
 
