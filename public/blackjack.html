@@ -757,132 +757,119 @@ body.compact {
   }
   </script>
     
-    <header>
-    <nav>
-  <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
-    <!-- Telegram SVG -->
-    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
-      <path fill="#1C93E3" d="M12 0a12 12 0 1 0 0 24A12 12 0 0 0 12 0z"/>
-      <path fill="#fff" d="M17.9 7.4c.2-1-.8-1.3-1.6-1l-11 4.2c-.7.3-.7.8-.1 1l2.8.9 6.5-4.1c.3-.2.6-.1.4.1l-5.3 4.9-.2 3.1c.5 0 .7-.2 1-.5l1.7-1.6 2.6 1.9c.6.3 1 .1 1.1-.6l1.9-9.3z"/>
-    </svg>
-    Join Telegram
-  </a>
-
-  <a class="btn btn-ghost" href="https://x.com/Oldremy" target="_blank" rel="noopener noreferrer">
-    <!-- X SVG -->
-    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
-      <path fill="currentColor" d="M18.9 2H22l-7.7 8.8L22.7 22h-7.1l-5.5-7.3L3.8 22H1l8.4-9.6L1 2h7.2l5 6.7L18.9 2zM17.6 20h1.9L7.4 4H5.6l12 16z"/>
-    </svg>
-    @Oldremy
-  </a>
-
-  <a class="btn btn-ghost" href="https://x.com/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
-    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
-      <path fill="currentColor" d="M18.9 2H22l-7.7 8.8L22.7 22h-7.1l-5.5-7.3L3.8 22H1l8.4-9.6L1 2h7.2l5 6.7L18.9 2zM17.6 20h1.9L7.4 4H5.6l12 16z"/>
-    </svg>
-    @NexaKennelKlub
-  </a>
-      <a class="btn btn-ghost kk-home" href="/" aria-label="Go to Home">🏠 Home</a>
-  <a class="btn btn-primary" href="/play.html" aria-current="page">Play Poker</a>
-  <a id="navConnect" class="btn btn-ghost" href="/connect.html" aria-current="page">Connect Wallet</a>
-</nav>
-   <div class="brand">
-      <div class="brand-badge">KK</div>
-      <h1>PixelPup BlackJack</h1>
-    </div>
-</header>
-  <div class="wrap">
-    <div class="hud">
-     <div class="panel panel-table" id="bjPanel">
-        <h1>Blackjack</h1>
-    
-   </div>
-         <p id="userTag" class="readout"></p>
-         <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
-         <a class="btn btn-ghost" href="bjpoints.html">Points</a>
-        <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
-        
-  
-        
-        <p id="bjFair" class="readout"></p>
-         
-        <div class="readout">Dealer</div>
-        <div id="bjDealer" class="card-hand" aria-live="polite"></div>
-
-        <div class="readout">You</div>
-        <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-bottom: 10px; width: 100%;">
-  ⬇️ Show Deposit Address
-</button>
-        <p id="payoutTotal">Total Payout: 0 KIBL</p>
-     <p id="kiblBalance">KIBL: —</p>
-     <p id="nexaBalance">NEXA: —</p>
-        <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
-
-        <div class="controls">
-          <button id="betBtn" class="btn">Place 100 KIBL bet</button>
-          
-          <button id="bjStart"  class="btn btn-primary">Feed the dealer</button>
-          <button id="bjHit"    class="btn" disabled>Hit</button>
-          <button id="bjStand"  class="btn" disabled>Stand</button>
-         <button id="bjDoubleBtn" class="btn" disabled>Double</button>
-          <button id="bjSplitBtn"  class="btn" disabled>Split</button>
-        
-        </div>
-        <!-- Blackjack Totals Panels -->
-<div id="bj-panels" aria-live="polite">
-  <div id="playerPanel" class="bj-dialog">
-    <header>
-      <strong>Your Hand</strong>
-      <span id="playerStatus" class="chip"></span>
-    </header>
-    <div class="body">
-      <div id="playerTotals"></div>
-      <div id="playerCards"></div>
-    </div>
-    <footer id="playerFooter" class="muted"></footer>
+  <header>
+  <nav>
+    <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
+        <path fill="#1C93E3" d="M12 0a12 12 0 1 0 0 24A12 12 0 0 0 12 0z"/>
+        <path fill="#fff" d="M17.9 7.4c.2-1-.8-1.3-1.6-1l-11 4.2c-.7.3-.7.8-.1 1l2.8.9 6.5-4.1c.3-.2.6-.1.4.1l-5.3 4.9-.2 3.1c.5 0 .7-.2 1-.5l1.7-1.6 2.6 1.9c.6.3 1 .1 1.1-.6l1.9-9.3z"/>
+      </svg>
+      Join Telegram
+    </a>
+    <a class="btn btn-ghost" href="https://x.com/Oldremy" target="_blank" rel="noopener noreferrer">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
+        <path fill="currentColor" d="M18.9 2H22l-7.7 8.8L22.7 22h-7.1l-5.5-7.3L3.8 22H1l8.4-9.6L1 2h7.2l5 6.7L18.9 2zM17.6 20h1.9L7.4 4H5.6l12 16z"/>
+      </svg>
+      @Oldremy
+    </a>
+    <a class="btn btn-ghost" href="https://x.com/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
+        <path fill="currentColor" d="M18.9 2H22l-7.7 8.8L22.7 22h-7.1l-5.5-7.3L3.8 22H1l8.4-9.6L1 2h7.2l5 6.7L18.9 2zM17.6 20h1.9L7.4 4H5.6l12 16z"/>
+      </svg>
+      @NexaKennelKlub
+    </a>
+    <a class="btn btn-ghost kk-home" href="/" aria-label="Go to Home">🏠 Home</a>
+    <a class="btn btn-primary" href="/play.html" aria-current="page">Play Poker</a>
+    <a id="navConnect" class="btn btn-ghost" href="/connect.html" aria-current="page">Connect Wallet</a>
+  </nav>
+  <div class="brand">
+    <div class="brand-badge">KK</div>
+    <h1>PixelPup BlackJack</h1>
   </div>
+</header>
 
-  <div id="dealerPanel" class="bj-dialog">
-    <header>
-      <strong>Dealer</strong>
-      <span id="dealerStatus" class="chip"></span>
-    </header>
-    <div class="body">
-      <div id="dealerTotals"></div>
-      <div id="dealerCards"></div>
-    </div>
-    <footer id="dealerFooter" class="muted"></footer>
-  
-      <div id="bjStatus" class="muted"></div>
-       
+<div class="wrap">
+  <div class="hud">
+    
+    <div class="panel panel-table" id="bjPanel">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h1>Blackjack</h1>
+        <p id="userTag" class="readout" style="margin:0;"></p>
       </div>
 
- 
-</div>
+      <div class="controls" style="justify-content: flex-start; margin-bottom:16px;">
+        <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
+        <a class="btn btn-ghost" href="bjpoints.html">Points</a>
+      </div>
 
-<section class="panel claim-block" style="margin-top:10px;">
-   </div>
-  <section class="panel" style="margin-top:10px;">
-    <h2>Season Points Window (Skill Points)</h2>
-    <ol id="leaderboardList" class="leaderboard"></ol>
-    <div class="readout" id="lbHint" style="margin-top:6px;"></div>
-    <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack">See full leaderboard →</a>
-    <h2>Claim</h2>
-    <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
-      FEED ME! 🐾
-    </a>
-     
-    </div>
-  </section>
-  
-</div>
+      <p id="bjFair" class="readout" style="font-size:10px; opacity:0.7;"></p>
+      
+      <div class="readout">Dealer</div>
+      <div id="bjDealer" class="card-hand" aria-live="polite"></div>
 
-    
-</div>
-        
+      <div class="readout" style="margin-top:16px;">You</div>
+      <div id="bjPlayer" class="card-hand" aria-live="polite"></div>
 
-  <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
+      <div style="margin-top: 20px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 12px;">
+        <p id="payoutTotal" style="margin:0 0 4px; color: var(--accent);">Total Payout: 0 KIBL</p>
+        <div style="display:flex; gap: 16px; font-family: monospace; color: var(--text-dim);">
+          <span id="kiblBalance">KIBL: —</span>
+          <span id="nexaBalance">NEXA: —</span>
+        </div>
+      </div>
+      <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-top: 10px; width:100%;">
+        ⬇️ Show Deposit Address
+      </button>
 
+      <div class="controls" style="margin-top:20px;">
+        <button id="betBtn" class="btn">Place 100 KIBL bet</button>
+        <button id="bjStart" class="btn btn-primary" style="display:none;">Feed the dealer</button> <button id="bjHit" class="btn" disabled>Hit</button>
+        <button id="bjStand" class="btn" disabled>Stand</button>
+        <button id="bjDoubleBtn" class="btn" disabled>Double</button>
+        <button id="bjSplitBtn" class="btn" disabled>Split</button>
+      </div>
+
+      <div id="bj-panels" aria-live="polite" style="margin-top:20px;">
+        <div id="playerPanel" class="bj-dialog">
+          <header>
+            <strong>Your Hand</strong>
+            <span id="playerStatus" class="chip play">Ready</span>
+          </header>
+          <div class="body">
+            <div id="playerTotals">—</div>
+            <div id="playerCards"></div>
+          </div>
+          <footer id="playerFooter" class="muted"></footer>
+        </div>
+
+        <div id="dealerPanel" class="bj-dialog">
+          <header>
+            <strong>Dealer</strong>
+            <span id="dealerStatus" class="chip play">Waiting</span>
+          </header>
+          <div class="body">
+            <div id="dealerTotals">—</div>
+            <div id="dealerCards"></div>
+          </div>
+          <footer id="dealerFooter" class="muted"></footer>
+        </div>
+      </div>
+      
+      <div id="bjStatus" class="muted" style="text-align:center; margin-top:10px; font-style:italic;"></div>
+    </div> <div class="panel panel-claim">
+      <h2>Season Points Window</h2>
+      <ol id="leaderboardList" class="leaderboard" style="padding-left: 0; list-style: none; margin-bottom: 12px;"></ol>
+      <div class="readout" id="lbHint" style="margin-top:6px;"></div>
+      <a class="btn btn-ghost" href="/leaderboard.html?game=blackjack" style="width:100%; text-align:center;">See full leaderboard →</a>
+
+      <div style="margin-top:24px; border-top:1px solid rgba(255,255,255,0.1); padding-top:16px;">
+        <h2>Claim</h2>
+        <button id="dailyReward" class="btn btn-ghost" style="width:100%; margin-bottom:10px;">Claim Daily Reward</button>
+        <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; display:block; padding:12px;">
+          FEED ME! 🐾 (Withdraw)
+        </a>
+      </div>
+    </div> </div> </div> <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
   
 <script>
   window.loadWalletBalances = async function(address) {
