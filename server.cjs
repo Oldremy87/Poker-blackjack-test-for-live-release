@@ -1232,7 +1232,7 @@ app.post('/api/daily-reward', rewardLimiter, async (req, res) => {
     console.log(`[Faucet] Sending ${FAUCET_AMOUNT} KIBL to ${targetAddress}...`);
 
     
-    const tx = await serverWallet.newTransaction(2.0)
+    const tx = await serverWallet.newTransaction(spendingAccount)
       .sendToToken(targetAddress, String(FAUCET_AMOUNT), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA for gas
       .build(); // Builds and Signs
@@ -1293,7 +1293,7 @@ app.post('/api/payout', payoutLimiter, async (req, res) => {
 
 
 
-    const tx = await serverWallet.newTransaction(2.0)
+    const tx = await serverWallet.newTransaction(spendingAccount)
       .sendToToken(targetAddress, String(sendMinor), process.env.KIBL_GROUP_ID || KIBL_GROUP_HEX)
       .sendTo(targetAddress, '546') // Dust NEXA
       .build();
