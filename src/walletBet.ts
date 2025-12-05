@@ -2,6 +2,7 @@
 import { Buffer } from 'buffer';
 import process from 'process';
 import * as nodeCrypto from 'crypto-browserify';
+import { rostrumProvider } from 'nexa-wallet-sdk';
 
 // Polyfills
 (globalThis as any).Buffer  ||= Buffer;
@@ -41,11 +42,11 @@ function getWalletCtor(mod: any) { return mod?.Wallet ?? mod?.default?.Wallet; }
  * Replaces the "made up" .isConnected check.
  * We try to fetch the block tip. If it works, the pipe is open.
  */
-async function isConnectionHealthy(provider: any) {
-  if (!provider) return false;
+async function isConnectionHealthy(rostrumProvider: any) {
+  if (!rostrumProvider) return false;
   try {
     // "Ping" the server
-    await provider.getBlockTip();
+    await rostrumProvider.getBlockTip();
     return true;
   } catch (e) {
     return false;
@@ -56,16 +57,16 @@ async function isConnectionHealthy(provider: any) {
  * CONNECT / RECONNECT ROUTINE
  * Tries Private Node -> Fails over to Public Node
  */
-async function establishConnection(provider: any) {
+async function establishConnection(rostrumProvider: any) {
   console.log('[Client] Connecting to network...');
 
   // 1. Try Private Node
   try {
     // Per your RostrumProvider.ts, this replaces the internal client
-    await provider.connect(PRIVATE_NODE);
+    await rostrumProvider.connect(PRIVATE_NODE);
     
     // Verify it actually works (Handshake isn't enough, we need data flow)
-    if (await isConnectionHealthy(provider)) {
+    if (await isConnectionHealthy(rostrumProvider)) {
         console.log('✅ Connected: Private Node');
         return true;
     }
@@ -75,8 +76,8 @@ async function establishConnection(provider: any) {
 
   // 2. Try Public Node (Failover)
   try {
-    await provider.connect(PUBLIC_NODE);
-    if (await isConnectionHealthy(provider)) {
+    await rostrumProvider.connect(PUBLIC_NODE);
+    if (await isConnectionHealthy(rostrumProvider)) {
         console.log('⚠️ Connected: Public Node');
         return true;
     }
@@ -93,11 +94,10 @@ export async function loadWallet(pass: string) {
     if (reconnectLock) { await reconnectLock; return cachedSession; }
 
     const { wallet } = cachedSession;
-    const provider = wallet.rostrumProvider || wallet.provider;
 
     // Fast Check: "Are we still there?"
     // We use getBlockTip() instead of .isConnected
-    const healthy = await isConnectionHealthy(provider);
+    const healthy = await isConnectionHealthy(rostrumProvider);
 
     if (healthy) {
         return cachedSession; // FAST PATH (Instant)
@@ -108,7 +108,7 @@ export async function loadWallet(pass: string) {
     
     reconnectLock = (async () => {
         try {
-            const success = await establishConnection(provider);
+            const success = await establishConnection(rostrumProvider);
             if (!success) throw new Error("Unable to reach network.");
             
             // If we reconnected, we MUST resync the wallet 
@@ -147,7 +147,7 @@ export async function loadWallet(pass: string) {
   const provider = wallet.rostrumProvider || wallet.provider;
   
   // Initial Connect
-  const connected = await establishConnection(provider);
+  const connected = await establishConnection(rostrumProvider);
   if (!connected) throw new Error('Could not connect to network.');
 
   console.log('[Client] Initializing Wallet (Scanning UTXOs)...');

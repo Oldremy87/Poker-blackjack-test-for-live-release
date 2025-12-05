@@ -1,4 +1,5 @@
 import { B as Buffer$1, p as process$1, n as nodeCrypto } from "./chunks/index-C_zbkbH-.js";
+import { rostrumProvider as $884ce55f1db7e177$export$eaa49f0478d81b9d } from "./chunks/index.web-Does7zZT.js";
 globalThis.Buffer ||= Buffer$1;
 globalThis.process ||= process$1;
 globalThis.__nodeCrypto = nodeCrypto;
@@ -17,20 +18,20 @@ async function getSdk() {
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
-async function isConnectionHealthy(provider) {
-  if (!provider) return false;
+async function isConnectionHealthy(rostrumProvider2) {
+  if (!rostrumProvider2) return false;
   try {
-    await provider.getBlockTip();
+    await rostrumProvider2.getBlockTip();
     return true;
   } catch (e) {
     return false;
   }
 }
-async function establishConnection(provider) {
+async function establishConnection(rostrumProvider2) {
   console.log("[Client] Connecting to network...");
   try {
-    await provider.connect(PRIVATE_NODE);
-    if (await isConnectionHealthy(provider)) {
+    await rostrumProvider2.connect(PRIVATE_NODE);
+    if (await isConnectionHealthy(rostrumProvider2)) {
       console.log("✅ Connected: Private Node");
       return true;
     }
@@ -38,8 +39,8 @@ async function establishConnection(provider) {
     console.warn("⚠️ Private node unreachable, trying public...");
   }
   try {
-    await provider.connect(PUBLIC_NODE);
-    if (await isConnectionHealthy(provider)) {
+    await rostrumProvider2.connect(PUBLIC_NODE);
+    if (await isConnectionHealthy(rostrumProvider2)) {
       console.log("⚠️ Connected: Public Node");
       return true;
     }
@@ -55,15 +56,14 @@ async function loadWallet(pass) {
       return cachedSession;
     }
     const { wallet: wallet2 } = cachedSession;
-    const provider2 = wallet2.rostrumProvider || wallet2.provider;
-    const healthy = await isConnectionHealthy(provider2);
+    const healthy = await isConnectionHealthy($884ce55f1db7e177$export$eaa49f0478d81b9d);
     if (healthy) {
       return cachedSession;
     }
     console.log("[Client] Connection stale. Reconnecting...");
     reconnectLock = (async () => {
       try {
-        const success = await establishConnection(provider2);
+        const success = await establishConnection($884ce55f1db7e177$export$eaa49f0478d81b9d);
         if (!success) throw new Error("Unable to reach network.");
         console.log("[Client] Resyncing wallet...");
         await wallet2.initialize();
@@ -88,8 +88,8 @@ async function loadWallet(pass) {
   const sdk = await getSdk();
   const WalletCtor = getWalletCtor(sdk);
   const wallet = new WalletCtor(seed, net);
-  const provider = wallet.rostrumProvider || wallet.provider;
-  const connected = await establishConnection(provider);
+  wallet.rostrumProvider || wallet.provider;
+  const connected = await establishConnection($884ce55f1db7e177$export$eaa49f0478d81b9d);
   if (!connected) throw new Error("Could not connect to network.");
   console.log("[Client] Initializing Wallet (Scanning UTXOs)...");
   await wallet.initialize();
