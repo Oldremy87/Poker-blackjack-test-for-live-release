@@ -90,23 +90,23 @@ function getWalletCtor(mod: any) {
 }
 
 export async function loadWallet(pass: string) {
-  // 1. Return Cache if valid
+  // 1. Check Cache Health
   if (cachedSession) {
-    const { rostrumProvider } = cachedSession.sdk;
+    // We look at the provider attached to the SDK or the Wallet
+    const provider = cachedSession.sdk.rostrumProvider;
     
-    // --- FIX: AGGRESSIVE HEALTH CHECK ---
-    // If the provider is dead, we DESTROY the cache and force a full reload.
-    // We do NOT try to reconnect the zombie provider.
-    if (!rostrumProvider.isConnected) {
-       console.log('[Client] Connection dropped. Destroying stale session...');
-       cachedSession = null; 
-       // Fall through to "Initial Load" below to create a FRESH wallet/provider
-    } else {
+    // SAFEGUARD: Check if provider exists AND is connected
+    // If it's undefined or disconnected, we treat the session as dead.
+    if (provider && provider.isConnected) {
        return cachedSession;
     }
+
+    console.log('[Client] Connection dropped or stale. Destroying session to force reload...');
+    // NUKE THE CACHE. This forces a fresh connection below.
+    cachedSession = null; 
   }
 
-  // 2. Initial Load (Decrypt)
+  // 2. Initial Load (Or Reload if cache was nuked)
   const rawB64 = localStorage.getItem(KEY);
   const ivB64  = localStorage.getItem(IV);
   if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
@@ -123,21 +123,16 @@ export async function loadWallet(pass: string) {
 
   // --- SDK + provider
   const sdk = await getSdk();
-  
-  // NOTE: The Wallet constructor below creates its own provider internally.
-  // We don't manually create one here anymore to avoid sync issues.
-  
+  const { rostrumProvider } = sdk;
+
+  // Connect FRESH instance
+  await connectMainnet(rostrumProvider);
+
+  // --- wallet + account
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
 
   const wallet  = new WalletCtor(seed, net);
-  
-  // Extract the provider the wallet created
-  const rostrumProvider = wallet.rostrumProvider || wallet.provider;
-
-  // Connect utilizing our safe wrapper
-  await connectMainnet(rostrumProvider);
-
   console.log('[Client] Initializing Wallet (Scanning UTXOs)...');
   await wallet.initialize(); 
 

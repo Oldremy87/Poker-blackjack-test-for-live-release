@@ -54,13 +54,12 @@ function getWalletCtor(mod) {
 }
 async function loadWallet(pass) {
   if (cachedSession) {
-    const { rostrumProvider: rostrumProvider2 } = cachedSession.sdk;
-    if (!rostrumProvider2.isConnected) {
-      console.log("[Client] Connection dropped. Destroying stale session...");
-      cachedSession = null;
-    } else {
+    const provider = cachedSession.sdk.rostrumProvider;
+    if (provider && provider.isConnected) {
       return cachedSession;
     }
+    console.log("[Client] Connection dropped or stale. Destroying session to force reload...");
+    cachedSession = null;
   }
   const rawB64 = localStorage.getItem(KEY);
   const ivB64 = localStorage.getItem(IV);
@@ -74,11 +73,11 @@ async function loadWallet(pass) {
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
+  const { rostrumProvider } = sdk;
+  await connectMainnet(rostrumProvider);
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
-  const rostrumProvider = wallet.rostrumProvider || wallet.provider;
-  await connectMainnet(rostrumProvider);
   console.log("[Client] Initializing Wallet (Scanning UTXOs)...");
   await wallet.initialize();
   const account = wallet.accountStore.getAccount("2.0");
