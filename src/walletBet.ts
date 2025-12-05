@@ -17,7 +17,6 @@ const HOUSE_ADDRESS   = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';
 const KIBL_TOKEN_ID   = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt';
 
 // --- SINGLETON CACHE ---
-// This prevents reloading/reconnecting on every bet
 let cachedSession: {
   wallet: any;
   account: any;
@@ -27,6 +26,10 @@ let cachedSession: {
   sdk: any;
 } | null = null;
 
+// --- FIX: CONNECTION LOCK ---
+// Prevents multiple parallel connection attempts
+let connectionPromise: Promise<void> | null = null;
+
 async function getSdk() {
   return await import('nexa-wallet-sdk');
 }
@@ -34,39 +37,52 @@ async function getSdk() {
 // --- NODE CONFIGURATIONS ---
 const PRIVATE_NODE = {
   scheme: 'wss' as const,
-  host: 'node.remy-dev.com', // Your Bare Metal NVMe Node
-  port: 443,                 // Cloudflare Tunnel
+  host: 'node.remy-dev.com', 
+  port: 443,                 
 };
 
 const PUBLIC_NODE = {
   scheme: 'wss' as const,
-  host: 'electrum.nexa.org', // Backup
+  host: 'electrum.nexa.org', 
   port: 20004,
 };
 
 async function connectMainnet(rostrumProvider: any) {
-  // 1. Check if already connected (Fast exit)
-  if (rostrumProvider.isConnected) return;
+  // --- FIX: Reuse in-flight connection attempts ---
+  if (connectionPromise) return connectionPromise;
 
-  console.log('[Client] Connecting to network...');
+  connectionPromise = (async () => {
+    try {
+      if (rostrumProvider.isConnected) return;
 
-  // 2. Attempt Private Node (Fast Lane)
-  try {
-    await rostrumProvider.connect(PRIVATE_NODE);
-    console.log('✅ Connected to Private Node');
-    return;
-  } catch (e) {
-    console.warn('⚠️ Private node unreachable, switching to public backup...');
-  }
+      console.log('[Client] Connecting to network...');
 
-  // 3. Fallback to Public Node (Slow Lane)
-  try {
-    await rostrumProvider.connect(PUBLIC_NODE);
-    console.log('⚠️ Connected to Public Backup Node');
-  } catch (e) {
-    console.error('❌ All network nodes failed.');
-    throw new Error('Network connection failed. Please refresh.');
-  }
+      // 1. Private Node
+      try {
+        await rostrumProvider.connect(PRIVATE_NODE);
+        console.log('✅ Connected to Private Node');
+        return;
+      } catch (e) {
+        console.warn('⚠️ Private node unreachable, switching to public backup...');
+      }
+
+      // 2. Public Node
+      try {
+        // --- FIX: Add a small delay to let the socket cleanup ---
+        await new Promise(r => setTimeout(r, 200)); 
+        await rostrumProvider.connect(PUBLIC_NODE);
+        console.log('⚠️ Connected to Public Backup Node');
+      } catch (e) {
+        console.error('❌ All network nodes failed.');
+        throw new Error('Network connection failed. Please refresh.');
+      }
+    } finally {
+      // Release lock
+      connectionPromise = null;
+    }
+  })();
+
+  return connectionPromise;
 }
 
 function getWalletCtor(mod: any) {
@@ -74,18 +90,23 @@ function getWalletCtor(mod: any) {
 }
 
 export async function loadWallet(pass: string) {
-  // 1. Return Cache if available
+  // 1. Return Cache if valid
   if (cachedSession) {
-    // Ensure connection is still alive before returning
     const { rostrumProvider } = cachedSession.sdk;
+    
+    // --- FIX: AGGRESSIVE HEALTH CHECK ---
+    // If the provider is dead, we DESTROY the cache and force a full reload.
+    // We do NOT try to reconnect the zombie provider.
     if (!rostrumProvider.isConnected) {
-      console.log('[Client] Connection dropped, reconnecting...');
-      await connectMainnet(rostrumProvider);
+       console.log('[Client] Connection dropped. Destroying stale session...');
+       cachedSession = null; 
+       // Fall through to "Initial Load" below to create a FRESH wallet/provider
+    } else {
+       return cachedSession;
     }
-    return cachedSession;
   }
 
-  // 2. Initial Load (Decrypt from LocalStorage)
+  // 2. Initial Load (Decrypt)
   const rawB64 = localStorage.getItem(KEY);
   const ivB64  = localStorage.getItem(IV);
   if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
@@ -102,17 +123,23 @@ export async function loadWallet(pass: string) {
 
   // --- SDK + provider
   const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
-
-  await connectMainnet(rostrumProvider);
-
-  // --- wallet + account
+  
+  // NOTE: The Wallet constructor below creates its own provider internally.
+  // We don't manually create one here anymore to avoid sync issues.
+  
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error('Wallet export missing');
 
   const wallet  = new WalletCtor(seed, net);
+  
+  // Extract the provider the wallet created
+  const rostrumProvider = wallet.rostrumProvider || wallet.provider;
+
+  // Connect utilizing our safe wrapper
+  await connectMainnet(rostrumProvider);
+
   console.log('[Client] Initializing Wallet (Scanning UTXOs)...');
-  await wallet.initialize(); // <--- This is expensive, we only want to do it once!
+  await wallet.initialize(); 
 
   const account = wallet.accountStore.getAccount('2.0');
   if (!account) throw new Error('DApp account (2.0) not found.');
@@ -144,13 +171,11 @@ export async function placeBet({
 }: {
   passphrase: string; kiblAmount: number; tokenIdHex: string; feeNexa: number;
 }) {
-  // Passphrase check is only strict if we don't have a cache.
-  // If cached, we ignore the passphrase (already decrypted).
   if (!cachedSession && (!passphrase || passphrase.length < 8)) {
      throw new Error('Password required (8+ chars).');
   }
   
-  // 1. Get Wallet (Cached or New)
+  // 1. Get Wallet (Safely handles reconnects now)
   const { wallet, account, address, network } = await loadWallet(passphrase);
   
   console.log('[Client] Building Transaction...');
@@ -165,7 +190,6 @@ export async function placeBet({
     .build();
   
   // 3. BROADCAST
-  // No "Loading..." or "Connecting..." logs should appear here on 2nd bet
   const txId = await wallet.sendTransaction(signedTx);
 
   console.log('[Client] Bet Sent! TxId:', txId);

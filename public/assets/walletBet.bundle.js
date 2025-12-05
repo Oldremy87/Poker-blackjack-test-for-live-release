@@ -8,39 +8,46 @@ const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42
 const HOUSE_ADDRESS = "nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3";
 const KIBL_TOKEN_ID = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 let cachedSession = null;
+let connectionPromise = null;
 async function getSdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
 const PRIVATE_NODE = {
   scheme: "wss",
   host: "node.remy-dev.com",
-  // Your Bare Metal NVMe Node
   port: 443
-  // Cloudflare Tunnel
 };
 const PUBLIC_NODE = {
   scheme: "wss",
   host: "electrum.nexa.org",
-  // Backup
   port: 20004
 };
 async function connectMainnet(rostrumProvider) {
-  if (rostrumProvider.isConnected) return;
-  console.log("[Client] Connecting to network...");
-  try {
-    await rostrumProvider.connect(PRIVATE_NODE);
-    console.log("✅ Connected to Private Node");
-    return;
-  } catch (e) {
-    console.warn("⚠️ Private node unreachable, switching to public backup...");
-  }
-  try {
-    await rostrumProvider.connect(PUBLIC_NODE);
-    console.log("⚠️ Connected to Public Backup Node");
-  } catch (e) {
-    console.error("❌ All network nodes failed.");
-    throw new Error("Network connection failed. Please refresh.");
-  }
+  if (connectionPromise) return connectionPromise;
+  connectionPromise = (async () => {
+    try {
+      if (rostrumProvider.isConnected) return;
+      console.log("[Client] Connecting to network...");
+      try {
+        await rostrumProvider.connect(PRIVATE_NODE);
+        console.log("✅ Connected to Private Node");
+        return;
+      } catch (e) {
+        console.warn("⚠️ Private node unreachable, switching to public backup...");
+      }
+      try {
+        await new Promise((r) => setTimeout(r, 200));
+        await rostrumProvider.connect(PUBLIC_NODE);
+        console.log("⚠️ Connected to Public Backup Node");
+      } catch (e) {
+        console.error("❌ All network nodes failed.");
+        throw new Error("Network connection failed. Please refresh.");
+      }
+    } finally {
+      connectionPromise = null;
+    }
+  })();
+  return connectionPromise;
 }
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
@@ -49,10 +56,11 @@ async function loadWallet(pass) {
   if (cachedSession) {
     const { rostrumProvider: rostrumProvider2 } = cachedSession.sdk;
     if (!rostrumProvider2.isConnected) {
-      console.log("[Client] Connection dropped, reconnecting...");
-      await connectMainnet(rostrumProvider2);
+      console.log("[Client] Connection dropped. Destroying stale session...");
+      cachedSession = null;
+    } else {
+      return cachedSession;
     }
-    return cachedSession;
   }
   const rawB64 = localStorage.getItem(KEY);
   const ivB64 = localStorage.getItem(IV);
@@ -66,11 +74,11 @@ async function loadWallet(pass) {
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
   const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
   const sdk = await getSdk();
-  const { rostrumProvider } = sdk;
-  await connectMainnet(rostrumProvider);
   const WalletCtor = getWalletCtor(sdk);
   if (!WalletCtor) throw new Error("Wallet export missing");
   const wallet = new WalletCtor(seed, net);
+  const rostrumProvider = wallet.rostrumProvider || wallet.provider;
+  await connectMainnet(rostrumProvider);
   console.log("[Client] Initializing Wallet (Scanning UTXOs)...");
   await wallet.initialize();
   const account = wallet.accountStore.getAccount("2.0");
