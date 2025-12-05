@@ -745,13 +745,16 @@ body.compact {
     <p class="readout">Tap a card to keep it for the draw.</p>
     
    
-     <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:11px;">
-  ⬇️ Deposit / Show Address
-</button>
-     <p id="payoutTotal">Total Payout: 0 KIBL</p>
-     <p id="kiblBalance">KIBL: —</p>
-     <p id="nexaBalance">NEXA: —</p>
-  </div>
+     <div style="margin-top: 20px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 12px;">
+        <p id="payoutTotal" style="margin:0 0 4px; color: var(--accent);">Total Payout: 0 KIBL</p>
+        <div style="display:flex; gap: 16px; font-family: monospace; color: var(--text-dim);">
+          <span id="kiblBalance">KIBL: —</span>
+          <span id="nexaBalance">NEXA: —</span>
+        </div>
+      </div>
+      <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-top: 10px; width:100%;">
+        ⬇️ Show Deposit Address
+      </button>
 
   <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
   <div class="panel panel-claim">
