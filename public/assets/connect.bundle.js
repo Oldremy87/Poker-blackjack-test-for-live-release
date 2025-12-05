@@ -4,6 +4,8 @@ globalThis.process = process$1;
 globalThis.__nodeCrypto = nodeCrypto;
 const KEY = "kk_wallet_v1";
 const IV = "kk_wallet_iv_v1";
+const PRIVATE_NODE = { scheme: "wss", host: "node.remy-dev.com", port: 443 };
+const PUBLIC_NODE = { scheme: "wss", host: "electrum.nexa.org", port: 20004 };
 async function sdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
@@ -56,7 +58,6 @@ async function enc(pass, data) {
   localStorage.setItem("kk_has_pass", "1");
 }
 async function init() {
-  document.getElementById("net");
   const passEl = document.getElementById("pass");
   const pass2El = document.getElementById("pass2");
   const btnCreate = document.getElementById("btnCreate");
@@ -82,33 +83,41 @@ async function init() {
   pass2El.addEventListener("input", passOk);
   async function bootFromSeed(seed, net) {
     const { Wallet, rostrumProvider } = await sdk();
+    const checkConnection = async () => {
+      try {
+        const timeout = new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 2e3));
+        await Promise.race([rostrumProvider.getBlockTip(), timeout]);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    console.log("[Connect] Connecting to network...");
     let connected = false;
     try {
-      await rostrumProvider.disconnect();
-    } catch {
+      await rostrumProvider.connect(PRIVATE_NODE);
+      if (await checkConnection()) {
+        console.log("✅ Connected: Private Node");
+        connected = true;
+      }
+    } catch (e) {
+      console.warn("⚠️ Private node unreachable, trying public...");
     }
-    for (let i = 0; i < 3; i++) {
+    if (!connected) {
       try {
-        if (!rostrumProvider.isConnected) {
-          console.log(`[Connect] Connecting attempt ${i + 1}...`);
-          await rostrumProvider.connect({
-            scheme: "wss",
-            host: "electrum.nexa.org",
-            port: 20004
-          });
-        }
-        if (rostrumProvider.isConnected) {
+        await rostrumProvider.connect(PUBLIC_NODE);
+        if (await checkConnection()) {
+          console.log("⚠️ Connected: Public Node");
           connected = true;
-          break;
         }
       } catch (e) {
-        console.warn(`[Connect] Retry ${i + 1}:`, e);
-        await new Promise((r) => setTimeout(r, 1500 + i * 1e3));
+        console.error("❌ Public node failed");
       }
     }
     if (!connected) {
-      throw new Error("Network Error: Could not connect to Nexa. Please check your signal and try again.");
+      throw new Error("Network Error: Could not reach Nexa nodes. Please check your internet connection.");
     }
+    console.log("[Connect] Scanning wallet...");
     const wallet = new Wallet(seed, net);
     await wallet.initialize();
     const account = wallet.accountStore.getAccount("2.0");
@@ -120,21 +129,27 @@ async function init() {
   }
   btnCreate.addEventListener("click", async () => {
     try {
+      btnCreate.disabled = true;
+      btnCreate.textContent = "Generating...";
       const pass = passEl.value;
       const net = "mainnet";
       const { Wallet } = await sdk();
       const w = Wallet.create();
       const seed = w.export().phrase;
       await enc(pass, JSON.stringify({ seed, net }));
+      btnCreate.textContent = "Connecting...";
       const r = await bootFromSeed(seed, net);
       address = r.address;
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
       importArea.hidden = false;
       seedIn.value = seed;
-      alert("Wallet Created! \n\nIMPORTANT: Your seed phrase is shown in the box below. Write it down now. It will disappear when you leave this page.");
+      alert("Wallet Created! \n\nIMPORTANT: Write down the seed phrase shown below immediately.");
     } catch (e) {
       alert(e.message || "Create failed");
+    } finally {
+      btnCreate.disabled = false;
+      btnCreate.textContent = "Create New Wallet";
     }
   });
   btnImport.addEventListener("click", () => {
@@ -142,6 +157,8 @@ async function init() {
   });
   btnDoImport.addEventListener("click", async () => {
     try {
+      btnDoImport.disabled = true;
+      btnDoImport.textContent = "Importing...";
       const pass = passEl.value;
       const net = "mainnet";
       const seed = require12Words(normalizeSeed(seedIn.value));
@@ -150,9 +167,12 @@ async function init() {
       address = r.address;
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
-      alert("Wallet Imported & Encrypted!");
+      alert("Wallet Imported Successfully!");
     } catch (e) {
       alert(e.message || "Import failed");
+    } finally {
+      btnDoImport.disabled = false;
+      btnDoImport.textContent = "Load Wallet";
     }
   });
   btnLink.addEventListener("click", async () => {

@@ -9,6 +9,10 @@ import * as nodeCrypto from 'crypto-browserify';
 const KEY = 'kk_wallet_v1';
 const IV = 'kk_wallet_iv_v1';
 
+// --- NODE CONFIGURATIONS (Unified with walletBet.ts) ---
+const PRIVATE_NODE = { scheme: 'wss' as const, host: 'node.remy-dev.com', port: 443 };
+const PUBLIC_NODE  = { scheme: 'wss' as const, host: 'electrum.nexa.org', port: 20004 };
+
 async function sdk() {
   return await import('nexa-wallet-sdk');
 }
@@ -64,18 +68,7 @@ async function enc(pass: string, data: string) {
   localStorage.setItem('kk_has_pass', '1');
 }
 
-async function dec(pass: string) {
-  const key = await aesKey(pass);
-  const ivb = atob(localStorage.getItem(IV) || '');
-  const iv = new Uint8Array([...ivb].map(c => c.charCodeAt(0)));
-  const ctb = atob(localStorage.getItem(KEY) || '');
-  const ct = new Uint8Array([...ctb].map(c => c.charCodeAt(0)));
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
-  return new TextDecoder().decode(pt);
-}
-
 async function init() {
-  const netSel = document.getElementById('net') as HTMLSelectElement;
   const passEl = document.getElementById('pass') as HTMLInputElement;
   const pass2El = document.getElementById('pass2') as HTMLInputElement;
   const btnCreate = document.getElementById('btnCreate') as HTMLButtonElement;
@@ -103,45 +96,60 @@ async function init() {
   passEl.addEventListener('input', passOk);
   pass2El.addEventListener('input', passOk);
 
-  // --- MOBILE HARDENED BOOT FUNCTION ---
+  // --- ROBUST BOOT FUNCTION ---
   async function bootFromSeed(seed: string, net: 'mainnet') {
     const { Wallet, rostrumProvider } = await sdk();
 
-    // 1. Mobile Hardening: Force kill zombie connections
-    let connected = false;
-    try { await rostrumProvider.disconnect(); } catch {}
-
-    // 2. Aggressive Retry Loop
-    for (let i = 0; i < 3; i++) {
+    // 1. Health Check Helper (The Ping Test)
+    const checkConnection = async () => {
         try {
-            if (!rostrumProvider.isConnected) {
-                console.log(`[Connect] Connecting attempt ${i+1}...`);
-                await rostrumProvider.connect({
-                  scheme: 'wss',
-                  host: 'electrum.nexa.org',
-                  port: 20004,
-                });
-            }
-            if (rostrumProvider.isConnected) {
+            // Race against 2s timeout
+            const timeout = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 2000));
+            await Promise.race([rostrumProvider.getBlockTip(), timeout]);
+            return true;
+        } catch { return false; }
+    };
+
+    console.log('[Connect] Connecting to network...');
+    let connected = false;
+
+    // 2. Try Private Node (Priority)
+    try {
+        await rostrumProvider.connect(PRIVATE_NODE);
+        if (await checkConnection()) {
+            console.log('✅ Connected: Private Node');
+            connected = true;
+        }
+    } catch (e) {
+        console.warn('⚠️ Private node unreachable, trying public...');
+    }
+
+    // 3. Failover to Public Node
+    if (!connected) {
+        try {
+            await rostrumProvider.connect(PUBLIC_NODE);
+            if (await checkConnection()) {
+                console.log('⚠️ Connected: Public Node');
                 connected = true;
-                break; 
             }
         } catch (e) {
-            console.warn(`[Connect] Retry ${i+1}:`, e);
-            await new Promise(r => setTimeout(r, 1500 + (i * 1000))); 
+            console.error('❌ Public node failed');
         }
     }
-    
+
     if (!connected) {
-        throw new Error("Network Error: Could not connect to Nexa. Please check your signal and try again.");
+        throw new Error("Network Error: Could not reach Nexa nodes. Please check your internet connection.");
     }
 
+    // 4. Initialize Wallet
+    console.log('[Connect] Scanning wallet...');
     const wallet = new Wallet(seed, net);
     await wallet.initialize();
     
     const account = wallet.accountStore.getAccount('2.0');
     const k = account.getPrimaryAddressKey();
     
+    // Get KIBL Balance
     const tokenId = process.env.KIBL_TOKEN_ID_HEX || '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
     const kiblBal = account.tokenBalances[tokenId]?.confirmed || 0;
     
@@ -152,6 +160,9 @@ async function init() {
 
   btnCreate.addEventListener('click', async () => {
     try {
+      btnCreate.disabled = true;
+      btnCreate.textContent = "Generating...";
+      
       const pass = passEl.value;
       const net = 'mainnet';
       const { Wallet } = await sdk();
@@ -160,18 +171,21 @@ async function init() {
       
       await enc(pass, JSON.stringify({ seed, net }));
       
+      btnCreate.textContent = "Connecting...";
       const r = await bootFromSeed(seed, net);
       address = r.address;
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
       
-      // SHOW SEED PHRASE TO USER
       importArea.hidden = false;
       seedIn.value = seed;
-      alert('Wallet Created! \n\nIMPORTANT: Your seed phrase is shown in the box below. Write it down now. It will disappear when you leave this page.');
+      alert('Wallet Created! \n\nIMPORTANT: Write down the seed phrase shown below immediately.');
       
     } catch (e: any) {
       alert(e.message || 'Create failed');
+    } finally {
+      btnCreate.disabled = false;
+      btnCreate.textContent = "Create New Wallet";
     }
   });
 
@@ -181,6 +195,9 @@ async function init() {
 
   btnDoImport.addEventListener('click', async () => {
     try {
+      btnDoImport.disabled = true;
+      btnDoImport.textContent = "Importing...";
+
       const pass = passEl.value;
       const net = 'mainnet';
       const seed = require12Words(normalizeSeed(seedIn.value));
@@ -191,9 +208,12 @@ async function init() {
       address = r.address;
       addrText.textContent = `Address: ${address}`;
       linked.hidden = false;
-      alert('Wallet Imported & Encrypted!');
+      alert('Wallet Imported Successfully!');
     } catch (e: any) {
       alert(e.message || 'Import failed');
+    } finally {
+      btnDoImport.disabled = false;
+      btnDoImport.textContent = "Load Wallet";
     }
   });
 
@@ -208,7 +228,6 @@ async function init() {
     }
   });
 
-  // Auto-unlock logic
   if (localStorage.getItem(KEY)) {
       passEl.placeholder = "Enter password to unlock existing wallet";
   }
