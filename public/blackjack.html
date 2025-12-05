@@ -1654,16 +1654,14 @@ async function onClaimPayout() {
 
     // C. Local Storage
     state.localWallet = !!localStorage.getItem('kk_wallet_v1');
-    // F. Setup Backup Button (Security Check)
-    const btnBackup = document.getElementById('btnBackup');
+   const btnBackup = document.getElementById('btnBackup');
     const backupSection = document.getElementById('backupSection');
     
     if (state.localWallet && backupSection) {
-        backupSection.style.display = 'block'; // Show if wallet exists
+        backupSection.style.display = 'block'; 
     }
 
     if (btnBackup) {
-        // Clone to clear old listeners
         const newBackup = btnBackup.cloneNode(true);
         btnBackup.parentNode.replaceChild(newBackup, btnBackup);
         
@@ -1672,9 +1670,16 @@ async function onClaimPayout() {
             if (!pass) return;
 
             try {
-                // Dynamic import to keep init fast
-                const { recoverSeed } = await import("/assets/walletBet.bundle.js");
-                const seed = await recoverSeed(pass);
+                // FIX: Add timestamp ?t=... to force browser to ignore cache and get the new file
+                const module = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
+                
+                const recoverFn = module.recoverSeed || (module.default && module.default.recoverSeed);
+
+                if (typeof recoverFn !== 'function') {
+                    throw new Error("Recovery function still missing. Please Hard Refresh (Ctrl+F5).");
+                }
+
+                const seed = await recoverFn(pass);
                 
                 const confirmBackup = confirm(
                     "SECURITY WARNING:\n\n" +
@@ -1687,7 +1692,8 @@ async function onClaimPayout() {
                     prompt("Here is your Secret Recovery Phrase. Copy it somewhere safe:", seed);
                 }
             } catch (e) {
-                alert("Error: " + e.message);
+                console.error(e);
+                alert("Error: " + (e.message || String(e)));
             }
         };
     }
