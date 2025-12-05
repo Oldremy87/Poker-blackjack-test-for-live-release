@@ -779,17 +779,17 @@ body.compact {
   <div class="hud">
     
     <div class="panel panel-table" id="bjPanel">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
         <h1>Blackjack</h1>
         <p id="userTag" class="readout" style="margin:0;"></p>
       </div>
-      <p id="bjFair" class="readout" style="font-size:10px; opacity:0.7;"></p>
+      <p id="bjFair" class="readout" style="font-size:6px; opacity:0.7;"></p>
       
       <div class="readout">Dealer</div>
       <div id="bjDealer" class="card-hand" aria-live="polite"></div>
 
-      <div class="readout" style="margin-top:6px;">You</div>
-      <div id="bjPlayer" class="card-hand" aria-live="polite"></div><div class="controls" style="margin-top:10px;">
+      <div class="readout" style="margin-top:2px;">You</div>
+      <div id="bjPlayer" class="card-hand" aria-live="polite"></div><div class="controls" style="margin-top:5px;">
         <button id="betBtn" class="btn">Place 100 KIBL bet</button>
         <button id="bjStart" class="btn btn-primary" style="display:none;">Feed the dealer</button> 
         <button id="bjHit" class="btn" disabled>Hit</button>
@@ -797,19 +797,19 @@ body.compact {
         <button id="bjDoubleBtn" class="btn" disabled>Double</button>
         <button id="bjSplitBtn" class="btn" disabled>Split</button>
       </div>
-       <div style="margin-top: 10px; padding: 6px; background: rgba(0,0,0,0.3); border-radius: 6px;">
+       <div style="margin-top: 5px; padding: 3px; background: rgba(0,0,0,0.3); border-radius: 3px;">
         <p id="payoutTotal" style="margin:0 0 4px; color: var(--accent);">Total Payout: 0 KIBL</p>
-        <div style="display:flex; gap: 16px; font-family: monospace; color: var(--text-dim);">
+        <div style="display:flex; gap: 8px; font-family: monospace; color: var(--text-dim);">
           <span id="kiblBalance">KIBL: —</span>
           <span id="nexaBalance">NEXA: —</span>
         </div>
       </div>
-      <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-top: 10px; width:100%;">
+      <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:10px; margin-top: 5px; width:100%;">
         ⬇️ Show Deposit Address
       </button>
     
 
-      <div id="bj-panels" aria-live="polite" style="margin-top:10px;">
+      <div id="bj-panels" aria-live="polite" style="margin-top:5px;">
         <div id="playerPanel" class="bj-dialog">
           <header>
             <strong>Your Hand</strong>
@@ -837,8 +837,6 @@ body.compact {
       
       <div id="bjStatus" class="muted" style="text-align:center; margin-top:10px; font-style:italic;"></div>
     </div> <div class="panel panel-claim">
-      <a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
-        <a class="btn btn-ghost" href="bjpoints.html">Points</a>
       <h2>Season Points Window</h2>
       <ol id="leaderboardList" class="leaderboard" style="padding-left: 0; list-style: none; margin-bottom: 12px;"></ol>
       <div class="readout" id="lbHint" style="margin-top:6px;"></div>
@@ -857,6 +855,8 @@ body.compact {
     Reveal Secret Recovery Phrase
   </button>
 </div>
+<a class="btn btn-ghost" href="bjachievements.html">Achievements</a>
+        <a class="btn btn-ghost" href="bjpoints.html">Points</a>
       </div>
     </div> </div> </div> <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
   
