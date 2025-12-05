@@ -807,6 +807,13 @@ body.compact {
       <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-top: 10px; width:100%;">
         ⬇️ Show Deposit Address
       </button>
+      <div id="backupSection" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px; display: none;">
+  <h3>⚠️ Security Check</h3>
+  <p class="readout">If you clear your browser data, you will lose your funds.</p>
+  <button id="btnBackup" class="btn btn-ghost" style="border-color: #ff5577; color: #ff5577;">
+    Reveal Secret Recovery Phrase
+  </button>
+</div>
 
       <div class="controls" style="margin-top:20px;">
         <button id="betBtn" class="btn">Place 100 KIBL bet</button>
@@ -1576,6 +1583,7 @@ async function onClaimPayout() {
  <script type="module">
   import { placeBet } from "/assets/walletBet.bundle.js?v=2";
   import { getSigner } from "/assets/wallet-modal.js?v=Christmasv22cacheupdate";
+  import { recoverSeed } from "/assets/walletBet.bundle.js";
   window.placeBet = placeBet;
 
   // 1. Setup
@@ -1602,6 +1610,36 @@ async function onClaimPayout() {
     const navConnect = document.getElementById('navConnect');
     const oldStart = document.getElementById('bjStart');
     const statusMsg = document.getElementById('bjStatus');
+    const btnBackup = document.getElementById('btnBackup');
+  const section   = document.getElementById('backupSection');
+
+  // Check if wallet exists to show the button
+  if (localStorage.getItem('kk_wallet_v1')) {
+      section.style.display = 'block';
+  }
+
+  btnBackup.addEventListener('click', async () => {
+      const pass = prompt("Enter your wallet password to reveal your seed:");
+      if (!pass) return;
+
+      try {
+          const seed = await recoverSeed(pass);
+          
+          // Secure Display Logic
+          const confirmBackup = confirm(
+              "SECURITY WARNING:\n\n" +
+              "Never share this phrase with anyone.\n" +
+              "Anyone with this phrase can steal your funds.\n\n" +
+              "Click OK to view your seed phrase."
+          );
+
+          if (confirmBackup) {
+              prompt("Here is your Secret Recovery Phrase. Copy it somewhere safe:", seed);
+          }
+      } catch (e) {
+          alert("Error: " + e.message);
+      }
+  });
 
     // Cleanup UI
     if (oldStart) oldStart.style.display = 'none';
