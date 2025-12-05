@@ -760,9 +760,6 @@ body.compact {
   <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
   <div class="panel panel-claim">
     <div class="controls">
-      <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
-      <a class="btn btn-ghost" href="achievements.html">Achievements</a>
-     <a class="btn btn-ghost" href="pointstable.html">Point Table</Table></a>
       <div class="panel" id="leaderboardPanel">
   <h2>Season Points Window (Skill Points)</h2>
   <ol id="leaderboardList" class="leaderboard"></ol>
@@ -776,15 +773,18 @@ body.compact {
   <h2>Claim</h2>
   
     <div class="row">
-       <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center;">
-      FEED ME! 🐾
-    </a>
+      <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
+       <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; display:block; padding:12px;">
+          FEED ME! 🐾 (Withdraw)
+        </a>
   <div id="backupSection" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px; display: none;">
   <h3>⚠️ Security Check</h3>
   <p class="readout">If you clear your browser data, you will lose your funds.</p>
   <button id="btnBackup" class="btn btn-ghost" style="border-color: #ff5577; color: #ff5577;">
     Reveal Secret Recovery Phrase
   </button>
+   <a class="btn btn-ghost" href="achievements.html">Achievements</a>
+     <a class="btn btn-ghost" href="pointstable.html">Point Table</Table></a>
 </div>
 </section>
       
