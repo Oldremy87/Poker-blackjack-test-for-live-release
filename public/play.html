@@ -627,21 +627,18 @@ body.compact {
 
 </style>
 <body>
-<!-- Themed Age Gate Overlay -->
 <div id="ageGate"
      role="dialog"
      aria-labelledby="ageTitle"
      aria-describedby="ageDesc"
      aria-modal="true"
      style="position:fixed; inset:0; z-index:9999; display:none;">
-  <!-- Backdrop -->
   <div class="age-backdrop" style="position:absolute; inset:0;
     background:
       radial-gradient(1200px 800px at 50% -20%, #13203b 0%, #0b0f19 60%, #05070d 100%),
       linear-gradient(180deg, #0b0f19 0%, #05070d 100%);
     opacity:.98;"></div>
 
-  <!-- Centered panel (NOTE: inside #ageGate) -->
   <div class="age-wrap" style="position:relative; height:100%; display:flex; align-items:center; justify-content:center; padding:24px;">
     <div class="panel" style="max-width:560px; width:100%; text-align:center;">
       <div class="brand" style="justify-content:center; margin-bottom:8px;">
@@ -694,7 +691,6 @@ body.compact {
     <header>
     <nav>
   <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
-    <!-- Telegram SVG -->
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
       <path fill="#1C93E3" d="M12 0a12 12 0 1 0 0 24A12 12 0 0 0 12 0z"/>
       <path fill="#fff" d="M17.9 7.4c.2-1-.8-1.3-1.6-1l-11 4.2c-.7.3-.7.8-.1 1l2.8.9 6.5-4.1c.3-.2.6-.1.4.1l-5.3 4.9-.2 3.1c.5 0 .7-.2 1-.5l1.7-1.6 2.6 1.9c.6.3 1 .1 1.1-.6l1.9-9.3z"/>
@@ -703,7 +699,6 @@ body.compact {
   </a>
 
   <a class="btn btn-ghost" href="https://x.com/Oldremy" target="_blank" rel="noopener noreferrer">
-    <!-- X SVG -->
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
       <path fill="currentColor" d="M18.9 2H22l-7.7 8.8L22.7 22h-7.1l-5.5-7.3L3.8 22H1l8.4-9.6L1 2h7.2l5 6.7L18.9 2zM17.6 20h1.9L7.4 4H5.6l12 16z"/>
     </svg>
@@ -731,7 +726,6 @@ body.compact {
   </header>
 
   <div class="wrap">
-    <!-- HUD -->
     <div class="hud">
       <div class="panel panel-table" id="game">
     <h1>Table</h1>
@@ -757,7 +751,6 @@ body.compact {
       </button>
       </div>
 
-  <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
   <div class="panel panel-claim">
     <div class="controls">
       <div class="panel" id="leaderboardPanel">
@@ -1574,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script type="module">
-  import { placeBet } from "/assets/walletBet.bundle.js?v=2";
+  import { placeBet, loadWallet } from "/assets/walletBet.bundle.js?v=2";
   import { getSigner } from "/assets/wallet-modal.js?v=Christmasv22cachedupdate";
   import { recoverSeed } from "/assets/walletBet.bundle.js";
   window.placeBet = placeBet;
@@ -1601,8 +1594,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const linked = await ensureLinked();
     const betBtn = document.getElementById('betBtn');
     const drawBtn = document.getElementById('draw');
-const depositBtn = document.getElementById('depositBtn');
+    const depositBtn = document.getElementById('depositBtn');
     const navConnect = document.getElementById('navConnect');
+    
+    // --- ZOMBIE DETECTION START ---
+    const hasLocalWallet = localStorage.getItem('kk_wallet_v1');
+    
+    if (hasLocalWallet && !linked && navConnect) {
+       // Detected: Wallet exists locally but server session lost (mobile tab switching etc)
+       console.log('Detected local wallet without server link. Enhancing UI.');
+       
+       navConnect.textContent = '🔓 Unlock Wallet';
+       navConnect.classList.remove('btn-ghost');
+       navConnect.classList.add('btn-primary'); // Make it pop
+       
+       // Override navigation to trigger instant relink
+       navConnect.onclick = async (e) => {
+           e.preventDefault();
+           try {
+               const pass = await getSigner(); // Ask for password
+               if (!pass) return;
+               
+               navConnect.textContent = 'Syncing...';
+               
+               // Decrypt local wallet to get address
+               const { address } = await loadWallet(pass);
+               
+               // Re-link to server
+               await fetch('/api/wallet/link', {
+                   method: 'POST',
+                   credentials: 'include',
+                   headers: {
+                       'Content-Type': 'application/json',
+                       'x-csrf-token': window.csrfToken
+                   },
+                   body: JSON.stringify({ address, network: 'mainnet' })
+               });
+               
+               // Success! Refresh UI state without reload
+               navConnect.style.display = 'none';
+               alert('Wallet reconnected successfully!');
+               
+               // Enable betting immediately
+               if (betBtn) {
+                   betBtn.disabled = false;
+                   betBtn.textContent = 'Place 100 KIBL Bet';
+                   // trigger a balance refresh
+                   if (depositBtn) depositBtn.style.display = 'inline-flex';
+                   window.loadWalletBalances(address);
+               }
+               
+           } catch (e) {
+               console.error(e);
+               alert('Failed to unlock: ' + e.message);
+               navConnect.textContent = '🔓 Unlock Wallet';
+           }
+       };
+    } else if (linked && navConnect) {
+       navConnect.style.display = 'none';
+    }
+    // --- ZOMBIE DETECTION END ---
+
     // Only show if wallet is actually linked
     if (linked?.address && depositBtn) {
       const btnBackup = document.getElementById('btnBackup');
@@ -1644,11 +1696,26 @@ const depositBtn = document.getElementById('depositBtn');
                 .catch(() => prompt("Copy your address:", linked.address)); // Fallback
         };
     }
-    if (linked && navConnect) navConnect.style.display = 'none';
+    
     // Setup initial button states
     if (betBtn) {
-      betBtn.disabled = !linked;
-      betBtn.textContent = 'Place 100 KIBL Bet';
+      // If we are in "Zombie" state (local wallet exists but not linked), keep it disabled until they unlock
+      // Otherwise, use standard logic
+      if (!linked && !hasLocalWallet) {
+          betBtn.textContent = 'Connect Wallet to Play';
+          betBtn.disabled = true;
+      } else if (!linked && hasLocalWallet) {
+          betBtn.textContent = 'Unlock Wallet to Play';
+          // Make the main bet button ALSO trigger the unlock flow for convenience
+          betBtn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navConnect.click(); // Trigger the unlock logic defined above
+          }
+      } else {
+          betBtn.disabled = false;
+          betBtn.textContent = 'Place 100 KIBL Bet';
+      }
     }
     if (drawBtn) drawBtn.disabled = true; // Can't draw until we deal
 
@@ -1657,72 +1724,67 @@ const depositBtn = document.getElementById('depositBtn');
     }
 
     // --- SINGLE CLICK HANDLER FOR BETTING ---
-    betBtn?.addEventListener('click', async () => {
-      if (betBtn.disabled || betBtn.classList.contains('busy')) return;
-
-      try {
-        if (!linked) return alert('Link a wallet on the Connect page first.');
-
-        // Lock UI
-        betBtn.classList.add('busy');
-        betBtn.textContent = 'Signing...';
-        betBtn.disabled = true;
-
-        const passphrase = await getSigner();
-        if (!passphrase) throw new Error('Cancelled');
-
-        // 1. Send the Crypto (The "Fee")
-        const { txId } = await placeBet({
-          passphrase,
-          kiblAmount: 10000, 
-          tokenIdHex: window.KIBL_TOKEN_ID_HEX,
-          feeNexa: 600
+    // Note: We only attach this listener if we are actually linked.
+    // If not linked, the logic above handles the "Unlock" click.
+    if (linked) {
+        betBtn?.addEventListener('click', async () => {
+          if (betBtn.disabled || betBtn.classList.contains('busy')) return;
+    
+          try {
+            // Lock UI
+            betBtn.classList.add('busy');
+            betBtn.textContent = 'Signing...';
+            betBtn.disabled = true;
+    
+            const passphrase = await getSigner();
+            if (!passphrase) throw new Error('Cancelled');
+    
+            // 1. Send the Crypto (The "Fee")
+            const { txId } = await placeBet({
+              passphrase,
+              kiblAmount: 10000, 
+              tokenIdHex: window.KIBL_TOKEN_ID_HEX,
+              feeNexa: 600
+            });
+    
+            toast(`Bet sent! Transaction: ${txId.slice(0, 8)}…`, { type: 'win' });
+            
+            // 2. Start the Game Logic (The "Deal")
+            betBtn.textContent = 'Dealing...';
+            
+            // We call the existing startGame() function you have defined globally
+            // This triggers /api/start-hand and /api/deal
+            await window.startGame(); 
+    
+            // 3. Update UI for the "Draw" phase
+            betBtn.style.display = 'none'; // Hide bet button during the hand
+            drawBtn.disabled = false;      // Enable draw button
+            
+            // Refresh wallet balances
+            loadProfile();
+            if (linked?.address) loadWalletBalances(linked.address);
+    
+          } catch (e) {
+            // 1. Safe Error Extraction
+            const msg = e ? (e.message || String(e)) : 'Unknown error occurred';
+            
+            // 2. Filter out "Cancelled" (User closed modal)
+            if (msg !== 'Cancelled' && !msg.includes('User rejected')) {
+               if(window.toast) window.toast(`Bet failed: ${msg}`, { type: 'error' });
+               else alert(msg);
+            }
+            
+            // 3. Always restore the button
+            if (betBtn) {
+                 betBtn.style.display = 'inline-flex';
+                 betBtn.textContent = 'Place 100 KIBL Bet';
+                 betBtn.disabled = false;
+            }
+          } finally {
+            betBtn.classList.remove('busy');
+          }
         });
-
-        toast(`Bet sent! Transaction: ${txId.slice(0, 8)}…`, { type: 'win' });
-        
-        // 2. Start the Game Logic (The "Deal")
-        betBtn.textContent = 'Dealing...';
-        
-        // We call the existing startGame() function you have defined globally
-        // This triggers /api/start-hand and /api/deal
-        await window.startGame(); 
-
-        // 3. Update UI for the "Draw" phase
-        betBtn.style.display = 'none'; // Hide bet button during the hand
-        drawBtn.disabled = false;      // Enable draw button
-        
-        // Refresh wallet balances
-        loadProfile();
-        if (linked?.address) loadWalletBalances(linked.address);
-
-      } catch (e) {
-        // 1. Safe Error Extraction
-        const msg = e ? (e.message || String(e)) : 'Unknown error occurred';
-        
-        // 2. Filter out "Cancelled" (User closed modal)
-        if (msg !== 'Cancelled' && !msg.includes('User rejected')) {
-           if(window.toast) window.toast(`Bet failed: ${msg}`, { type: 'error' });
-           else alert(msg);
-        }
-        
-        // 3. Always restore the button
-        if (betBtn) {
-             betBtn.style.display = 'inline-flex';
-             betBtn.textContent = 'Place 100 KIBL Bet';
-             betBtn.disabled = false;
-        }if (e.message !== 'Cancelled') {
-          toast(`Bet failed: ${e.message}`, { type: 'error' });
-          betBtn.disabled = false;
-          betBtn.textContent = 'Place 100 KIBL Bet';
-        } else {
-          betBtn.disabled = false;
-          betBtn.textContent = 'Place 100 KIBL Bet';
-        }
-      } finally {
-        betBtn.classList.remove('busy');
-      }
-    });
+    }
 
   });
 </script>
