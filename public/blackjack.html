@@ -408,8 +408,49 @@ body.compact {
 }
 
 /* On narrow screens stack them */
-@media (max-width:900px){
-  #bj-panels{ grid-template-columns: 1fr; }
+/* --- MOBILE OPTIMIZATION FOR BLACKJACK --- */
+@media (max-width: 600px) {
+  /* 1. Reduce outer padding */
+  body { padding: 12px; }
+  
+  /* 2. Tighten the Game Panel */
+  .panel-table {
+    padding: 10px; /* Was 16px */
+    gap: 4px;      /* Reduce internal gaps */
+  }
+
+  /* 3. Shrink Cards slightly to fit 5-card hands */
+  .card, .placeholder {
+    width: 60px;
+    height: 96px; /* Maintain ratio */
+  }
+  .card p { font-size: 9px; line-height: 1; margin: 2px 0 0; }
+  
+  /* 4. Compact Controls (The Buttons) */
+  .controls {
+    margin-top: 8px;
+    gap: 6px;
+  }
+  .controls .btn {
+    padding: 8px 10px; /* Smaller tap targets (still usable) */
+    font-size: 11px;
+    flex: 1 1 30%;     /* allow 3 buttons per row */
+  }
+
+  /* 5. Compact Status Panels (User/Dealer Scores) */
+  #bj-panels {
+    margin-top: 8px;
+    gap: 8px;
+    grid-template-columns: 1fr 1fr; /* Force side-by-side on mobile too */
+  }
+  .bj-dialog {
+    padding: 8px;
+    font-size: 0.8rem;
+  }
+  .bj-dialog header { margin-bottom: 2px; }
+  
+  /* 6. Hide footer fluff on mobile to save vertical space */
+  footer { margin-top: 20px; padding-bottom: 40px; }
 }
 
 
@@ -484,6 +525,7 @@ body.compact {
   color: #aab0ffb0;
   font-size: .8rem;
 }
+
 .softflag {
   font-size: .8rem;
   opacity: .8;
