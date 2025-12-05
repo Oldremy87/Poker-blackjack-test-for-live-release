@@ -1620,6 +1620,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // C. Check Local Storage
     state.localWallet = !!localStorage.getItem('kk_wallet_v1');
+    // F. Setup Backup Button (Security Check)
+    const btnBackup = document.getElementById('btnBackup');
+    const backupSection = document.getElementById('backupSection');
+    
+    if (state.localWallet && backupSection) {
+        backupSection.style.display = 'block'; // Show if wallet exists
+    }
+
+    if (btnBackup) {
+        // Clone to clear old listeners
+        const newBackup = btnBackup.cloneNode(true);
+        btnBackup.parentNode.replaceChild(newBackup, btnBackup);
+        
+        newBackup.onclick = async () => {
+            const pass = prompt("Enter your wallet password to reveal your seed:");
+            if (!pass) return;
+
+            try {
+                // Dynamic import to keep init fast
+                const { recoverSeed } = await import("/assets/walletBet.bundle.js");
+                const seed = await recoverSeed(pass);
+                
+                const confirmBackup = confirm(
+                    "SECURITY WARNING:\n\n" +
+                    "Never share this phrase with anyone.\n" +
+                    "Anyone with this phrase can steal your funds.\n\n" +
+                    "Click OK to view your seed phrase."
+                );
+
+                if (confirmBackup) {
+                    prompt("Here is your Secret Recovery Phrase. Copy it somewhere safe:", seed);
+                }
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
+        };
+    }
 
     // D. UPDATE UI (Stop here if DOM isn't ready, but it should be)
     updateUI();
