@@ -17,46 +17,36 @@ async function getSdk() {
 function getWalletCtor(mod) {
   return mod?.Wallet ?? mod?.default?.Wallet;
 }
-async function safeConnect(provider) {
-  if (!provider) throw new Error("Provider is null");
+async function isConnectionHealthy(provider) {
+  if (!provider) return false;
   try {
-    if (provider.isConnected) return true;
+    await provider.getBlockTip();
+    return true;
   } catch (e) {
-    console.warn("[Client] Provider is in zombie state. Needs repair.");
     return false;
   }
-  console.log("[Client] Connecting network...");
+}
+async function establishConnection(provider) {
+  console.log("[Client] Connecting to network...");
   try {
     await provider.connect(PRIVATE_NODE);
-    console.log("✅ Connected: Private Node");
-    return true;
+    if (await isConnectionHealthy(provider)) {
+      console.log("✅ Connected: Private Node");
+      return true;
+    }
   } catch (e) {
     console.warn("⚠️ Private node unreachable, trying public...");
   }
   try {
     await provider.connect(PUBLIC_NODE);
-    console.log("⚠️ Connected: Public Node");
-    return true;
+    if (await isConnectionHealthy(provider)) {
+      console.log("⚠️ Connected: Public Node");
+      return true;
+    }
   } catch (e) {
-    console.error("❌ Connection failed");
-    return false;
+    console.error("❌ Connection failed:", e);
   }
-}
-async function repairSession() {
-  if (!cachedSession) return;
-  console.log("[Client] Repairing session (Soft Reset)...");
-  const { seed, net, sdk } = cachedSession;
-  const WalletCtor = getWalletCtor(sdk);
-  const newWallet = new WalletCtor(seed, net);
-  const newProvider = newWallet.rostrumProvider || newWallet.provider;
-  const connected = await safeConnect(newProvider);
-  if (!connected) throw new Error("Could not reconnect to any node.");
-  console.log("[Client] Syncing...");
-  await newWallet.initialize();
-  const newAccount = newWallet.accountStore.getAccount("2.0");
-  cachedSession.wallet = newWallet;
-  cachedSession.account = newAccount;
-  console.log("[Client] Session repaired.");
+  return false;
 }
 async function loadWallet(pass) {
   if (cachedSession) {
@@ -66,20 +56,17 @@ async function loadWallet(pass) {
     }
     const { wallet: wallet2 } = cachedSession;
     const provider2 = wallet2.rostrumProvider || wallet2.provider;
-    let isHealthy = false;
-    try {
-      isHealthy = provider2 && provider2.isConnected;
-    } catch {
-    }
-    if (isHealthy) {
+    const healthy = await isConnectionHealthy(provider2);
+    if (healthy) {
       return cachedSession;
     }
+    console.log("[Client] Connection stale. Reconnecting...");
     reconnectLock = (async () => {
       try {
-        const revived = await safeConnect(provider2);
-        if (!revived) {
-          await repairSession();
-        }
+        const success = await establishConnection(provider2);
+        if (!success) throw new Error("Unable to reach network.");
+        console.log("[Client] Resyncing wallet...");
+        await wallet2.initialize();
       } finally {
         reconnectLock = null;
       }
@@ -102,40 +89,43 @@ async function loadWallet(pass) {
   const WalletCtor = getWalletCtor(sdk);
   const wallet = new WalletCtor(seed, net);
   const provider = wallet.rostrumProvider || wallet.provider;
-  await safeConnect(provider);
+  const connected = await establishConnection(provider);
+  if (!connected) throw new Error("Could not connect to network.");
   console.log("[Client] Initializing Wallet (Scanning UTXOs)...");
   await wallet.initialize();
   const account = wallet.accountStore.getAccount("2.0");
+  if (!account) throw new Error("Account 2.0 missing");
   const address = account.getPrimaryAddressKey().address;
   const nexaMinor = Number(account.balance?.confirmed || 0);
   const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
   const DEC = 2;
-  const balances = {
-    kiblMinor,
-    kibl: kiblMinor / 10 ** DEC,
-    nexaMinor,
-    nexa: nexaMinor / 10 ** DEC,
-    tokenHex: KIBL_TOKEN_HEX,
-    tokenGroup: KIBL_GROUP_ADDR
+  cachedSession = {
+    wallet,
+    account,
+    address,
+    network: net,
+    sdk,
+    seed,
+    net,
+    balances: {
+      kiblMinor,
+      kibl: kiblMinor / 10 ** DEC,
+      nexaMinor,
+      nexa: nexaMinor / 10 ** DEC,
+      tokenHex: KIBL_TOKEN_HEX,
+      tokenGroup: KIBL_GROUP_ADDR
+    }
   };
-  cachedSession = { wallet, account, address, network: net, balances, sdk, seed, net };
   return cachedSession;
 }
-async function placeBet({
-  passphrase,
-  kiblAmount,
-  tokenIdHex,
-  feeNexa
-}) {
-  if (!cachedSession && (!passphrase || passphrase.length < 8)) {
-    throw new Error("Password required (8+ chars).");
-  }
-  const { wallet, account, address, network } = await loadWallet(passphrase);
-  console.log("[Client] Building Transaction...");
+async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
+  if (!cachedSession && (!passphrase || passphrase.length < 8)) throw new Error("Password required.");
+  const { wallet, account } = await loadWallet(passphrase);
+  console.log("[Client] Building...");
   const signedTx = await wallet.newTransaction(account).onNetwork("mainnet").sendTo(HOUSE_ADDRESS, feeNexa.toString()).sendToToken(HOUSE_ADDRESS, kiblAmount.toString(), KIBL_TOKEN_ID).populate().sign().build();
   const txId = await wallet.sendTransaction(signedTx);
-  console.log("[Client] Bet Sent! TxId:", txId);
-  return { txId, network, address, house: HOUSE_ADDRESS };
+  console.log("[Client] Sent:", txId);
+  return { txId, house: HOUSE_ADDRESS };
 }
 export {
   loadWallet,
