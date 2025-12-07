@@ -747,6 +747,33 @@ body.compact {
       <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-top: 10px; width:100%;">
         ⬇️ Show Deposit Address
       </button>
+      <button id="openSendBtn" class="btn btn-ghost">💸 Send Funds</button>
+
+<div id="sendModal" class="smart-modal" hidden>
+  <div class="smart-modal-card">
+    <div class="smart-modal-header">
+      <h2>Send Funds</h2>
+      <button class="smart-modal-close" onclick="document.getElementById('sendModal').hidden=true">×</button>
+    </div>
+    <div class="smart-modal-body">
+      <div class="field">
+        <label>Recipient Address (nexa:...)</label>
+        <input type="text" id="sendAddr" placeholder="nexa:nqtsq..." />
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Amount KIBL</label>
+        <input type="number" id="sendKibl" placeholder="0" />
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Amount NEXA</label>
+        <input type="number" id="sendNexa" placeholder="0" />
+      </div>
+    </div>
+    <div class="smart-modal-footer">
+      <button class="btn btn-primary" id="confirmSend">Confirm Send</button>
+    </div>
+  </div>
+</div>
       </div>
 
   <!-- RIGHT SIDEBAR: TOTAL + CLAIM + DAILY -->
@@ -1692,7 +1719,52 @@ document.addEventListener('DOMContentLoaded', () => {
         navConnect.href = '/connect.html';
       }
     }
+// [Add inside your type="module" script in play.html]
 
+document.getElementById('openSendBtn')?.addEventListener('click', () => {
+    document.getElementById('sendModal').hidden = false;
+});
+
+document.getElementById('confirmSend')?.addEventListener('click', async () => {
+    const btn = document.getElementById('confirmSend');
+    const addr = document.getElementById('sendAddr').value;
+    const kibl = document.getElementById('sendKibl').value;
+    const nexa = document.getElementById('sendNexa').value;
+
+    if (!addr.startsWith('nexa:')) return alert('Invalid Nexa Address');
+
+    try {
+        btn.textContent = 'Sending...';
+        btn.disabled = true;
+
+        const { getSigner } = await import("/assets/wallet-modal.js?v=cachebust");
+        const { sendFunds } = await import("/assets/walletBet.bundle.js?v=cachebust");
+
+        // 1. Get Password
+        const passphrase = await getSigner();
+        if (!passphrase) throw new Error('Cancelled');
+
+        // 2. Send
+        const txId = await sendFunds({
+            passphrase,
+            toAddress: addr,
+            amountKibl: kibl,
+            amountNexa: nexa
+        });
+
+        alert('Sent! TxId: ' + txId);
+        document.getElementById('sendModal').hidden = true;
+        
+        // Refresh Balances
+        if (state.linked) window.loadWalletBalances(state.linked.address);
+
+    } catch (e) {
+        alert('Send Failed: ' + e.message);
+    } finally {
+        btn.textContent = 'Confirm Send';
+        btn.disabled = false;
+    }
+});
     // 2. Bet Button Logic
     if (betBtn) {
       // Clone to clear old listeners
