@@ -746,7 +746,6 @@ body.compact {
       </div>
       <button id="depositBtn" class="btn btn-ghost" style="display:none; font-size:12px; margin-top: 10px; width:100%;">
         ⬇️ Show Deposit Address
-        </div>
       </button>
       <button id="openSendBtn" class="btn btn-ghost">💸 Send Funds</button>
 
@@ -1691,38 +1690,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
-
+   setupSendListeners();
     // D. UPDATE UI (Stop here if DOM isn't ready, but it should be)
     updateUI();
   }
-
-  function updateUI() {
-    const navConnect = document.getElementById('navConnect');
-    const betBtn     = document.getElementById('betBtn');
-    const depositBtn = document.getElementById('depositBtn');
-    
-    console.log("Updating UI. Linked:", !!state.linked, "Local:", state.localWallet);
-
-    // 1. Navigation Button Logic
-    if (navConnect) {
-      if (state.linked) {
-        navConnect.style.display = 'none'; // Connected!
-      } else if (state.localWallet) {
-        // Zombie State
-        navConnect.style.display = 'inline-flex';
-        navConnect.textContent = '🔓 Unlock Wallet';
-        navConnect.className = 'btn btn-primary';
-        navConnect.onclick = (e) => { e.preventDefault(); doUnlock(); };
-      } else {
-        // Not Connected
-        navConnect.style.display = 'inline-flex';
-        navConnect.textContent = 'Connect Wallet';
-        navConnect.href = '/connect.html';
-      }
-    }
-// [Add inside your type="module" script in play.html]
-
-document.getElementById('openSendBtn')?.addEventListener('click', () => {
+  document.getElementById('openSendBtn')?.addEventListener('click', () => {
     document.getElementById('sendModal').hidden = false;
 });
 
@@ -1766,6 +1738,33 @@ document.getElementById('confirmSend')?.addEventListener('click', async () => {
         btn.disabled = false;
     }
 });
+
+  function updateUI() {
+    const navConnect = document.getElementById('navConnect');
+    const betBtn     = document.getElementById('betBtn');
+    const depositBtn = document.getElementById('depositBtn');
+    
+    console.log("Updating UI. Linked:", !!state.linked, "Local:", state.localWallet);
+
+    // 1. Navigation Button Logic
+    if (navConnect) {
+      if (state.linked) {
+        navConnect.style.display = 'none'; // Connected!
+      } else if (state.localWallet) {
+        // Zombie State
+        navConnect.style.display = 'inline-flex';
+        navConnect.textContent = '🔓 Unlock Wallet';
+        navConnect.className = 'btn btn-primary';
+        navConnect.onclick = (e) => { e.preventDefault(); doUnlock(); };
+      } else {
+        // Not Connected
+        navConnect.style.display = 'inline-flex';
+        navConnect.textContent = 'Connect Wallet';
+        navConnect.href = '/connect.html';
+      }
+    }
+
+
     // 2. Bet Button Logic
     if (betBtn) {
       // Clone to clear old listeners
