@@ -1690,9 +1690,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
-   setupSendListeners();
+   
     // D. UPDATE UI (Stop here if DOM isn't ready, but it should be)
     updateUI();
+    setupSendListeners();
   }
   document.getElementById('openSendBtn')?.addEventListener('click', () => {
     document.getElementById('sendModal').hidden = false;
