@@ -184,6 +184,7 @@ export async function placeBet({ passphrase, kiblAmount, tokenIdHex, feeNexa }: 
   const signedTx = await wallet.newTransaction(account)
     .onNetwork('mainnet')
     .sendTo(HOUSE_ADDRESS, feeNexa.toString())
+    .feeFromAmount()
     .sendToToken(HOUSE_ADDRESS, kiblAmount.toString(), KIBL_TOKEN_ID)
     .populate()
     .sign()
@@ -215,4 +216,16 @@ export async function recoverSeed(pass: string) {
   } catch (e) {
     throw new Error('Incorrect password.');
   }
+}
+export async function sendFunds({ passphrase, toAddress, amountNexa, amountKibl }: any) {
+  const { wallet, account } = await loadWallet(passphrase);
+  
+  let tx = wallet.newTransaction(account)
+  .onNetwork('mainnet')
+  .sendTo(toAddress, amountNexa.toString())
+  .sendToToken(toAddress, amountKibl.toString(), KIBL_TOKEN_ID);
+  const signed = await tx.populate().sign().build();
+  
+  const txId = await wallet.sendTransaction(signed);
+  return txId;
 }
