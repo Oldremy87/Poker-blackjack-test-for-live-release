@@ -681,7 +681,6 @@ function ensureBank(req) {
   if (!req.session.currentHand) req.session.currentHand = null;
 }
 // Wallet functions
-// /api/wallet/balance
 app.get('/api/wallet/balance', async (req, res) => {
   try {
 
@@ -689,15 +688,11 @@ app.get('/api/wallet/balance', async (req, res) => {
     if (!/^nexa:[a-z0-9]+$/i.test(address)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
     }
-
     // Watch-only against the single address, mainnet
     const w = new WatchOnlyWallet({ address }, 'mainnet');
+    const nexaBal     = await w.getBalance();       
+    const tokenBals   = await w.getTokenBalances();   
 
-    // New 0.8.0 helpers – already aggregated; no manual UTXO math
-    const nexaBal     = await w.getBalance();         // { confirmed:"...", unconfirmed:"..." }
-    const tokenBals   = await w.getTokenBalances();   // { [tokenHex]: { confirmed:"...", unconfirmed:"..." }, ... }
-
-    // Pull just KIBL (string → Number → /100). No BigInt anywhere.
     const kiblMinor   = Number(tokenBals[KIBL_GROUP_HEX]?.confirmed || 0);
     const nexaMinor   = Number(nexaBal.confirmed || 0);
 
