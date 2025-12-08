@@ -753,7 +753,7 @@ body.compact {
   <div class="smart-modal-card">
     <div class="smart-modal-header">
   <h2>Send Funds</h2>
-  <button class="smart-modal-close" onclick="document.getElementById('sendModal').hidden=true; document.getElementById('sendModal').style.display='none'">×</button>
+  <button class="smart-modal-close">×</button>
     </div>
     <div class="smart-modal-body">
       <div class="field">
@@ -1699,37 +1699,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const openBtn = document.getElementById('openSendBtn');
     const confirmBtn = document.getElementById('confirmSend');
     const modal = document.getElementById('sendModal');
+    const closeBtn = modal?.querySelector('.smart-modal-close');
 
-    // 1. Open Modal Listener (Simplified)
+    // Helper to Open
+    const openModal = () => {
+        if (!modal) return;
+        modal.hidden = false;           // Remove [hidden] attribute
+        // Small delay to allow browser to register 'hidden=false' before animating opacity
+        requestAnimationFrame(() => {
+            modal.classList.add('active');  // Trigger CSS opacity: 1
+        });
+        
+        // Focus input for better UX
+        const addrInput = document.getElementById('sendAddr');
+        if(addrInput) addrInput.focus();
+    };
+
+    // Helper to Close
+    const closeModal = () => {
+        if (!modal) return;
+        modal.classList.remove('active'); // Fade out
+        // Wait for CSS transition (0.2s) before hiding completely
+        setTimeout(() => {
+            modal.hidden = true; 
+        }, 200);
+    };
+
+    // 1. Open Listener
     if (openBtn) {
-        console.log('Attaching Open Listener to:', openBtn); // Debug check
+        // Use onclick to override any old listeners cleanly
         openBtn.onclick = (e) => {
-            e.preventDefault(); // Prevent jumpy behavior
-            if (modal) {
-                modal.hidden = false;
-                modal.style.display = 'block'; // Force CSS visibility
-                
-                // Focus the address input for better UX
-                const addrInput = document.getElementById('sendAddr');
-                if(addrInput) addrInput.focus();
-            }
+            e.preventDefault();
+            openModal();
         };
-    } else {
-        console.error('CRITICAL: openSendBtn not found in DOM');
     }
 
-    // 2. Confirm Send Listener (Simplified)
+    // 2. Close Listener (The X button)
+    if (closeBtn) {
+        closeBtn.onclick = (e) => {
+            e.preventDefault();
+            closeModal();
+        };
+    }
+
+    // 3. Confirm Send Listener
     if (confirmBtn) {
-        // Unbind previous onclick to be safe, then assign new one
         confirmBtn.onclick = async (e) => {
-            e.preventDefault(); // Stop any form submission attempts
+            e.preventDefault();
             
             const addr = document.getElementById('sendAddr').value;
             const kibl = document.getElementById('sendKibl').value;
             const nexa = document.getElementById('sendNexa').value;
-            const btn = e.target; // Get the button that was clicked
+            const btn = e.target; 
 
-            // Basic Validation
             if (!addr) return alert('Please enter an address.');
             if (!addr.startsWith('nexa:')) return alert('Invalid Nexa Address');
 
@@ -1737,22 +1759,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.textContent = 'Sending...';
                 btn.disabled = true;
 
-                // --- DYNAMIC IMPORTS ---
-                // Ensure these paths are 100% correct relative to your HTML file
+                // Dynamic Imports
                 const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
-                
-                // Using Date.now() breaks caching (good for dev, slower for prod)
                 const { sendFunds } = await import("/assets/walletBet.bundle.js?v=" + Date.now()); 
 
-                if (typeof sendFunds !== 'function') {
-                    throw new Error("sendFunds function not found in bundle.");
-                }
+                if (typeof sendFunds !== 'function') throw new Error("sendFunds missing from bundle.");
 
-                // 1. Get Password/Signer
                 const passphrase = await getSigner();
                 if (!passphrase) throw new Error('Cancelled');
 
-                // 2. Send Transaction
                 const txId = await sendFunds({
                     passphrase,
                     toAddress: addr,
@@ -1761,13 +1776,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 alert('Sent! TxId: ' + txId);
+                closeModal(); // Close properly on success
                 
-                if (modal) {
-                    modal.hidden = true;
-                    modal.style.display = 'none'; // Hide explicitly
-                }
-                
-                // Refresh Balances if connected
                 if (typeof window.loadWalletBalances === 'function' && state.linked) {
                     window.loadWalletBalances(state.linked.address);
                 }
