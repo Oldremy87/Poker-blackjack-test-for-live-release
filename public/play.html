@@ -1695,50 +1695,80 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI();
     setupSendListeners();
   }
-  document.getElementById('openSendBtn')?.addEventListener('click', () => {
-    document.getElementById('sendModal').hidden = false;
-});
+  function setupSendListeners() {
+    const openBtn = document.getElementById('openSendBtn');
+    const confirmBtn = document.getElementById('confirmSend');
+    const modal = document.getElementById('sendModal');
 
-document.getElementById('confirmSend')?.addEventListener('click', async () => {
-    const btn = document.getElementById('confirmSend');
-    const addr = document.getElementById('sendAddr').value;
-    const kibl = document.getElementById('sendKibl').value;
-    const nexa = document.getElementById('sendNexa').value;
-
-    if (!addr.startsWith('nexa:')) return alert('Invalid Nexa Address');
-
-    try {
-        btn.textContent = 'Sending...';
-        btn.disabled = true;
-
-        const { getSigner } = await import("/assets/wallet-modal.js?v=cachebust");
-        const { sendFunds } = await import("/assets/walletBet.bundle.js?v=cachebust");
-
-        // 1. Get Password
-        const passphrase = await getSigner();
-        if (!passphrase) throw new Error('Cancelled');
-
-        // 2. Send
-        const txId = await sendFunds({
-            passphrase,
-            toAddress: addr,
-            amountKibl: kibl,
-            amountNexa: nexa
-        });
-
-        alert('Sent! TxId: ' + txId);
-        document.getElementById('sendModal').hidden = true;
+    // 1. Open Modal Listener
+    if (openBtn) {
+        // Remove old listeners to be safe (cloning trick)
+        const newOpen = openBtn.cloneNode(true);
+        openBtn.parentNode.replaceChild(newOpen, openBtn);
         
-        // Refresh Balances
-        if (state.linked) window.loadWalletBalances(state.linked.address);
-
-    } catch (e) {
-        alert('Send Failed: ' + e.message);
-    } finally {
-        btn.textContent = 'Confirm Send';
-        btn.disabled = false;
+        newOpen.addEventListener('click', () => {
+            if (modal) modal.hidden = false;
+        });
     }
-});
+
+    // 2. Confirm Send Listener
+    if (confirmBtn) {
+        // Remove old listeners
+        const newConfirm = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+
+        newConfirm.addEventListener('click', async () => {
+            const addr = document.getElementById('sendAddr').value;
+            const kibl = document.getElementById('sendKibl').value;
+            const nexa = document.getElementById('sendNexa').value;
+            const btn = newConfirm; // use the new button ref
+
+            if (!addr.startsWith('nexa:')) return alert('Invalid Nexa Address');
+
+            try {
+                btn.textContent = 'Sending...';
+                btn.disabled = true;
+
+                // DYNAMIC IMPORT
+                // Note: This relies on you having rebuilt walletBet.bundle.js!
+                const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
+                
+                // Force a fresh import of the bundle to see the new sendFunds function
+                const { sendFunds } = await import("/assets/walletBet.bundle.js?v=" + Date.now()); 
+
+                if (typeof sendFunds !== 'function') {
+                    throw new Error("sendFunds function missing. Please run your build command!");
+                }
+
+                // 1. Get Password
+                const passphrase = await getSigner();
+                if (!passphrase) throw new Error('Cancelled');
+
+                // 2. Send
+                const txId = await sendFunds({
+                    passphrase,
+                    toAddress: addr,
+                    amountKibl: kibl,
+                    amountNexa: nexa
+                });
+
+                alert('Sent! TxId: ' + txId);
+                if (modal) modal.hidden = true;
+                
+                // Refresh Balances
+                if (typeof window.loadWalletBalances === 'function' && state.linked) {
+                    window.loadWalletBalances(state.linked.address);
+                }
+
+            } catch (e) {
+                alert('Send Failed: ' + (e.message || e));
+            } finally {
+                btn.textContent = 'Confirm Send';
+                btn.disabled = false;
+            }
+        });
+    }
+  }
 
   function updateUI() {
     const navConnect = document.getElementById('navConnect');
