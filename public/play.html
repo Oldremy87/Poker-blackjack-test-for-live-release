@@ -752,23 +752,34 @@ body.compact {
 <div id="sendModal" class="smart-modal" hidden>
   <div class="smart-modal-card">
     <div class="smart-modal-header">
-  <h2>Send Funds</h2>
-  <button class="smart-modal-close">×</button>
+      <h2>Send Funds</h2>
+      <button class="smart-modal-close">×</button>
     </div>
+    
     <div class="smart-modal-body">
       <div class="field">
-        <label>Recipient Address (nexa:...)</label>
-        <input type="text" id="sendAddr" placeholder="nexa:nqtsq..." />
+        <label>Recipient Address</label>
+        <input type="text" id="sendAddr" list="addrHistory" placeholder="nexa:nqtsq..." autocomplete="off" />
+        <datalist id="addrHistory"></datalist>
       </div>
+
       <div class="field" style="margin-top:10px;">
-        <label>Amount KIBL</label>
-        <input type="number" id="sendKibl" placeholder="0" />
+        <label>Amount KIBL <span style="font-size:10px; opacity:0.6;">(2 decimals)</span></label>
+        <input type="number" id="sendKibl" step="0.01" min="0.01" placeholder="0.00" />
+        <p class="readout" style="font-size:10px; margin:2px 0 0;">
+            Min: 0.01 KIBL
+        </p>
       </div>
+
       <div class="field" style="margin-top:10px;">
-        <label>Amount NEXA</label>
-        <input type="number" id="sendNexa" placeholder="0" />
+        <label>Amount NEXA <span style="font-size:10px; opacity:0.6;">(2 decimals)</span></label>
+        <input type="number" id="sendNexa" step="0.01" min="6.00" placeholder="0.00" />
+        <p class="readout" style="font-size:10px; margin:2px 0 0;">
+            Min: 6.00 NEXA (Dust limit)
+        </p>
       </div>
     </div>
+
     <div class="smart-modal-footer">
       <button class="btn btn-primary" id="confirmSend">Confirm Send</button>
     </div>
@@ -1700,84 +1711,110 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmBtn = document.getElementById('confirmSend');
     const modal = document.getElementById('sendModal');
     const closeBtn = modal?.querySelector('.smart-modal-close');
+    
+    // Inputs
+    const addrInput = document.getElementById('sendAddr');
+    const kiblInput = document.getElementById('sendKibl');
+    const nexaInput = document.getElementById('sendNexa');
 
-    // Helper to Open
+    // --- 1. Address History Logic ---
+    const loadHistory = () => {
+        try {
+            const list = JSON.parse(localStorage.getItem('kk_sent_addrs') || '[]');
+            const dl = document.getElementById('addrHistory');
+            if(dl) {
+                dl.innerHTML = list.map(a => `<option value="${a}">`).join('');
+            }
+        } catch(e) {}
+    };
+
+    const saveToHistory = (addr) => {
+        try {
+            let list = JSON.parse(localStorage.getItem('kk_sent_addrs') || '[]');
+            // Remove if exists, add to top
+            list = list.filter(a => a !== addr);
+            list.unshift(addr);
+            // Keep max 5 recent addresses
+            if (list.length > 5) list.length = 5;
+            localStorage.setItem('kk_sent_addrs', JSON.stringify(list));
+            loadHistory();
+        } catch(e) {}
+    };
+
+    // --- 2. Modal Controls ---
     const openModal = () => {
         if (!modal) return;
-        modal.hidden = false;           // Remove [hidden] attribute
-        // Small delay to allow browser to register 'hidden=false' before animating opacity
-        requestAnimationFrame(() => {
-            modal.classList.add('active');  // Trigger CSS opacity: 1
-        });
         
-        // Focus input for better UX
-        const addrInput = document.getElementById('sendAddr');
+        // CLEAR FIELDS on open
+        if(addrInput) addrInput.value = '';
+        if(kiblInput) kiblInput.value = '';
+        if(nexaInput) nexaInput.value = '';
+
+        loadHistory(); // Refresh autocomplete list
+        
+        modal.hidden = false;
+        requestAnimationFrame(() => modal.classList.add('active'));
         if(addrInput) addrInput.focus();
     };
 
-    // Helper to Close
     const closeModal = () => {
         if (!modal) return;
-        modal.classList.remove('active'); // Fade out
-        // Wait for CSS transition (0.2s) before hiding completely
-        setTimeout(() => {
-            modal.hidden = true; 
-        }, 200);
+        modal.classList.remove('active');
+        setTimeout(() => { modal.hidden = true; }, 200);
     };
 
-    // 1. Open Listener
-    if (openBtn) {
-        // Use onclick to override any old listeners cleanly
-        openBtn.onclick = (e) => {
-            e.preventDefault();
-            openModal();
-        };
-    }
+    if (openBtn) openBtn.onclick = (e) => { e.preventDefault(); openModal(); };
+    if (closeBtn) closeBtn.onclick = (e) => { e.preventDefault(); closeModal(); };
 
-    // 2. Close Listener (The X button)
-    if (closeBtn) {
-        closeBtn.onclick = (e) => {
-            e.preventDefault();
-            closeModal();
-        };
-    }
-
-    // 3. Confirm Send Listener
+    // --- 3. Send Logic ---
     if (confirmBtn) {
         confirmBtn.onclick = async (e) => {
             e.preventDefault();
             
-            const addr = document.getElementById('sendAddr').value;
-            const kibl = document.getElementById('sendKibl').value;
-            const nexa = document.getElementById('sendNexa').value;
-            const btn = e.target; 
+            const addr = addrInput.value.trim();
+            const kiblVal = parseFloat(kiblInput.value || "0");
+            const nexaVal = parseFloat(nexaInput.value || "0");
+            const btn = e.target;
 
-            if (!addr) return alert('Please enter an address.');
+            // --- VALIDATION ---
             if (!addr.startsWith('nexa:')) return alert('Invalid Nexa Address');
+            
+            // Check Dust Limits (Only if amount > 0)
+            if (kiblVal > 0 && kiblVal < 0.01) return alert("Minimum KIBL amount is 0.01");
+            if (nexaVal > 0 && nexaVal < 6.00) return alert("Minimum NEXA amount is 6.00 (Dust Limit)");
+            if (kiblVal === 0 && nexaVal === 0) return alert("Please enter an amount to send.");
+
+            // --- CONVERSION (Decimals -> Satoshis) ---
+            // Multiply by 100 and Round to fix floating point math (1.15 * 100 = 114.999...)
+            const amountKiblSats = Math.round(kiblVal * 100);
+            const amountNexaSats = Math.round(nexaVal * 100);
 
             try {
                 btn.textContent = 'Sending...';
                 btn.disabled = true;
 
-                // Dynamic Imports
+                // Load Deps
                 const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
                 const { sendFunds } = await import("/assets/walletBet.bundle.js?v=" + Date.now()); 
-
-                if (typeof sendFunds !== 'function') throw new Error("sendFunds missing from bundle.");
 
                 const passphrase = await getSigner();
                 if (!passphrase) throw new Error('Cancelled');
 
+                // Send the INTEGER satoshi values
                 const txId = await sendFunds({
                     passphrase,
                     toAddress: addr,
-                    amountKibl: kibl,
-                    amountNexa: nexa
+                    amountKibl: amountKiblSats, 
+                    amountNexa: amountNexaSats
                 });
 
                 alert('Sent! TxId: ' + txId);
-                closeModal(); // Close properly on success
                 
+                // Success actions
+                saveToHistory(addr); // Save address
+                closeModal();        // Close modal
+                
+                // Refresh Balance
                 if (typeof window.loadWalletBalances === 'function' && state.linked) {
                     window.loadWalletBalances(state.linked.address);
                 }
