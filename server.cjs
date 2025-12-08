@@ -519,6 +519,57 @@ app.use(async (req, _res, next) => {
   try { await getOrCreateUser(req.uid); } catch {}
   next();
 });
+async function mergeStats(sourceUid, targetUid) {
+  if (!hasDb) return;
+  const p = await db();
+
+  await p.query('BEGIN');
+  try {
+    // 1. Merge POKER Stats (user_stats)
+    await p.query(`
+      UPDATE user_stats target
+      SET 
+        wins = target.wins + source.wins,
+        royal_flushes = target.royal_flushes + source.royal_flushes,
+        bank_minor = target.bank_minor + source.bank_minor
+      FROM user_stats source
+      WHERE target.user_id = $1 AND source.user_id = $2
+    `, [targetUid, sourceUid]);
+
+    // 2. Merge BLACKJACK Stats (user_stats_blackjack)
+    await p.query(`
+      UPDATE user_stats_blackjack target
+      SET 
+        wins = target.wins + source.wins,
+        blackjacks = target.blackjacks + source.blackjacks,
+        bank_minor = target.bank_minor + source.bank_minor
+      FROM user_stats_blackjack source
+      WHERE target.user_id = $1 AND source.user_id = $2
+    `, [targetUid, sourceUid]);
+    const sid = await getCurrentSeasonId();
+    if (sid) {
+      await p.query(`INSERT INTO season_points(season_id, user_id, points_total) VALUES($1, $2, 0) ON CONFLICT DO NOTHING`, [sid, targetUid]);
+      
+      await p.query(`
+        UPDATE season_points target
+        SET points_total = target.points_total + source.points_total
+        FROM season_points source
+        WHERE target.season_id = $1 AND target.user_id = $2 
+          AND source.season_id = $1 AND source.user_id = $3
+      `, [sid, targetUid, sourceUid]);
+    }
+    await p.query('DELETE FROM user_stats WHERE user_id = $1', [sourceUid]);
+    await p.query('DELETE FROM user_stats_blackjack WHERE user_id = $1', [sourceUid]);
+    if (sid) await p.query('DELETE FROM season_points WHERE season_id = $1 AND user_id = $2', [sid, sourceUid]);
+
+    await p.query('COMMIT');
+    console.log(`[Merge] Successfully merged stats from ${sourceUid} into ${targetUid}`);
+
+  } catch (e) {
+    await p.query('ROLLBACK');
+    console.error('[Merge] Failed:', e);
+  }
+}
 
 async function loadStatsFor(uid, game) {
   if (!hasDb) return null;
@@ -666,25 +717,63 @@ app.get('/api/wallet/balance', async (req, res) => {
 });
 
 
-// /api/wallet/link  (server)
 app.post('/api/wallet/link', async (req, res) => {
   try {
     const { address, network } = req.body || {};
+    // Validation matches your existing code 
     if (!address || !/^nexa:/.test(address)) return res.status(400).json({ ok:false, error:'bad_address' });
     const net = (network === 'mainnet') ? 'mainnet' : 'mainnet'; 
+
+    // 1. Ensure the current temporary user exists (standard logic)
     await getOrCreateUser(req.uid);
+
     if (hasDb) {
       const p = await db();
-      await p.query(
-        `update users set wallet_addr=$2, wallet_net=$3, last_seen_at=now() where user_id=$1`,
-        [req.uid, address, net]
+
+      // 2. CHECK: Does this wallet belong to an existing user?
+      const { rows: owners } = await p.query(
+        'SELECT user_id FROM users WHERE wallet_addr = $1', 
+        [address]
       );
+
+      if (owners.length > 0) {
+        // FOUND EXISTING ACCOUNT
+        const masterUid = owners[0].user_id;
+
+        if (masterUid !== req.uid) {
+          console.log(`[Link] Device switching: ${req.uid} -> ${masterUid}`);
+
+           await mergeStats(req.uid, masterUid); // (Requires custom SQL function)
+          res.cookie('uid', masterUid, {
+            httpOnly: true,
+            sameSite: (process.env.CROSS_SITE_COOKIES === 'true') ? 'none' : 'lax',
+            secure: isProd, // defined in your lines [cite: 13]
+            maxAge: 1000 * 60 * 60 * 24 * 365 // 1 year
+          });
+
+          // Update the in-memory request for the rest of this cycle
+          req.uid = masterUid;
+          
+          return res.json({ ok: true, switched: true, note: "Account recovered" });
+        }
+      } else {
+        // NEW LINK: No one owns this address yet. Link it to current UID.
+        await p.query(
+          `UPDATE users SET wallet_addr=$2, wallet_net=$3, last_seen_at=now() WHERE user_id=$1`,
+          [req.uid, address, net]
+        );
+      }
     } else {
-      req.session.linkedWallet = { address, network: net };
-      if (req.session.save) await new Promise((r,j)=>req.session.save(e=>e?j(e):r()));
+        // Fallback for no-DB mode (Keep existing logic)
+        req.session.linkedWallet = { address, network: net };
+        if (req.session.save) await new Promise((r,j)=>req.session.save(e=>e?j(e):r()));
     }
-    res.json({ ok:true });
-  } catch { res.status(500).json({ ok:false, error:'link_error' }); }
+
+    res.json({ ok: true });
+  } catch (e) { 
+    console.error(e);
+    res.status(500).json({ ok:false, error:'link_error' }); 
+  }
 });
 app.get('/api/wallet/status', async (req,res)=>{
   try {

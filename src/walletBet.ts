@@ -82,6 +82,17 @@ export async function loadWallet(pass: string) {
     const healthy = await isConnectionHealthy(rostrumProvider);
 
     if (healthy) {
+      const account = cachedSession.account
+        const nexaMinor = Number(account.balance?.confirmed || 0);
+        const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+        const DEC = 2;
+
+        // Update the cached balance numbers
+        cachedSession.balances = {
+            kiblMinor, kibl: (kiblMinor / 10 ** DEC),
+            nexaMinor, nexa: (nexaMinor / 10 ** DEC),
+            tokenHex: KIBL_TOKEN_HEX, tokenGroup: KIBL_GROUP_ADDR,
+        };
         return cachedSession; 
     }
     console.log('[Client] Connection stale. Reconnecting...');
