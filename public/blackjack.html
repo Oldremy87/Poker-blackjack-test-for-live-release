@@ -38,6 +38,12 @@
        --win-cyan:  #3af5d9;
   --win-pink:  #ff3df7;
   --win-gold:  #ffcc00;
+    --pp-bg: #050015;
+      --pp-card: #120826;
+      --pp-accent1: #00ffc6;
+      --pp-accent2: #ff3df7;
+      --pp-text: #fdfdfd;
+      --pp-muted: #9ca3af;
     }
     /* Always hide elements with [hidden], and loaders by default */
 [hidden] { display: none !important; }
@@ -122,9 +128,19 @@
       color: #021018;
     }
     .btn-primary{
-      background: var(--accent-2);
-      color: #120016;
-      box-shadow: 0 3px 0 #a2259c, 0 0 14px rgba(255,61,247,0.35);
+     border-radius: 999px;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, var(--pp-accent1), var(--pp-accent2));
+      color: #020617;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      transition: transform 80ms ease, box-shadow 80ms ease, opacity 80ms ease;
     }
     .btn-ghost{
       background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
