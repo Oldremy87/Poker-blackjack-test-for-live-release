@@ -264,9 +264,6 @@
   <button id="changeTargetBtn" class="btn-secondary" disabled>
     Change Target
   </button>
-  <button id="rollAgainBtn" class="btn-secondary" disabled>
-    Roll Again
-  </button>
   <button id="fairBtn" class="btn-secondary" disabled>
     Fairness
   </button>
@@ -321,7 +318,8 @@
         commit: null,
         tiers: [],
         selectedTier: null,
-        fair: null
+        fair: null,
+        mode: 'idle' // 'idle' | 'preRoll' | 'postRoll'
       }
     };
     let csrfToken = null;
@@ -466,14 +464,36 @@ async function ensureCsrf() {
     document.getElementById('fairBtn').disabled = false;
   }
 
-  // 🔒 Round is now settled on the server – lock roll, enable post-round actions
-  const rollBtn        = document.getElementById('rollBtn');
-  const changeTargetBtn = document.getElementById('changeTargetBtn');
-  const rollAgainBtn    = document.getElementById('rollAgainBtn');
+  // Round is now settled – next click on Roll Dice should do a fresh bet + new round
+  state.dice.mode = 'postRoll';
 
-  if (rollBtn) rollBtn.disabled = true;
+  const changeTargetBtn = document.getElementById('changeTargetBtn');
   if (changeTargetBtn) changeTargetBtn.disabled = false;
-  if (rollAgainBtn) rollAgainBtn.disabled = false;
+}
+async function onRollClick() {
+  const rollBtn = document.getElementById('rollBtn');
+  if (!rollBtn) return;
+
+  rollBtn.disabled = true;
+  try {
+    if (state.dice.mode === 'preRoll') {
+      // Normal first roll for this bet
+      await rollDice();
+    } else if (state.dice.mode === 'postRoll') {
+      // Round settled – require a fresh bet, then auto-roll
+      await betAndRollNext();
+    } else {
+      // No active round yet
+      showError('Place a 100 KIBL bet first.');
+    }
+  } finally {
+    // After the action completes, button availability is governed by mode:
+    // - preRoll: rollBtn will get re-enabled when tier is picked
+    // - postRoll: we want it clickable again for the next round
+    if (state.dice.mode === 'postRoll') {
+      rollBtn.disabled = false;
+    }
+  }
 }
 
 
@@ -493,7 +513,7 @@ function selectTarget(tierId) {
 }
     // ---------- Core game flow ----------
     async function startRound() {
-  // Called by walletBet after bet is sent OR by "roll again" / "change target"
+  // Called by walletBet after bet is sent
   const res = await postJson('/api/dice/start', { clientSeed: crypto.randomUUID() });
   if (!res.ok) throw new Error(res.error || 'dice_start_error');
 
@@ -502,6 +522,7 @@ function selectTarget(tierId) {
   state.dice.tiers        = res.tiers || [];
   state.dice.selectedTier = null;
   state.dice.fair         = null;
+  state.dice.mode         = 'preRoll';
 
   renderTiers();
   document.getElementById('selectedTierLabel').textContent = 'Select your risk tier:';
@@ -511,12 +532,10 @@ function selectTarget(tierId) {
   const rollBtn         = document.getElementById('rollBtn');
   const fairBtn         = document.getElementById('fairBtn');
   const changeTargetBtn = document.getElementById('changeTargetBtn');
-  const rollAgainBtn    = document.getElementById('rollAgainBtn');
 
-  if (rollBtn) rollBtn.disabled = true;
+  if (rollBtn) rollBtn.disabled = true;          // wait for tier click
   if (fairBtn) fairBtn.disabled = true;
-  if (changeTargetBtn) changeTargetBtn.disabled = true;
-  if (rollAgainBtn) rollAgainBtn.disabled = true;
+  if (changeTargetBtn) changeTargetBtn.disabled = false; // can change tier before roll
 }
 window.startRound = startRound;
 
@@ -571,39 +590,41 @@ window.startRound = startRound;
       ].join('\n');
       alert(msg);
     }
-async function changeTarget() {
-  try {
-    // New commit/serverSeed so the next roll is a fresh round
-    await startRound();
-  } catch (e) {
-    alert(e.message || 'Change target failed');
-  }
+function changeTarget() {
+  // Just reset selection; user picks a new tier for the NEXT roll
+  state.dice.selectedTier = null;
+  renderTiers();
+
+  const label   = document.getElementById('selectedTierLabel');
+  const rollBtn = document.getElementById('rollBtn');
+  if (label) label.textContent = 'Select your risk tier:';
+  if (rollBtn) rollBtn.disabled = true;
 }
 
-async function rollAgain() {
+async function betAndRollNext() {
   const previousTier = state.dice.selectedTier;
   if (!previousTier) {
-    // No previous tier: just reset to the selection screen
-    return changeTarget();
+    showError('Select a target first.');
+    return;
   }
 
-  try {
-    const betBtn = document.getElementById('betBtn');
-    if (!betBtn) throw new Error('Bet button not found');
-
-    // 🔁 1) Place a new 100 KIBL bet (same flow as clicking the bet button)
-    await onBetClick(betBtn);   // sends tx, calls startRound(), reloads profile
-
-    // 🔁 2) Re-apply the same tier on the new round
-    state.dice.selectedTier = previousTier;
-    renderTiers();
-
-    // 🔁 3) Auto-roll with that tier
-    await rollDice();
-  } catch (e) {
-    alert(e.message || 'Roll again failed');
+  const betBtn = document.getElementById('betBtn');
+  if (!betBtn) {
+    showError('Bet button not found');
+    return;
   }
+
+  // 1) Place a fresh 100 KIBL bet – same flow as clicking the bet button
+  await onBetClick(betBtn);  // sends tx, calls startRound(), reloads profile
+
+  // 2) Re-apply the chosen tier to the new round
+  state.dice.selectedTier = previousTier;
+  renderTiers();
+
+  // 3) Auto-roll with that tier on the new round
+  await rollDice();
 }
+
 
 
     async function payout() {
@@ -672,14 +693,14 @@ async function rollAgain() {
   const fairBtn        = document.getElementById('fairBtn');
   const payoutBtn      = document.getElementById('payoutBtn');
   const changeTargetBtn = document.getElementById('changeTargetBtn');
-  const rollAgainBtn    = document.getElementById('rollAgainBtn');
+  
 
   if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
   if (rollBtn) rollBtn.addEventListener('click', rollDice);
   if (fairBtn) fairBtn.addEventListener('click', showFairness);
   if (payoutBtn) payoutBtn.addEventListener('click', payout);
   if (changeTargetBtn) changeTargetBtn.addEventListener('click', changeTarget);
-  if (rollAgainBtn) rollAgainBtn.addEventListener('click', rollAgain);
+  
 
   await ensureCsrf().catch(() => {});
   loadProfile();
