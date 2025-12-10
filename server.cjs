@@ -189,7 +189,7 @@ const HCAPTCHA_HOSTNAME = process.env.HCAPTCHA_HOSTNAME || '';
 const tablesByGame = {
   poker:      { stats: 'user_stats',            points: 'season_points' },
   blackjack:  { stats: 'user_stats_blackjack',  points: 'season_points_blackjack' },
-  dice:       { stats: 'user_stats',            points: 'season_points_dice' }
+  dice:       { stats: 'user_stats_dice',            points: 'season_points_dice' }
 };
 
 
