@@ -521,46 +521,40 @@ function selectTarget(tierId) {
 window.startRound = startRound;
 
 
-    async function rollDice() {
-  if (!currentTier) {
+   async function rollDice() {
+  const tierId = state.dice.selectedTier;
+  if (!tierId) {
     showError('Select a target first.');
     return;
   }
 
-  // NEW: force bet + startRound before every roll
-  if (!lastResult) {
-    showError('Place a bet first to start a round.');
-    return;
-  }
-
   const body = {
-    tierId: currentTier.id,
+    tierId,
     nonce: Date.now()
   };
 
-  const data = await postJson('/api/dice/roll', body);
-  if (!data.ok) {
-    showError(data.error || 'Roll failed.');
+  const data = await postJson('/api/dice/roll', body).catch(e => {
+    showError(e.message || 'Roll failed.');
+    return null;
+  });
+  if (!data || !data.ok) {
+    if (data && data.error) showError(data.error);
     return;
   }
 
+  // data.tier + data.credit + data.points should come from your backend
   showRollResult({
-    roll: data.roll,
-    win: data.win,
-    threshold: data.tier.threshold,
-    payoutCredits: data.tier.payoutCredits,
-    fair: data.fair || null
+    roll:   data.roll,
+    win:    data.win,
+    tier:   data.tier,
+    credit: data.credit,
+    points: data.points,
+    fair:   data.fair || null
   });
-
-  if (data.fair && lastResult) {
-    lastResult.fair = data.fair;
-  }
 
   document
     .getElementById('targetSelectRow')
     ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  lastResult = null;
 }
 
     async function showFairness() {
@@ -589,24 +583,28 @@ async function changeTarget() {
 async function rollAgain() {
   const previousTier = state.dice.selectedTier;
   if (!previousTier) {
-    // Fallback: just reset to select screen
+    // No previous tier: just reset to the selection screen
     return changeTarget();
   }
 
   try {
-    // New round on the server
-    await startRound();
+    const betBtn = document.getElementById('betBtn');
+    if (!betBtn) throw new Error('Bet button not found');
 
-    // Re-apply the same tier automatically
+    // 🔁 1) Place a new 100 KIBL bet (same flow as clicking the bet button)
+    await onBetClick(betBtn);   // sends tx, calls startRound(), reloads profile
+
+    // 🔁 2) Re-apply the same tier on the new round
     state.dice.selectedTier = previousTier;
     renderTiers();
 
-    // Now the selected tier is set → roll
+    // 🔁 3) Auto-roll with that tier
     await rollDice();
   } catch (e) {
     alert(e.message || 'Roll again failed');
   }
 }
+
 
     async function payout() {
       try {
