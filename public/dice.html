@@ -583,34 +583,30 @@
     </section>
 
     <aside class="side">
-      <div class="panel">
-        <h2>Bank & Profile</h2>
-        <div class="stat-row bank">
-          <span>Bank (all games)</span>
-          <span id="bankValue">0.00 KIBL</span>
-          <div style="margin-top: 20px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 12px;">
-        <p id="payoutTotal" style="margin:0 0 4px; color: var(--accent2);">Total Payout: 0 KIBL</p>
-        <div style="display:flex; gap: 16px; font-family: monospace; color: var(--pp-accent1);">
-          <span id="kiblBalance">KIBL: —</span>
-          <span id="nexaBalance">NEXA: —</span>
-           <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
-       <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; display:block; padding:12px;">
+      <div class="panel panel-claim">
+  <div class="panel" id="diceWindowPanel">
+    <h2>Season Dice Points Window</h2>
+    <p id="userTag" class="readout" style="margin:0 0 8px;"></p>
+    <div id="lb-dice" class="leaderboard"></div>
+    <div class="readout" style="margin-top:6px;">
+      <a class="btn btn-ghost" href="/leaderboard.html?game=dice" style="width:100%; text-align:center;">
+        See full leaderboard →
+      </a>
+    </div>
+  </div>
+
+  <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 16px;">
+    <h2>Claim</h2>
+    <button id="dailyReward" class="btn btn-ghost" style="width:100%; margin-bottom:10px;">
+      Claim Daily Reward
+    </button>
+   <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; display:block; padding:12px;">
           FEED ME! 🐾 (Withdraw)
         </a>
-        </div>
-        </div>
-        <div class="stat-row">
-          <span>Season Dice Points</span>
-          <span id="dicePoints">0</span>
-        </div>
-        <div class="stat-row">
-          <span>Dice Wins</span>
-          <span id="diceWins">0</span>
-        </div>
-        
-        <button class="lb-tab" data-game="dice">Dice</button>
-        <div id="lb-dice" class="lb-panel" style="display:none;"></div>
 
+    <div id="payoutCaptcha" style="margin-bottom:10px;"></div>
+  </div>
+</div>
       </div>
 
       <div class="panel">
@@ -1291,7 +1287,8 @@ async function betAndRollNext() {
   const fairBtn        = document.getElementById('fairBtn');
   const payoutBtn      = document.getElementById('payoutBtn');
   const changeTargetBtn = document.getElementById('changeTargetBtn');
-  
+  const dailyRewardBtn = document.getElementById('dailyReward');
+if (dailyRewardBtn) dailyRewardBtn.addEventListener('click', onDailyReward);
   
 
   if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
