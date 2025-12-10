@@ -441,6 +441,18 @@ async function ensureCsrf() {
 
    
     }
+    function showError(message) {
+  console.error('[PIXELPUP DICE ERROR]', message);
+
+  // Use the same toast system as the rest of the app if available
+  if (window.toast) {
+    toast(message, { type: 'error' });
+  } else {
+    // Fallback so you still see something in dev
+    alert(message);
+  }
+}
+
 
     function showRollResult(payload) {
   const { roll, win, tier, credit, points, fair } = payload;
