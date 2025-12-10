@@ -27,6 +27,19 @@
       justify-content: center;
       padding: 16px;
     }
+    header.header-bar{
+      display:flex; align-items:center; justify-content:space-between; gap:16px; 
+      margin:0 auto 24px; max-width:1100px; padding-bottom: 12px;
+      border-bottom: 1px solid rgba(58,245,217,0.1);
+    }
+    .brand{display:flex; align-items:center; gap:12px;}
+    .brand h1 { margin: 0; font-size: 1.4rem; letter-spacing: 0.5px; text-shadow:0 0 12px rgba(0,255,198,0.4); }
+    .brand-badge{
+      width:40px;height:40px;border-radius:10px;border:2px solid var(--card-border);
+      box-shadow:0 0 14px rgba(0,255,198,.2); display:grid; place-items:center;
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02)); 
+      font-weight:800; color:var(--accent); font-size: 1.1rem;
+    }
     .frame {
       max-width: 960px;
       width: 100%;
@@ -281,6 +294,12 @@
         <div class="stat-row bank">
           <span>Bank (all games)</span>
           <span id="bankValue">0.00 KIBL</span>
+          <div style="margin-top: 20px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 12px;">
+        <p id="payoutTotal" style="margin:0 0 4px; color: var(--accent2);">Total Payout: 0 KIBL</p>
+        <div style="display:flex; gap: 16px; font-family: monospace; color: var(--pp-accent1);">
+          <span id="kiblBalance">KIBL: —</span>
+          <span id="nexaBalance">NEXA: —</span>
+        </div>
         </div>
         <div class="stat-row">
           <span>Season Dice Points</span>
@@ -307,6 +326,7 @@
           4. Click Fairness to see the server seed & verify the roll.
         </p>
       </div>
+      <audio id="feedSound" src="dogfood.mp3" preload="auto"></audio>
     </aside>
   </main>
 
@@ -337,7 +357,70 @@ async function ensureCsrf() {
     throw e;
   }
 }
+ function show(el){ el && (el.style.display = 'block'); }
+  function hide(el){ el && (el.style.display = 'none'); }
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+  function toast(html, { type = 'info', timeout = 2500 } = {}) {
+    let root = document.getElementById('toasts');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'toasts';
+      document.body.appendChild(root);
+    }
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = `<span class="close" aria-label="Dismiss">×</span>${html}`;
+    root.appendChild(el);
+
+    // enter
+    requestAnimationFrame(() => el.classList.add('show'));
+
+    // auto-dismiss
+    const remove = () => {
+      el.classList.remove('show');
+      el.classList.add('hide');
+      el.addEventListener('transitionend', () => el.remove(), { once: true });
+    };
+    const t = setTimeout(remove, timeout);
+
+    // click to dismiss immediately
+    el.querySelector('.close').addEventListener('click', () => {
+      clearTimeout(t);
+      remove();
+    });
+
+    // light haptic on mobile (best-effort)
+    if (navigator.vibrate) { navigator.vibrate(20); }
+  }
+function flashPayout(){
+  if (!payoutEl) return;
+  // retrigger the one-shot animation reliably
+  payoutEl.classList.remove('payout-win');
+  // force reflow
+  void payoutEl.offsetWidth;
+  payoutEl.classList.add('payout-win');
+  // clean up after the glow ends
+  setTimeout(() => payoutEl?.classList.remove('payout-win'), 1400);
+}
+async function loadWalletBalances(address) {
+  if (!address) return;
+  try {
+    const r = await fetch(`/api/wallet/balance?address=${encodeURIComponent(address)}`, { credentials: 'include' });
+    const j = await r.json();
+    if (!j?.ok) return;
+
+    const kiblEl = document.getElementById('kiblBalance');
+    if (kiblEl) kiblEl.textContent = `KIBL: ${j.kibl}`;
+
+    const nexaEl = document.getElementById('nexaBalance');
+    if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
+  } catch (e) {
+    console.error('loadWalletBalances failed:', e);  
+  }
+}
     async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
 
@@ -648,21 +731,69 @@ async function betAndRollNext() {
 
 
     async function payout() {
-      try {
-        const res = await postJson('/api/payout', {
-          game: 'all',
-          hcaptchaToken: null  // your client already wires real hcaptcha where needed
-        });
-        if (res.error) throw new Error(res.error);
-        if (res.remainingKIBL != null && state.profile) {
-          state.profile.bank = res.remainingKIBL * 100;
-          renderProfile();
-        }
-        alert(`Payout tx: ${res.txId}`);
-      } catch (e) {
-        alert(e.message || 'Payout failed');
+      if (totalPayout === 0) {
+    // Double-check with the server in case the local variable is stale
+    try {
+      const r = await fetch(API.profile, { credentials: 'include' });
+      const d = await r.json();
+      if (d?.ok) {
+        const bankUnits = Math.floor((d.bank || 0) / 100);
+        totalPayout = bankUnits;
+        if (payoutEl) payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
+        if (payoutBtn) payoutBtn.disabled = (totalPayout === 0);
       }
+    } catch {}
+    if (totalPayout === 0) { alert('No payout to claim!'); return; }
+ }
+
+  // Visible hCaptcha: ensure the user solved the challenge first
+  const token = window.hcaptcha?.getResponse?.();
+  if (!token) {
+    // nudge: focus the widget and ask the user to complete it
+    document.querySelector('#payoutCaptcha iframe')?.focus();
+    alert('Please complete the hCaptcha challenge first.');
+    return;
+  }
+
+  try {
+    show(payoutLoading);
+    payoutBtn.disabled = true;
+
+    const resp = await postWithCsrf(API.payout, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playerAddress,
+        'h-captcha-response': token    // <- standard field name
+      })
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || data.error) {
+      try { window.hcaptcha?.reset?.(); } catch {}
+      alert('Payout failed: ' + (data.error || resp.statusText));
+      return;
     }
+
+    try { feedSound.currentTime = 0; feedSound.play(); } catch {}
+    alert(`Payout successful! Tx ID: ${data.txId}`);
+
+    totalPayout = data.remainingKIBL ?? 0;
+    payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
+    // Reset so the user can claim again in the future
+    try { window.hcaptcha?.reset?.(); } catch {}
+
+  } catch (e) {
+    console.error('Payout failed:', e);
+    try { window.hcaptcha?.reset?.(); } catch {}
+    alert(e?.message || 'Payout failed. Try again.');
+  } finally {
+    hide(payoutLoading);
+    
+  }
+}
 
     // ---------- Wire walletBet's betBtn ----------
     async function onBetClick(btn) {
