@@ -246,13 +246,38 @@
   <script>
     window.KIBL_TOKEN_ID_HEX = window.KIBL_TOKEN_ID_HEX || "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
   </script>
+   <header>
+    <nav>
+  <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
+    <!-- Telegram SVG -->
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;margin-right:6px;">
+      <path fill="#1C93E3" d="M12 0a12 12 0 1 0 0 24A12 12 0 0 0 12 0z"/>
+      <path fill="#fff" d="M17.9 7.4c.2-1-.8-1.3-1.6-1l-11 4.2c-.7.3-.7.8-.1 1l2.8.9 6.5-4.1c.3-.2.6-.1.4.1l-5.3 4.9-.2 3.1c.5 0 .7-.2 1-.5l1.7-1.6 2.6 1.9c.6.3 1 .1 1.1-.6l1.9-9.3z"/>
+    </svg>
+    Join Telegram
+  </a>
+ <a class="btn btn-primary" href="play.html" style="font-size: 1.1rem; padding: 14px 24px;">
+        ♠️ Play Poker
+      </a>
+<a class="btn btn-primary" href="blackjack.html" style="font-size: 1.1rem; padding: 14px 24px;">
+        🃏 Play Blackjack
+      </a>
+      <a class="btn btn-ghost" href="/"              class="kk-home" aria-label="Go to Home">🏠 Home</a>
+     
+    <a id="navConnect" class="btn btn-ghost" href="/connect.html" aria-current="page">Connect Wallet</a>
+
+
 </head>
+</nav>
+    <div class="brand">
+      <div class="brand-badge">KK</div>
+      <h1>PixelPup Dice 🎲</h1>
+    </div>
+  </header>
 <body>
   <main class="frame">
     <section>
-      <div class="title">
-        <h1>PixelPup Dice</h1>
-        <span class="badge">Season 0</span>
+        <span class="badge">🎄Christmas Season🎄</span>
       </div>
       <p class="subtitle">Roll under the target. Higher risk, higher KIBL. All rolls are provably fair (commit–reveal).</p>
 
@@ -299,6 +324,10 @@
         <div style="display:flex; gap: 16px; font-family: monospace; color: var(--pp-accent1);">
           <span id="kiblBalance">KIBL: —</span>
           <span id="nexaBalance">NEXA: —</span>
+           <button id="dailyReward" class="btn btn-ghost">Claim Daily Reward</button>
+       <a href="claim.html" class="btn btn-primary" style="width:100%; text-align:center; display:block; padding:12px;">
+          FEED ME! 🐾 (Withdraw)
+        </a>
         </div>
         </div>
         <div class="stat-row">
@@ -309,9 +338,7 @@
           <span>Dice Wins</span>
           <span id="diceWins">0</span>
         </div>
-        <button id="payoutBtn" class="btn-secondary" style="margin-top:10px;">
-          Withdraw KIBL
-        </button>
+        
         <button class="lb-tab" data-game="dice">Dice</button>
         <div id="lb-dice" class="lb-panel" style="display:none;"></div>
 
@@ -344,6 +371,9 @@
     };
     let csrfToken = null;
 
+
+const dailyRewardBtn = document.getElementById(IDS.daily);
+
 async function ensureCsrf() {
   if (csrfToken) return csrfToken;
   try {
@@ -360,7 +390,6 @@ async function ensureCsrf() {
  function show(el){ el && (el.style.display = 'block'); }
   function hide(el){ el && (el.style.display = 'none'); }
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
   function toast(html, { type = 'info', timeout = 2500 } = {}) {
     let root = document.getElementById('toasts');
     if (!root) {
@@ -405,6 +434,36 @@ function flashPayout(){
   // clean up after the glow ends
   setTimeout(() => payoutEl?.classList.remove('payout-win'), 1400);
 }
+async function onDailyReward() {
+try {
+    const res = await postWithCsrf(API.daily, { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+
+    if (!data.ok){
+      if (data.error === 'Daily reward already claimed.') {
+          const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
+          alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
+      } else {
+          alert('Daily Reward Failed: ' + (data.error || 'Unknown error'));
+      }
+      return;
+    }
+
+    // SUCCESS: It was sent directly to the wallet
+    const creditUnits = Math.floor((data.credit || 0) / 100);
+    alert(`Daily Reward Sent! \n\n+${creditUnits} KIBL have been sent directly to your linked wallet.\nTxID: ${data.txId?.slice(0,10)}...`);
+
+    // Refresh the WALLET balance, not the payout total
+    const linked = await fetch('/api/wallet/status').then(r=>r.json()).catch(()=>({}));
+    if (linked?.address && window.loadWalletBalances) {
+        window.loadWalletBalances(linked.address);
+    }
+
+  } catch (e) {
+    console.error(e);
+    alert('Failed to claim daily reward, please try again.');
+  }
+}
 async function loadWalletBalances(address) {
   if (!address) return;
   try {
@@ -417,9 +476,33 @@ async function loadWalletBalances(address) {
 
     const nexaEl = document.getElementById('nexaBalance');
     if (nexaEl) nexaEl.textContent = `NEXA: ${j.nexa}`;
+    updateUI();
   } catch (e) {
     console.error('loadWalletBalances failed:', e);  
   }
+}
+function updateUI() {
+    const navConnect = document.getElementById('navConnect');
+    
+    console.log("Updating UI. Linked:", !!state.linked, "Local:", state.localWallet);
+
+    // 1. Navigation Button Logic
+    if (navConnect) {
+      if (state.linked) {
+        navConnect.style.display = 'none'; // Connected!
+      } else if (state.localWallet) {
+        // Zombie State
+        navConnect.style.display = 'inline-flex';
+        navConnect.textContent = '🔓 Unlock Wallet';
+        navConnect.className = 'btn btn-primary';
+        navConnect.onclick = (e) => { e.preventDefault(); doUnlock(); };
+      } else {
+        // Not Connected
+        navConnect.style.display = 'inline-flex';
+        navConnect.textContent = 'Connect Wallet';
+        navConnect.href = '/connect.html';
+      }
+    }
 }
     async function api(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
@@ -458,7 +541,50 @@ async function loadWalletBalances(address) {
         body: JSON.stringify(body || {})
       });
     }
+let totalPayout = 0;
+function onHCaptchaLoad() {
+  const el = document.getElementById('payoutCaptcha');
+  if (!el) {
+    console.error('Missing #payoutCaptcha element in DOM.');
+    return;
+  }
+  if (widgetId !== null) return; // already rendered (idempotent)
 
+  widgetId = hcaptcha.render(el, {
+    sitekey: HCAPTCHA_SITE_KEY,
+    size: 'invisible',
+    callback: (token) => {
+      if (pendingResolve) {
+        pendingResolve(token);
+        pendingResolve = null;
+      }
+    },
+    'error-callback': () => {
+      if (pendingResolve) {
+        pendingResolve(Promise.reject(new Error('hCaptcha error')));
+        pendingResolve = null;
+      }
+    },
+    'close-callback': () => {
+      if (pendingResolve) {
+        pendingResolve(Promise.reject(new Error('hCaptcha closed')));
+        pendingResolve = null;
+      }
+    }
+  });
+}
+
+function waitForWidget() {
+  return new Promise((resolve) => {
+    if (widgetId !== null) return resolve(widgetId);
+    // If hcaptcha loaded but didn’t render yet, try again after DOMContentLoaded/onload
+    const check = () => {
+      if (widgetId !== null) resolve(widgetId);
+      else setTimeout(check, 50);
+    };
+    check();
+  });
+}
     // ---------- UI helpers ----------
     async function loadDiceLeaderboard() {
   const box = document.getElementById('lb-dice');
@@ -845,13 +971,14 @@ async function betAndRollNext() {
   const payoutBtn      = document.getElementById('payoutBtn');
   const changeTargetBtn = document.getElementById('changeTargetBtn');
   
+  
 
   if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
  if (rollBtn) rollBtn.addEventListener('click', onRollClick);
   if (fairBtn) fairBtn.addEventListener('click', showFairness);
   if (payoutBtn) payoutBtn.addEventListener('click', payout);
   if (changeTargetBtn) changeTargetBtn.addEventListener('click', changeTarget);
-  
+  if (dailyRewardBtn)dailyRewardBtn.addEventListener('click', onDailyReward);
 
   await ensureCsrf().catch(() => {});
   loadProfile();
