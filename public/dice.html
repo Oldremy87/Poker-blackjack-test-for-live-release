@@ -1368,9 +1368,7 @@ body.compact {
     await fetchCsrf();
     await (window.loadProfile?.());
     await (window.loadLeaderboard?.());
-  } catch {
-    alert('Could not initialize security token. Refresh to try again.');
-  }
+  } catch {}
 });
       // --- 2. STATE ---
   window.state = {
@@ -1777,15 +1775,9 @@ function waitForWidget() {
 
 
 async function showRollResult(payload) {
-  const {
-    roll,
-    win,
-    tier,
-    credit,
-    points,
-    fair
-  } = payload || {};
+  const { roll, win, tier, credit, points, fair } = payload || {};
 
+  // --- Standard UI Updates ---
   const resultRow = document.getElementById('resultRow');
   const status    = document.getElementById('statusText');
   const rollEl    = document.getElementById('rollValue');
@@ -1796,62 +1788,131 @@ async function showRollResult(payload) {
   const changeTargetBtn = document.getElementById('changeTargetBtn');
 
   if (resultRow) resultRow.hidden = false;
-
   if (rollEl) rollEl.textContent = roll ?? '—';
   if (tierEl) tierEl.textContent = tier?.label || tier?.name || '—';
 
   const creditUnits = Math.floor((credit || 0) / 100);
   const pointsInt   = points ?? 0;
 
-  if (winEl)   winEl.textContent  = creditUnits > 0 ? `+${creditUnits} KIBL` : 'No win this time';
-  if (ptsEl)   ptsEl.textContent  = pointsInt ? `+${pointsInt} dice points` : 'No new points';
-  if (status)  status.textContent = creditUnits > 0
-    ? 'You fed the pup! 🎲'
-    : 'No snacks this roll – try again.';
+  if (winEl) winEl.textContent = creditUnits > 0 ? `+${creditUnits} KIBL` : 'No win this time';
+  if (ptsEl) ptsEl.textContent = pointsInt ? `+${pointsInt} dice pts` : '';
+  if (status) status.textContent = creditUnits > 0 ? 'You fed the pup! 🎲' : 'No snacks this roll.';
 
   if (fair) {
     state.dice.fair = fair;
     if (fairBtn) fairBtn.disabled = false;
-  } else if (fairBtn) {
-    fairBtn.disabled = true;
   }
+  
+  // *** CRITICAL FLAG ***
+  // This tells the "Roll Dice" button that the next click is a NEW ROUND (Bet + Roll)
+  state.dice.mode = 'postRoll'; 
 
-  state.dice.mode = 'postRoll';
-
-  // WIN FX — mirror poker/blackjack
+  // --- FX ---
   if (creditUnits > 0) {
     try {
       const sfx = document.getElementById('feedSound');
-      if (sfx) {
-        sfx.currentTime = 0;
-        sfx.volume = 0.6;
-        sfx.play().catch(() => {});
-      }
+      if (sfx) { sfx.currentTime = 0; sfx.volume = 0.6; sfx.play().catch(()=>{}); }
     } catch {}
-
     flashPayout();
     confettiBurst();
     if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
   }
 
-  // Refresh profile + dice leaderboard (async, UX first)
-  try {
-    await loadProfile();
-  } catch (e) {
-    console.warn('loadProfile failed after dice roll', e);
-  }
-  try {
-    await loadDiceLeaderboard();
-  } catch (e) {
-    console.warn('loadDiceLeaderboard failed', e);
+  try { await loadProfile(); } catch (e) {}
+  try { await loadDiceLeaderboard(); } catch (e) {}
+
+  // ============================================================
+  // 🔥 FAST RE-ROLL UI SETUP 🔥
+  // ============================================================
+  const rollBtn = document.getElementById('rollBtn');
+  const betBtn  = document.getElementById('betBtn');
+
+  // 1. Keep "Place Bet" HIDDEN
+  if (betBtn) {
+      betBtn.style.display = 'none';
   }
 
-  if (changeTargetBtn) changeTargetBtn.disabled = false;
+  // 2. Re-enable "Roll Dice" immediately
+  if (rollBtn) {
+      rollBtn.disabled = false;
+      rollBtn.innerHTML = `<span>Roll Dice</span>`; // <--- Kept standard text
+      rollBtn.classList.remove('busy');
+  }
+
+  // 3. Allow changing target (which resets this flow)
+  if (changeTargetBtn) {
+      changeTargetBtn.disabled = false;
+  }
 }
     window.loadProfile = loadProfile;
 let currentTier = null;
 let lastResult = null;
+async function handleRollClick() {
+  const btn = document.getElementById('rollBtn');
+  if (!btn) return;
 
+  // --- SCENARIO A: FAST RE-ROLL (Pay + Roll) ---
+  if (state.dice.mode === 'postRoll') {
+      try {
+          const savedTier = state.dice.selectedTier; 
+          if (!savedTier) {
+              alert("Please select a tier first.");
+              return changeTarget(); 
+          }
+
+          // UI Feedback
+          btn.disabled = true;
+          btn.innerHTML = `<span>Rolling...</span>`;
+
+          // 1. Perform Transaction
+          const { placeBet } = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
+          const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
+
+          const passphrase = await getSigner();
+          if (!passphrase) throw new Error("Cancelled");
+
+          // Send 100 KIBL
+          await placeBet({
+              passphrase,
+              kiblAmount: 10000, 
+              tokenIdHex: window.KIBL_TOKEN_ID_HEX,
+              feeNexa: 600
+          });
+
+          if (window.toast) toast(`Bet sent!`, { type: 'info' });
+
+          // 2. Start Round on Server
+          await startRound(); 
+
+          // 3. RESTORE TIER & ROLL
+          state.dice.selectedTier = savedTier;
+          
+          // Visual restore
+          renderTiers(); 
+          const tierObj = state.dice.tiers.find(t => t.id === savedTier);
+          if (tierObj) {
+              document.getElementById('selectedTierLabel').textContent = `Selected: ${tierObj.emoji} ${tierObj.label}`;
+          }
+
+          // 4. Execute Roll
+          await rollDice();
+
+      } catch (e) {
+          console.error(e);
+          const msg = e.message || String(e);
+          if (msg !== 'Cancelled') alert("Error: " + msg);
+          
+          // Reset button on error
+          btn.disabled = false;
+          btn.innerHTML = `<span>Roll Dice</span>`;
+      }
+      return;
+  }
+
+  // --- SCENARIO B: STANDARD ROLL (Already paid) ---
+  btn.disabled = true;
+  await rollDice();
+}
 function selectTarget(tierId) {
   currentTier = DICE_TIERS.find(t => t.id === tierId);
 }
@@ -1935,14 +1996,28 @@ window.startRound = startRound;
       alert(msg);
     }
 function changeTarget() {
-  // Just reset selection; user picks a new tier for the NEXT roll
   state.dice.selectedTier = null;
-  renderTiers();
+  state.dice.mode = 'idle'; // Reset mode
 
-  const label   = document.getElementById('selectedTierLabel');
-  const rollBtn = document.getElementById('rollBtn');
+  renderTiers(); 
+  const label = document.getElementById('selectedTierLabel');
   if (label) label.textContent = 'Select your risk tier:';
-  if (rollBtn) rollBtn.disabled = true;
+
+  const rollBtn = document.getElementById('rollBtn');
+  const betBtn = document.getElementById('betBtn');
+
+  // Hide Roll Button
+  if (rollBtn) {
+      rollBtn.disabled = true;
+      rollBtn.innerHTML = `<span>Roll Dice</span>`;
+  }
+
+  // Show Standard Bet Button
+  if (betBtn) {
+      betBtn.style.display = 'inline-flex';
+      betBtn.disabled = false;
+      betBtn.textContent = 'Place 100 KIBL Bet';
+  }
 }
 
 async function betAndRollNext() {
