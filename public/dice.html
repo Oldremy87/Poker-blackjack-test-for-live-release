@@ -434,13 +434,17 @@ async function ensureCsrf() {
     }
 
     function renderProfile() {
-      const p = state.profile;
-      if (!p) return;
-      document.getElementById('bankValue').textContent =
-        (Number(p.bank || 0) / 100).toFixed(2) + ' KIBL';
+  const p = state.profile;
+  if (!p) return;
 
-   
-    }
+  document.getElementById('bankValue').textContent =
+    (Number(p.bank || 0) / 100).toFixed(2) + ' KIBL';
+
+  const dicePointsEl = document.getElementById('dicePoints');
+  const diceWinsEl   = document.getElementById('diceWins');
+  if (dicePointsEl) dicePointsEl.textContent = p.dicePoints ?? 0;
+  if (diceWinsEl)   diceWinsEl.textContent   = p.diceWins ?? 0;
+}
     function showError(message) {
   console.error('[PIXELPUP DICE ERROR]', message);
 
@@ -454,7 +458,7 @@ async function ensureCsrf() {
 }
 
 
-    function showRollResult(payload) {
+async function showRollResult(payload) {
   const { roll, win, tier, credit, points, fair } = payload;
   const rollSpan = document.getElementById('rollValue');
   const status   = document.getElementById('resultStatus');
@@ -478,7 +482,11 @@ async function ensureCsrf() {
 
   // Round is now settled – next click on Roll Dice should do a fresh bet + new round
   state.dice.mode = 'postRoll';
-
+ try {
+    await loadProfile();
+  } catch (e) {
+    console.warn('Failed to refresh profile after roll', e);
+  }
   const changeTargetBtn = document.getElementById('changeTargetBtn');
   if (changeTargetBtn) changeTargetBtn.disabled = false;
 }
@@ -708,7 +716,7 @@ async function betAndRollNext() {
   
 
   if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
-  if (rollBtn) rollBtn.addEventListener('click', rollDice);
+ if (rollBtn) rollBtn.addEventListener('click', onRollClick);
   if (fairBtn) fairBtn.addEventListener('click', showFairness);
   if (payoutBtn) payoutBtn.addEventListener('click', payout);
   if (changeTargetBtn) changeTargetBtn.addEventListener('click', changeTarget);
