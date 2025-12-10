@@ -25,9 +25,8 @@ process.on('uncaughtException', (err) => {
 const PORT = process.env.PORT || 10000;
 async function ensureRostrum() {
   // 1. Try Private Node (Fastest)
+/*
   try {
-    if (rostrumProvider.isConnected) return;
-    
     console.log('[Rostrum] Connecting to Private Infrastructure...');
     await rostrumProvider.connect({ 
       scheme: 'wss', 
@@ -37,7 +36,7 @@ async function ensureRostrum() {
     console.log('✅ [Rostrum] Connected to Private Node (NVMe Accelerated)');
   } catch (e) {
     console.warn('⚠️ [Rostrum] Private node unreachable, attempting failover:', e.message);
-    // 2. Failover to Public Node
+*/
     try {
       await rostrumProvider.connect({ 
         scheme: 'wss', 
@@ -49,7 +48,7 @@ async function ensureRostrum() {
       console.error('❌ [Rostrum] CRITICAL: All nodes failed:', err.message);
     }
   }
-}
+
 
 
 (async () => {
@@ -189,7 +188,8 @@ const HCAPTCHA_SECRET   = process.env.HCAPTCHA_SECRET;
 const HCAPTCHA_HOSTNAME = process.env.HCAPTCHA_HOSTNAME || '';   
 const tablesByGame = {
   poker:      { stats: 'user_stats',            points: 'season_points' },
-  blackjack:  { stats: 'user_stats_blackjack',  points: 'season_points_blackjack' }
+  blackjack:  { stats: 'user_stats_blackjack',  points: 'season_points_blackjack' },
+  dice:       { stats: 'user_stats',            points: 'season_points_dice' }
 };
 
 
@@ -267,7 +267,7 @@ const handsByUid = new Map();
 const handsByIp  = new Map(); 
 function touch(rec, now) {
   return (!rec || (now - rec.windowStart) >= WINDOW_MS)
-    ? { windowStart: now, counts: { poker: 0, blackjack: 0 } }
+    ? { windowStart: now, counts: { poker: 0, blackjack: 0, dice: 0 } }
     : rec;
 }
 app.get('/api/profile', async (req, res) => {
@@ -374,9 +374,50 @@ function shuffleDeterministic(deck, rng) {
   return a;
 }
 // Leaderboard
+app.get('/api/leaderboard/dice', async (req, res) => {
+  try {
+    const p = await db();
+    const limit = 100;
+
+    // pull current season ID
+    const row = await p.query(
+      `SELECT current_season_id FROM season_current LIMIT 1`
+    );
+    const seasonId = row.rows[0]?.current_season_id;
+    if (!seasonId) return res.json({ ok: true, players: [] });
+
+    const q = `
+      SELECT sp.user_id, sp.points_total AS points,
+             u.display_id, u.avatar_url
+      FROM season_points_dice sp
+      JOIN users u ON u.user_id = sp.user_id
+      WHERE sp.season_id = $1
+      ORDER BY sp.points_total DESC
+      LIMIT $2
+    `;
+
+    const r = await p.query(q, [seasonId, limit]);
+
+    return res.json({
+      ok: true,
+      players: r.rows.map((row, i) => ({
+        rank: i + 1,
+        id: row.display_id,
+        avatar: row.avatar_url,
+        points: row.points
+      }))
+    });
+
+  } catch (e) {
+    logger.error("leaderboard/dice", { e });
+    return res.status(500).json({ ok: false });
+  }
+});
+
 app.get('/api/leaderboard/top', async (req, res) => {
   try {
-    const game = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
+    const qg   = String(req.query.game || 'poker');
+    const game = (qg === 'blackjack' || qg === 'dice') ? qg : 'poker';
     const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 10));
     const table = tablesByGame[game].points;
 
@@ -414,7 +455,8 @@ limit $2
 });
 app.get('/api/leaderboard/window', async (req, res) => {
   try {
-    const game = (req.query.game === 'blackjack') ? 'blackjack' : 'poker';
+    const qg   = String(req.query.game || 'poker');
+    const game = (qg === 'blackjack' || qg === 'dice') ? qg : 'poker';
     const k = Math.max(1, Math.min(10, Number(req.query.k) || 3)); // window radius
     const table = tablesByGame[game].points;
 
@@ -683,7 +725,7 @@ function ensureBank(req) {
 // Wallet functions
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-
+    await ensureRostrum()
     const address = String(req.query.address || '');
     if (!/^nexa:[a-z0-9]+$/i.test(address)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
@@ -905,7 +947,11 @@ function gateStartHand(req, game = 'poker') {
   const ip   = getClientIp(req) || 'unknown';
   
 
-  const limit = (game === 'blackjack') ? HANDS_LIMIT_BJ : HANDS_LIMIT_POKER;
+  const limit = (game === 'blackjack')
+    ? HANDS_LIMIT_BJ
+    : (game === 'dice')
+      ? HANDS_LIMIT_POKER  // reuse same cap as poker for now
+      : HANDS_LIMIT_POKER;
 
   const rUid = touch(handsByUid.get(uid), now);
   const rIp  = touch(handsByIp.get(ip), now);
@@ -2261,6 +2307,259 @@ app.post('/api/bj/split', bjActionLimiter, (req, res) => {
     return res.status(500).json({ ok:false, error:'bj_split_error' });
   }
 });
+// =================== SATOSHI DICE HELPERS ===================
+
+// Ode to Satoshi Dice: roll in [0, 9999] from a commit–reveal seed.
+function satoshiDiceRoll(serverSeed, clientSeed, handId, nonce = 0) {
+  const h = sha256hex(`${serverSeed}:${clientSeed || ''}:${handId}:${nonce}:dice`);
+  const n = parseInt(h.slice(0, 8), 16) >>> 0;
+  return n % 10000; // 0–9999
+}
+
+// PixelPup-flavored risk tiers (you can tune thresholds/payouts):
+const DICE_TIERS = [
+  {
+    id: 'pup_safe',
+    label: 'Safe Pup',
+    emoji: '🐶',
+    threshold: 7000,   // win if roll < 7000 (70%)
+    payoutCredits: 1   // 1 credit → TOKENS_PER_CREDIT × 100 minor units
+  },
+  {
+    id: 'pup_brave',
+    label: 'Brave Pup',
+    emoji: '⚡',
+    threshold: 5000,   // 50%
+    payoutCredits: 2
+  },
+  {
+    id: 'pup_degen',
+    label: 'DeGen Pup',
+    emoji: '🔥',
+    threshold: 2000,   // 20%
+    payoutCredits: 5
+  },
+  {
+    id: 'pup_moon',
+    label: 'Moon Pup',
+    emoji: '🌙',
+    threshold: 1000,   // 10%
+    payoutCredits: 10
+  }
+];
+
+// Small helper to ensure dice session state
+function ensureDiceSession(req) {
+  if (!req.session.dice) {
+    req.session.dice = { round: null, lastRollAt: 0 };
+  }
+}
+const diceLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+// =================== SATOSHI DICE API ===================
+
+// Start a dice round: commit serverSeed, let client choose tier/seed later
+app.post('/api/dice/start', diceLimiter, async (req, res) => {
+  try {
+    const g = gateStartHand(req, 'dice');
+    if (!g.ok) return res.status(403).json(g);
+
+    ensureBank(req);
+    ensureDiceSession(req);
+
+    const clientSeed = (req.body && typeof req.body.clientSeed === 'string')
+      ? req.body.clientSeed.trim()
+      : '';
+
+    const handId     = randomUUID();
+    const serverSeed = randHex(32);
+    const commitHash = sha256hex(serverSeed);
+
+    req.session.dice.round = {
+      handId,
+      commit: commitHash,
+      serverSeed,
+      clientSeed,
+      revealed: false,
+      rolled: false
+    };
+
+    if (hasDb) {
+      try {
+        const p = await db();
+        await getOrCreateUser(req.uid);
+        await ensureDisplayId(req.uid);
+        await p.query(
+          `INSERT INTO fair_rounds(hand_id, user_id, commit_hash, client_seed)
+           VALUES ($1,$2,$3,$4)`,
+          [handId, req.uid, commitHash, clientSeed || null]
+        );
+      } catch (e) {
+        logger.error('fair_rounds insert (dice)', { e: String(e) });
+      }
+    }
+
+    await new Promise((resolve, reject) => {
+      req.session.save(err => err ? reject(err) : resolve());
+    });
+
+    return res.json({
+      ok: true,
+      handId,
+      commit: commitHash,
+      g,
+      tiers: DICE_TIERS.map(t => ({
+        id: t.id,
+        label: t.label,
+        emoji: t.emoji,
+        threshold: t.threshold,
+        payoutCredits: t.payoutCredits
+      }))
+    });
+  } catch (e) {
+    logger.error('dice/start', { e: String(e) });
+    return res.status(500).json({ ok: false, error: 'dice_start_error' });
+  }
+});
+app.post('/api/dice/roll', diceLimiter, async (req, res) => {
+  try {
+    ensureBank(req);
+    ensureDiceSession(req);
+
+    const round = req.session.dice.round;
+    if (!round || !round.handId || !round.serverSeed) {
+      return res.status(400).json({ ok: false, error: 'dice_start_first' });
+    }
+    if (round.rolled) {
+      return res.status(429).json({ ok: false, error: 'already_rolled' });
+    }
+
+    const { tierId, nonce } = req.body || {};
+    const tier = DICE_TIERS.find(t => t.id === tierId);
+    if (!tier) {
+      return res.status(400).json({ ok: false, error: 'bad_tier' });
+    }
+
+    const nonceVal = typeof nonce === 'number' || typeof nonce === 'string'
+      ? String(nonce)
+      : '0';
+
+    const roll = satoshiDiceRoll(
+      round.serverSeed,
+      round.clientSeed,
+      round.handId,
+      nonceVal
+    );
+
+    const win = roll < tier.threshold;
+
+    const toInt = v => Math.floor(Number(v) || 0);
+    const TOKENS_PER_CREDIT = toInt(process.env.TOKENS_PER_CREDIT || 1);
+    const BANK_LIMIT        = toInt(process.env.BANK_CAP || BANK_CAP);
+
+    const points = win ? tier.payoutCredits : 0;
+    const creditMinor = win
+      ? toInt(tier.payoutCredits * TOKENS_PER_CREDIT * 100)
+      : 0;
+
+    // Bank: credit to poker wallet (shared pool) to reuse payout logic
+    req.session.wallet ||= { poker: 0, blackjack: 0 };
+    req.session.wallet.poker = Math.max(
+      0,
+      toInt(req.session.wallet.poker) + creditMinor
+    );
+    req.session.bank = Math.min(
+      BANK_LIMIT > 0 ? BANK_LIMIT : Number.MAX_SAFE_INTEGER,
+      toInt(req.session.wallet.poker) + toInt(req.session.wallet.blackjack)
+    );
+
+    // DB: stats piggyback on poker; points go into dice season_points
+    await getOrCreateUser(req.uid);
+    await saveStatsFor(req.uid, 'poker', {
+      creditMinor,
+      isWin: win,
+      isRoyal: false,
+      flags: []   // you can add e.g. ['dice_big_win'] later
+    });
+    await awardSeasonPointsFor(req.uid, 'dice', points);
+
+    // OPTIONAL: track dice-specific stats if you created user_stats_dice
+    if (hasDb) {
+      try {
+        const p = await db();
+        await p.query(
+          `insert into user_stats_dice(user_id, wins, rolls, big_win, last_seen_at)
+           values ($1, $2, $3, $4, now())
+           on conflict (user_id) do update set
+             wins = user_stats_dice.wins + excluded.wins,
+             rolls = user_stats_dice.rolls + excluded.rolls,
+             big_win = greatest(user_stats_dice.big_win, excluded.big_win),
+             last_seen_at = now()`,
+          [req.uid, win ? 1 : 0, 1, win ? tier.payoutCredits : 0]
+        );
+      } catch (e) {
+        logger.error('user_stats_dice upsert', { e: String(e) });
+      }
+    }
+
+    // Reveal fairness once
+    let fair = null;
+    if (!round.revealed) {
+      fair = {
+        handId: round.handId,
+        commit: round.commit,
+        serverSeed: round.serverSeed,
+        clientSeed: round.clientSeed || null,
+        algo: "roll = sha256(serverSeed:clientSeed:handId:nonce:dice) mod 10000"
+      };
+      round.revealed = true;
+
+      if (hasDb) {
+        try {
+          const p = await db();
+          await p.query(
+            `UPDATE fair_rounds
+               SET server_seed = $2, revealed_at = now()
+             WHERE hand_id = $1`,
+            [round.handId, round.serverSeed]
+          );
+        } catch (e) {
+          logger.error('fair_rounds reveal (dice)', { e: String(e) });
+        }
+      }
+    }
+
+    round.rolled = true;
+
+    await new Promise((resolve, reject) => {
+      req.session.save(err => err ? reject(err) : resolve());
+    });
+
+    return res.json({
+      ok: true,
+      roll,
+      win,
+      tier: {
+        id: tier.id,
+        label: tier.label,
+        threshold: tier.threshold,
+        payoutCredits: tier.payoutCredits
+      },
+      credit: creditMinor,          // minor units
+      points,
+      sessionBalance: req.session.bank,
+      fair
+    });
+  } catch (e) {
+    logger.error('dice/roll', { e: String(e) });
+    return res.status(500).json({ ok: false, error: 'dice_roll_error' });
+  }
+});
+
 
 
 

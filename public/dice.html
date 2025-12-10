@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PixelPup Dice</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --pp-bg: #050015;
+      --pp-card: #120826;
+      --pp-accent1: #00ffc6;
+      --pp-accent2: #ff3df7;
+      --pp-text: #fdfdfd;
+      --pp-muted: #9ca3af;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--pp-text);
+      background:
+        radial-gradient(circle at top left, rgba(0,255,198,0.2), transparent 60%),
+        radial-gradient(circle at bottom right, rgba(255,61,247,0.2), transparent 60%),
+        var(--pp-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .frame {
+      max-width: 960px;
+      width: 100%;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 60%), var(--pp-card);
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 18px 40px rgba(0,0,0,0.6),
+        0 0 0 1px rgba(0,0,0,0.7);
+      padding: 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr);
+      gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .frame { grid-template-columns: minmax(0, 1fr); }
+    }
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--pp-accent1);
+    }
+    .badge {
+      font-size: .75rem;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: var(--pp-accent2);
+      background: rgba(0,0,0,0.4);
+    }
+    .subtitle {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--pp-muted);
+    }
+    .dice-main {
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 18px;
+      background: radial-gradient(circle at top left, rgba(0,255,198,0.09), transparent 55%);
+    }
+    .tier-list {
+      display: grid;
+      gap: 8px;
+      margin: 16px 0;
+    }
+    .tier {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+    .tier:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+      border-color: var(--pp-accent1);
+    }
+    .tier.selected {
+      border-color: var(--pp-accent2);
+      box-shadow: 0 0 0 1px rgba(255,61,247,0.6);
+      background: linear-gradient(135deg, rgba(0,255,198,0.16), rgba(255,61,247,0.12));
+    }
+    .tier-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tier-emoji {
+      font-size: 1.5rem;
+    }
+    .tier-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .tier-desc {
+      font-size: 0.8rem;
+      color: var(--pp-muted);
+    }
+    .tier-meta {
+      text-align: right;
+      font-size: 0.8rem;
+    }
+    .tier-meta strong {
+      color: var(--pp-accent1);
+    }
+    .result {
+      margin-top: 10px;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.9rem;
+    }
+    .result span.roll {
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .pill.win {
+      border-color: var(--pp-accent1);
+      color: var(--pp-accent1);
+    }
+    .pill.lose {
+      border-color: #f97373;
+      color: #fecaca;
+    }
+    .controls {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, var(--pp-accent1), var(--pp-accent2));
+      color: #020617;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      transition: transform 80ms ease, box-shadow 80ms ease, opacity 80ms ease;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 26px rgba(0,0,0,0.7);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--pp-muted);
+      border: 1px solid rgba(148,163,184,0.6);
+      box-shadow: none;
+    }
+    .side {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .panel {
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(148,163,184,0.4);
+      background: rgba(15,23,42,0.8);
+    }
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--pp-accent1);
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      color: var(--pp-muted);
+    }
+    .stat-row strong {
+      color: var(--pp-text);
+    }
+    .bank {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.9rem;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--pp-muted);
+      margin-top: 6px;
+    }
+  </style>
+  <script>
+    window.KIBL_TOKEN_ID_HEX = window.KIBL_TOKEN_ID_HEX || "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
+  </script>
+</head>
+<body>
+  <main class="frame">
+    <section>
+      <div class="title">
+        <h1>PixelPup Dice</h1>
+        <span class="badge">Season 0</span>
+      </div>
+      <p class="subtitle">Roll under the target. Higher risk, higher KIBL. All rolls are provably fair (commit–reveal).</p>
+
+      <div class="dice-main">
+        <div id="selectedTierLabel" style="font-size:0.8rem;color:var(--pp-muted);text-transform:uppercase;letter-spacing:.08em;">
+          Select your risk tier:
+        </div>
+        <div id="tierList" class="tier-list"></div>
+
+        <div class="result" id="resultArea">
+          <div>Roll: <span class="roll" id="rollValue">– – – –</span></div>
+          <div id="resultStatus"></div>
+        </div>
+
+        <div class="controls">
+          <button id="betBtn">
+            <span>Place 100 KIBL Bet</span>
+          </button>
+          <button id="rollBtn" disabled>
+            <span>Roll Dice</span>
+          </button>
+          <button id="fairBtn" class="btn-secondary" disabled>
+            Fairness
+          </button>
+        </div>
+        <div class="hint">
+          100 KIBL is sent on-chain to the PixelPup house wallet. Winnings accrue to your in-app KIBL bank for payouts.
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Bank & Profile</h2>
+        <div class="stat-row bank">
+          <span>Bank (all games)</span>
+          <span id="bankValue">0.00 KIBL</span>
+        </div>
+        <div class="stat-row">
+          <span>Season Dice Points</span>
+          <span id="dicePoints">0</span>
+        </div>
+        <div class="stat-row">
+          <span>Dice Wins</span>
+          <span id="diceWins">0</span>
+        </div>
+        <button id="payoutBtn" class="btn-secondary" style="margin-top:10px;">
+          Withdraw KIBL
+        </button>
+        <button class="lb-tab" data-game="dice">Dice</button>
+        <div id="lb-dice" class="lb-panel" style="display:none;"></div>
+
+      </div>
+
+      <div class="panel">
+        <h2>How it Works</h2>
+        <p class="hint">
+          1. Click <strong>Place 100 KIBL Bet</strong> and sign the tx in your Nexa wallet.<br>
+          2. Pick a Pup tier and hit <strong>Roll Dice</strong>.<br>
+          3. If your roll is below the target, you win KIBL into your in-app bank.<br>
+          4. Click Fairness to see the server seed & verify the roll.
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    const state = {
+      profile: null,
+      dice: {
+        handId: null,
+        commit: null,
+        tiers: [],
+        selectedTier: null,
+        fair: null
+      }
+    };
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(opts.headers || {})
+        },
+        ...opts
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function postJson(path, body) {
+      return api(path, {
+        method: 'POST',
+        body: JSON.stringify(body || {})
+      });
+    }
+
+    // ---------- UI helpers ----------
+    async function loadDiceLeaderboard() {
+  const box = document.getElementById('lb-dice');
+  box.innerHTML = '<div class="lb-loading">Loading…</div>';
+
+  try {
+    const res = await fetch('/api/leaderboard/dice', { credentials: 'include' });
+    const data = await res.json();
+    if (!data.ok) throw new Error();
+
+    box.innerHTML = data.players.map(p => `
+      <div class="lb-row">
+        <div class="lb-rank">#${p.rank}</div>
+        <div class="lb-user">
+          <img src="${p.avatar}" class="lb-avatar" />
+          <span>${p.id}</span>
+        </div>
+        <div class="lb-points">${p.points} pts</div>
+      </div>
+    `).join('');
+
+  } catch {
+    box.innerHTML = '<div class="lb-error">Failed to load.</div>';
+  }
+}
+    function renderTiers() {
+      const list = document.getElementById('tierList');
+      list.innerHTML = '';
+      state.dice.tiers.forEach(tier => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'tier' + (state.dice.selectedTier === tier.id ? ' selected' : '');
+        el.dataset.tierId = tier.id;
+        el.innerHTML = `
+          <div class="tier-main">
+            <div class="tier-emoji">${tier.emoji}</div>
+            <div>
+              <div class="tier-name">${tier.label}</div>
+              <div class="tier-desc">Roll &lt; ${tier.threshold.toString().padStart(4, '0')}</div>
+            </div>
+          </div>
+          <div class="tier-meta">
+            <div>Chance: <strong>${(tier.threshold / 100).toFixed(1)}%</strong></div>
+            <div>Win: <strong>${tier.payoutCredits} credit${tier.payoutCredits !== 1 ? 's' : ''}</strong></div>
+          </div>
+        `;
+        el.addEventListener('click', () => {
+          state.dice.selectedTier = tier.id;
+          renderTiers();
+          const label = document.getElementById('selectedTierLabel');
+          label.textContent = `Selected: ${tier.emoji} ${tier.label}`;
+          document.getElementById('rollBtn').disabled = false;
+        });
+        list.appendChild(el);
+      });
+    }
+
+    function renderProfile() {
+      const p = state.profile;
+      if (!p) return;
+      document.getElementById('bankValue').textContent =
+        (Number(p.bank || 0) / 100).toFixed(2) + ' KIBL';
+
+   
+    }
+
+    function showRollResult(payload) {
+      const { roll, win, tier, credit, points, fair } = payload;
+      const rollSpan = document.getElementById('rollValue');
+      const status   = document.getElementById('resultStatus');
+
+      rollSpan.textContent = roll.toString().padStart(4, '0');
+      let html = '';
+      if (win) {
+        html += `<span class="pill win">WIN</span> `;
+        html += `<span>Hit under ${tier.threshold.toString().padStart(4, '0')} → +${(credit / 100).toFixed(2)} KIBL</span>`;
+      } else {
+        html += `<span class="pill lose">MISS</span> `;
+        html += `<span>Needed &lt; ${tier.threshold.toString().padStart(4, '0')}</span>`;
+      }
+      html += `<div style="margin-top:4px;font-size:0.75rem;color:var(--pp-muted);">Points: ${points}</div>`;
+      status.innerHTML = html;
+
+      if (fair) {
+        state.dice.fair = fair;
+        document.getElementById('fairBtn').disabled = false;
+      }
+    }
+
+    async function loadProfile() {
+      const d = await api('/api/profile');
+      if (d.ok) {
+        state.profile = d;
+        renderProfile();
+      }
+    }
+    window.loadProfile = loadProfile;
+
+    // ---------- Core game flow ----------
+    async function startRound() {
+      // Called by walletBet after bet is sent
+      const res = await postJson('/api/dice/start', { clientSeed: crypto.randomUUID() });
+      if (!res.ok) throw new Error(res.error || 'dice_start_error');
+      state.dice.handId = res.handId;
+      state.dice.commit = res.commit;
+      state.dice.tiers  = res.tiers || [];
+      state.dice.selectedTier = null;
+      state.dice.fair = null;
+
+      renderTiers();
+      document.getElementById('rollValue').textContent = '– – – –';
+      document.getElementById('resultStatus').textContent = '';
+      document.getElementById('rollBtn').disabled = true;
+      document.getElementById('fairBtn').disabled = true;
+    }
+    window.startRound = startRound;
+
+    async function rollDice() {
+      const rollBtn = document.getElementById('rollBtn');
+      if (!state.dice.selectedTier) return;
+      rollBtn.disabled = true;
+      rollBtn.textContent = 'Rolling...';
+
+      try {
+        const res = await postJson('/api/dice/roll', {
+          tierId: state.dice.selectedTier,
+          nonce: 0
+        });
+        if (!res.ok) throw new Error(res.error || 'dice_roll_error');
+        showRollResult(res);
+
+        if (res.sessionBalance != null) {
+          if (state.profile) state.profile.bank = res.sessionBalance;
+          renderProfile();
+        }
+      } catch (e) {
+        alert(e.message || 'Dice roll failed');
+      } finally {
+        rollBtn.textContent = 'Roll Dice';
+        rollBtn.disabled = false;
+      }
+    }
+
+    async function showFairness() {
+      const fair = state.dice.fair;
+      if (!fair) return;
+      const msg = [
+        `Hand ID: ${fair.handId}`,
+        `Commit:  ${fair.commit}`,
+        `Server:  ${fair.serverSeed}`,
+        `Client:  ${fair.clientSeed || '(none)'}`,
+        '',
+        'Algo:',
+        fair.algo
+      ].join('\n');
+      alert(msg);
+    }
+
+    async function payout() {
+      try {
+        const res = await postJson('/api/payout', {
+          game: 'all',
+          hcaptchaToken: null  // your client already wires real hcaptcha where needed
+        });
+        if (res.error) throw new Error(res.error);
+        if (res.remainingKIBL != null && state.profile) {
+          state.profile.bank = res.remainingKIBL * 100;
+          renderProfile();
+        }
+        alert(`Payout tx: ${res.txId}`);
+      } catch (e) {
+        alert(e.message || 'Payout failed');
+      }
+    }
+
+    // ---------- Wire walletBet's betBtn ----------
+    async function onBetClick(btn) {
+      try {
+        btn.disabled = true;
+        btn.classList.add('busy');
+        btn.textContent = 'Loading Wallet...';
+
+        const { placeBet }  = await import("/assets/walletBet.bundle.js?v=4");
+        const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
+
+        btn.textContent = 'Authorizing...';
+        const passphrase = await getSigner();
+        if (!passphrase) throw new Error("Cancelled");
+
+        btn.textContent = 'Signing...';
+        const { txId } = await placeBet({
+          passphrase,
+          kiblAmount: 10000,
+          tokenIdHex: window.KIBL_TOKEN_ID_HEX,
+          feeNexa: 600
+        });
+
+        if (window.toast) toast(`Bet sent!`, { type: 'win' });
+
+        btn.style.display = 'none';
+
+        if (window.startRound) await window.startRound();
+        if (window.loadProfile) window.loadProfile();
+        if (state.profile?.linked) window.loadWalletBalances?.(state.profile.linked.address);
+
+      } catch (e) {
+        const msg = e.message || String(e);
+        if (msg !== 'Cancelled' && !msg.includes('User rejected')) {
+          alert("Bet Error: " + msg);
+        }
+        btn.style.display = 'inline-flex';
+        btn.textContent = 'Place 100 KIBL Bet';
+        btn.disabled = false;
+      } finally {
+        btn.classList.remove('busy');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const betBtn   = document.getElementById('betBtn');
+      const rollBtn  = document.getElementById('rollBtn');
+      const fairBtn  = document.getElementById('fairBtn');
+      const payoutBtn = document.getElementById('payoutBtn');
+
+      if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
+      if (rollBtn) rollBtn.addEventListener('click', rollDice);
+      if (fairBtn) fairBtn.addEventListener('click', showFairness);
+      if (payoutBtn) payoutBtn.addEventListener('click', payout);
+
+      loadProfile();
+    });
+  </script>
+</body>
+</html>

@@ -46,20 +46,6 @@ async function isConnectionHealthy(rostrumProvider: any) {
     return false;
   }
 }
-async function nukeIndexedDB() {
-  if (!window.indexedDB) return;
-  try {
-    const dbs = await window.indexedDB.databases();
-    for (const db of dbs) {
-      if (db.name) {
-        console.log(`[Client] Clearing stale DB: ${db.name}`);
-        window.indexedDB.deleteDatabase(db.name);
-      }
-    }
-  } catch (e) {
-    console.warn('[Client] Failed to clear IndexedDB:', e);
-  }
-}
 
 async function establishConnection(rostrumProvider: any) {
   console.log('[Client] Connecting to network...');
@@ -177,7 +163,10 @@ async function _buildAndSend({ passphrase, kiblAmount, tokenIdHex, feeNexa }: an
     .populate()
     .sign()
     .build();
-  
+    console.log('---------------------------------------------------');
+  console.log('[Client] 🔍 DEBUG: Signed Transaction Hex:');
+  console.log(signedTx); // <--- Copy this string to inspect inputs
+  console.log('---------------------------------------------------');
   const txId = await wallet.sendTransaction(signedTx);
   console.log('[Client] Sent:', txId);
 
@@ -194,7 +183,6 @@ export async function placeBet(params: any) {
     if (msg.includes('Missing inputs') || msg.includes('-32602') || msg.includes('-32000')) {
         console.warn('⚠️ [Client] State Drift detected (Missing inputs). Force-resyncing...');
         cachedSession = null; 
-        await nukeIndexedDB();
         await loadWallet(params.passphrase);
         
         console.log('🔄 [Client] Resync complete. Retrying bet...');
