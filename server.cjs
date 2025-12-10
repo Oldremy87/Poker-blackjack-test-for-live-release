@@ -1433,8 +1433,6 @@ app.use('/api/payout', payoutLimiter);
 app.post('/api/payout', payoutLimiter, async (req, res) => {
   try {
     ensureBank(req);
-    // 1. Connection Check
-    await ensureRostrum();
 
     // 2. LAZY LOAD WALLET (Reliability Fix)
     if (!cachedServerWallet) {
