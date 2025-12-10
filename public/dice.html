@@ -695,8 +695,12 @@
       <h1>PixelPup Dice 🎲</h1>
     </div>
   </header>
-  <main class="frame">
-    <section>
+  
+    <div class="wrap">
+    <!-- HUD -->
+    <div class="hud">
+      <div class="panel panel-table" id="game">
+    <div class="controls">
         <span class="badge">🎄Christmas Season🎄</span>
       </div>
       <p class="subtitle">Roll under the target. Higher risk, higher KIBL. All rolls are provably fair (commit–reveal).</p>
@@ -817,6 +821,25 @@ async function ensureCsrf() {
     console.error('CSRF error', e);
     throw e;
   }
+}
+function postWithCsrf(input, init = {}) {
+  const baseHeaders = init.headers ? {...init.headers} : {};
+  if (init.body && !baseHeaders['Content-Type']) baseHeaders['Content-Type'] = 'application/json';
+  const makeReq = async () => fetch(input, {
+    ...init,
+    method: init.method || 'POST',
+    credentials: 'include',
+    headers: { 'x-csrf-token': __csrf, ...baseHeaders }
+  });
+  // 403 → refresh CSRF once
+  return (async () => {
+      let resp = await makeReq();
+      if (resp.status === 403) {
+      const data = await resp.clone().json().catch(()=> ({}));
+      if (data?.error === 'bad_csrf') { await fetchCsrf(); resp = await makeReq(); }
+    }
+    return resp;
+  })();
 }
 async function loadProfile() {
   try {
@@ -1458,7 +1481,7 @@ if (dailyRewardBtn) dailyRewardBtn.addEventListener('click', onDailyReward);
   
 
   if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
- if (rollBtn) rollBtn.addEventListener('click', onRollClick);
+ 
   if (fairBtn) fairBtn.addEventListener('click', showFairness);
   if (payoutBtn) payoutBtn.addEventListener('click', payout);
   if (changeTargetBtn) changeTargetBtn.addEventListener('click', changeTarget);
