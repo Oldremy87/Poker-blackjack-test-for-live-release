@@ -485,7 +485,11 @@ async function ensureCsrf() {
       }
     }
     window.loadProfile = loadProfile;
+let currentTier = null;
+let lastResult = null;
 
+function selectTarget(tierId) {
+  currentTier = DICE_TIERS.find(t => t.id === tierId);
     // ---------- Core game flow ----------
     async function startRound() {
   // Called by walletBet after bet is sent OR by "roll again" / "change target"
