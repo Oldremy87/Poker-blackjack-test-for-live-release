@@ -2165,7 +2165,7 @@ if (dailyRewardBtn) dailyRewardBtn.addEventListener('click', onDailyReward);
   
 
   if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
- 
+ if (rollBtn) rollBtn.addEventListener('click', handleRollClick);
   if (fairBtn) fairBtn.addEventListener('click', showFairness);
   if (payoutBtn) payoutBtn.addEventListener('click', payout);
   if (changeTargetBtn) changeTargetBtn.addEventListener('click', changeTarget);
