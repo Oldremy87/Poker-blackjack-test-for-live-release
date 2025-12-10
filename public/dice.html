@@ -531,9 +531,144 @@
     .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
 
   </style>
+</head>
   <script>
     window.KIBL_TOKEN_ID_HEX = window.KIBL_TOKEN_ID_HEX || "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000";
   </script>
+  <script>
+  function fitHandToWidth() {
+    const hand = document.getElementById('hand');
+    if (!hand) return;
+
+    // How wide is the hand area?
+    const styles = getComputedStyle(hand);
+    const gap = parseFloat(styles.gap || styles.columnGap || 10) || 10;
+    const cards = 5, gaps = cards - 1;
+
+    const available = hand.clientWidth; // visible width
+    // space for 5 cards + 4 gaps
+    const perCard = (available - gap * gaps) / cards;
+
+    // clamp so it looks good everywhere
+    const cardW = Math.max(58, Math.min(perCard, 130));
+
+    document.documentElement.style.setProperty('--cardW', cardW + 'px');
+  }
+
+  addEventListener('load', fitHandToWidth);
+  addEventListener('resize', fitHandToWidth);
+  function enterSite() {
+    localStorage.setItem('ageVerified', 'true');
+    document.getElementById('ageGate').style.display = 'none';
+  }
+  window.addEventListener('load', () => {
+    if (localStorage.getItem('ageVerified') === 'true') {
+      document.getElementById('ageGate').style.display = 'none';
+    }
+  });
+</script>
+<div id="cookieBar" class="cookie-bar" role="region" aria-label="Cookie notice" hidden>
+  <span>
+    PixelPup Poker uses cookies & session storage to keep you logged in and prevent abuse.
+    By continuing, you agree to our <a href="privacy.html">Privacy Policy</a>.
+  </span>
+  <button id="cookieAccept" class="btn">Accept</button>
+</div>
+<script>
+(function () {
+  const KEY = 'kk_cookie_consent_v1';
+  function initCookieBar(){
+    const bar = document.getElementById('cookieBar');
+    const btn = document.getElementById('cookieAccept');
+    if (!bar || !btn) return;
+    try {
+      if (localStorage.getItem(KEY) === 'true') return;
+      bar.hidden = false;
+      btn.addEventListener('click', () => {
+        localStorage.setItem(KEY, 'true');
+        bar.hidden = true;
+      });
+    } catch {
+      bar.hidden = false;
+      btn.addEventListener('click', () => bar.hidden = true);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCookieBar);
+  } else {
+    initCookieBar();
+  }
+})();
+</script>
+
+ 
+
+</style>
+<body>
+<!-- Themed Age Gate Overlay -->
+<div id="ageGate"
+     role="dialog"
+     aria-labelledby="ageTitle"
+     aria-describedby="ageDesc"
+     aria-modal="true"
+     style="position:fixed; inset:0; z-index:9999; display:none;">
+  <!-- Backdrop -->
+  <div class="age-backdrop" style="position:absolute; inset:0;
+    background:
+      radial-gradient(1200px 800px at 50% -20%, #13203b 0%, #0b0f19 60%, #05070d 100%),
+      linear-gradient(180deg, #0b0f19 0%, #05070d 100%);
+    opacity:.98;"></div>
+
+  <!-- Centered panel (NOTE: inside #ageGate) -->
+  <div class="age-wrap" style="position:relative; height:100%; display:flex; align-items:center; justify-content:center; padding:24px;">
+    <div class="panel" style="max-width:560px; width:100%; text-align:center;">
+      <div class="brand" style="justify-content:center; margin-bottom:8px;">
+        <div class="brand-badge">KK</div>
+        <h1 id="ageTitle" style="margin:0;">PixelPup Poker Alpha</h1>
+      </div>
+
+      <p id="ageDesc" class="readout" style="margin:6px 0 16px;">
+        You must be <strong>18 or older</strong> to participate in this alpha test.
+      </p>
+
+      <div class="panel" style="margin: 12px 0;">
+        <p class="readout" style="margin:6px 0;">
+          This is a free alpha test. No real money. Tokens have no monetary value.
+        </p>
+        <p class="readout" style="margin:6px 0;">
+          See our <a href="disclaimer.html">Disclaimer</a>, <a href="tos.html">Terms</a>, and <a href="privacy.html">Privacy</a>.
+        </p>
+      </div>
+
+      <div class="controls" style="margin-top:12px;">
+        <button id="ageConfirm" class="btn btn-primary" type="button" aria-label="I am 18 or older">I am 18+</button>
+        <a class="btn btn-ghost" href="https://www.google.com" aria-label="Exit site">Exit</a>
+      </div>
+
+      <label class="readout" style="display:inline-flex; gap:8px; align-items:center; margin-top:10px;">
+        <input id="ageRemember" type="checkbox" style="accent-color: var(--accent);" />
+        Remember this on this device
+      </label>
+    </div>
+  </div>
+
+  <noscript>
+    <div style="position:absolute;bottom:0;left:0;right:0;text-align:center;color:white;padding:8px;background:#111827;">
+      JavaScript is required to enter.
+    </div>
+  </noscript>
+</div>
+
+
+  <noscript>
+    <div style="position:absolute;bottom:0;left:0;right:0;text-align:center;color:white;padding:8px;background:#111827;">
+  
+    </div>
+  </noscript>
+</div>
+
+</div>
+
    <header>
     <nav>
   <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">
@@ -554,15 +689,12 @@
      
     <a id="navConnect" class="btn btn-ghost" href="/connect.html" aria-current="page">Connect Wallet</a>
 
-
-</head>
 </nav>
     <div class="brand">
       <div class="brand-badge">KK</div>
       <h1>PixelPup Dice 🎲</h1>
     </div>
   </header>
-<body>
   <main class="frame">
     <section>
         <span class="badge">🎄Christmas Season🎄</span>
@@ -655,8 +787,23 @@
     };
     let csrfToken = null;
 
-
+const IDS = Object.freeze({
+  payout: 'payoutTotal',
+  achievements: 'achievements',
+  deal: 'deal',
+  draw: 'draw',
+  daily: 'dailyReward',
+  claimButton: 'ClaimPayout',
+  hand: 'hand',
+  address: 'addressInput',
+  loading: 'loading',
+  leaderboardList: 'leaderboardList'
+});
 const dailyRewardBtn = document.getElementById(IDS.daily);
+const feedSound = document.getElementById('feedSound');
+const payoutEl       = document.getElementById(IDS.payout);
+const achievementsEl = document.getElementById(IDS.achievements);
+dailyRewardBtn?.addEventListener('click', onDailyReward);
 
 async function ensureCsrf() {
   if (csrfToken) return csrfToken;
