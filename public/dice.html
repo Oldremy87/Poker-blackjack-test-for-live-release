@@ -1372,7 +1372,22 @@ body.compact {
     alert('Could not initialize security token. Refresh to try again.');
   }
 });
-    
+      // --- 2. STATE ---
+  window.state = {
+    csrf: null,
+    linked: null,
+    localWallet: false,
+     profile: null,
+      dice: {
+        handId: null,
+        commit: null,
+        tiers: [],
+        selectedTier: null,
+        fair: null,
+        mode: 'idle' // 'idle' | 'preRoll' | 'postRoll'
+      }
+  };
+
     const API = Object.freeze({
   csrf: '/api/csrf',
   start: '/api/start-hand',
@@ -2027,7 +2042,7 @@ async function betAndRollNext() {
         btn.classList.add('busy');
         btn.textContent = 'Loading Wallet...';
 
-        const { placeBet }  = await import("/assets/walletBet.bundle.js?v=4");
+        const { placeBet } = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
         const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
 
         btn.textContent = 'Authorizing...';
@@ -2092,21 +2107,6 @@ if (dailyRewardBtn) dailyRewardBtn.addEventListener('click', onDailyReward);
     console.error("Global Error:", msg);
   };
 
-  // --- 2. STATE ---
-  const state = {
-    csrf: null,
-    linked: null,
-    localWallet: false,
-     profile: null,
-      dice: {
-        handId: null,
-        commit: null,
-        tiers: [],
-        selectedTier: null,
-        fair: null,
-        mode: 'idle' // 'idle' | 'preRoll' | 'postRoll'
-      }
-  };
 
   // --- 3. LIGHTWEIGHT API ---
   async function apiCall(endpoint, body = null) {
@@ -2415,7 +2415,7 @@ if (dailyRewardBtn) dailyRewardBtn.addEventListener('click', onDailyReward);
       btn.classList.add('busy');
       btn.textContent = 'Loading Wallet...';
 
-      const { placeBet } = await import("/assets/walletBet.bundle?t=${Date.now()}js?");
+        const { placeBet } = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
       const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
 
       btn.textContent = 'Authorizing...';

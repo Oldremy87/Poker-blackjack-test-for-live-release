@@ -1781,7 +1781,7 @@ async function onClaimPayout() {
 
                 // Load Deps
                 const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
-                const { sendFunds } = await import("/assets/walletBet.bundle.js?v=" + Date.now()); 
+              const { sendFunds } = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
 
                 const passphrase = await getSigner();
                 if (!passphrase) throw new Error('Cancelled');
@@ -1982,8 +1982,7 @@ async function onClaimPayout() {
       btn.disabled = true;
       btn.classList.add('busy');
       btn.textContent = 'Loading Wallet...';
-
-      const { placeBet } = await import("/assets/walletBet.bundle.js?v=5");
+      const { placeBet } = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
       const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
 
       btn.textContent = 'Authorizing...';
