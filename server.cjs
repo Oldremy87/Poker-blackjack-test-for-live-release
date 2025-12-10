@@ -725,7 +725,6 @@ function ensureBank(req) {
 // Wallet functions
 app.get('/api/wallet/balance', async (req, res) => {
   try {
-    await ensureRostrum()
     const address = String(req.query.address || '');
     if (!/^nexa:[a-z0-9]+$/i.test(address)) {
       return res.status(400).json({ ok:false, error:'bad_address' });
