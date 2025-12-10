@@ -255,16 +255,23 @@
         </div>
 
         <div class="controls">
-          <button id="betBtn">
-            <span>Place 100 KIBL Bet</span>
-          </button>
-          <button id="rollBtn" disabled>
-            <span>Roll Dice</span>
-          </button>
-          <button id="fairBtn" class="btn-secondary" disabled>
-            Fairness
-          </button>
-        </div>
+  <button id="betBtn">
+    <span>Place 100 KIBL Bet</span>
+  </button>
+  <button id="rollBtn" disabled>
+    <span>Roll Dice</span>
+  </button>
+  <button id="changeTargetBtn" class="btn-secondary" disabled>
+    Change Target
+  </button>
+  <button id="rollAgainBtn" class="btn-secondary" disabled>
+    Roll Again
+  </button>
+  <button id="fairBtn" class="btn-secondary" disabled>
+    Fairness
+  </button>
+</div>
+
         <div class="hint">
           100 KIBL is sent on-chain to the PixelPup house wallet. Winnings accrue to your in-app KIBL bank for payouts.
         </div>
@@ -438,27 +445,37 @@ async function ensureCsrf() {
     }
 
     function showRollResult(payload) {
-      const { roll, win, tier, credit, points, fair } = payload;
-      const rollSpan = document.getElementById('rollValue');
-      const status   = document.getElementById('resultStatus');
+  const { roll, win, tier, credit, points, fair } = payload;
+  const rollSpan = document.getElementById('rollValue');
+  const status   = document.getElementById('resultStatus');
 
-      rollSpan.textContent = roll.toString().padStart(4, '0');
-      let html = '';
-      if (win) {
-        html += `<span class="pill win">WIN</span> `;
-        html += `<span>Hit under ${tier.threshold.toString().padStart(4, '0')} → +${(credit / 100).toFixed(2)} KIBL</span>`;
-      } else {
-        html += `<span class="pill lose">MISS</span> `;
-        html += `<span>Needed &lt; ${tier.threshold.toString().padStart(4, '0')}</span>`;
-      }
-      html += `<div style="margin-top:4px;font-size:0.75rem;color:var(--pp-muted);">Points: ${points}</div>`;
-      status.innerHTML = html;
+  rollSpan.textContent = roll.toString().padStart(4, '0');
+  let html = '';
+  if (win) {
+    html += `<span class="pill win">WIN</span> `;
+    html += `<span>Hit under ${tier.threshold.toString().padStart(4, '0')} → +${(credit / 100).toFixed(2)} KIBL</span>`;
+  } else {
+    html += `<span class="pill lose">MISS</span> `;
+    html += `<span>Needed &lt; ${tier.threshold.toString().padStart(4, '0')}</span>`;
+  }
+  html += `<div style="margin-top:4px;font-size:0.75rem;color:var(--pp-muted);">Points: ${points}</div>`;
+  status.innerHTML = html;
 
-      if (fair) {
-        state.dice.fair = fair;
-        document.getElementById('fairBtn').disabled = false;
-      }
-    }
+  if (fair) {
+    state.dice.fair = fair;
+    document.getElementById('fairBtn').disabled = false;
+  }
+
+  // 🔒 Round is now settled on the server – lock roll, enable post-round actions
+  const rollBtn        = document.getElementById('rollBtn');
+  const changeTargetBtn = document.getElementById('changeTargetBtn');
+  const rollAgainBtn    = document.getElementById('rollAgainBtn');
+
+  if (rollBtn) rollBtn.disabled = true;
+  if (changeTargetBtn) changeTargetBtn.disabled = false;
+  if (rollAgainBtn) rollAgainBtn.disabled = false;
+}
+
 
     async function loadProfile() {
       const d = await api('/api/profile');
@@ -471,48 +488,75 @@ async function ensureCsrf() {
 
     // ---------- Core game flow ----------
     async function startRound() {
-      // Called by walletBet after bet is sent
-      const res = await postJson('/api/dice/start', { clientSeed: crypto.randomUUID() });
-      if (!res.ok) throw new Error(res.error || 'dice_start_error');
-      state.dice.handId = res.handId;
-      state.dice.commit = res.commit;
-      state.dice.tiers  = res.tiers || [];
-      state.dice.selectedTier = null;
-      state.dice.fair = null;
+  // Called by walletBet after bet is sent OR by "roll again" / "change target"
+  const res = await postJson('/api/dice/start', { clientSeed: crypto.randomUUID() });
+  if (!res.ok) throw new Error(res.error || 'dice_start_error');
 
-      renderTiers();
-      document.getElementById('rollValue').textContent = '– – – –';
-      document.getElementById('resultStatus').textContent = '';
-      document.getElementById('rollBtn').disabled = true;
-      document.getElementById('fairBtn').disabled = true;
-    }
-    window.startRound = startRound;
+  state.dice.handId       = res.handId;
+  state.dice.commit       = res.commit;
+  state.dice.tiers        = res.tiers || [];
+  state.dice.selectedTier = null;
+  state.dice.fair         = null;
+
+  renderTiers();
+  document.getElementById('selectedTierLabel').textContent = 'Select your risk tier:';
+  document.getElementById('rollValue').textContent = '– – – –';
+  document.getElementById('resultStatus').textContent = '';
+
+  const rollBtn         = document.getElementById('rollBtn');
+  const fairBtn         = document.getElementById('fairBtn');
+  const changeTargetBtn = document.getElementById('changeTargetBtn');
+  const rollAgainBtn    = document.getElementById('rollAgainBtn');
+
+  if (rollBtn) rollBtn.disabled = true;
+  if (fairBtn) fairBtn.disabled = true;
+  if (changeTargetBtn) changeTargetBtn.disabled = true;
+  if (rollAgainBtn) rollAgainBtn.disabled = true;
+}
+window.startRound = startRound;
+
 
     async function rollDice() {
-      const rollBtn = document.getElementById('rollBtn');
-      if (!state.dice.selectedTier) return;
-      rollBtn.disabled = true;
-      rollBtn.textContent = 'Rolling...';
+  if (!currentTier) {
+    showError('Select a target first.');
+    return;
+  }
 
-      try {
-        const res = await postJson('/api/dice/roll', {
-          tierId: state.dice.selectedTier,
-          nonce: 0
-        });
-        if (!res.ok) throw new Error(res.error || 'dice_roll_error');
-        showRollResult(res);
+  // NEW: force bet + startRound before every roll
+  if (!lastResult) {
+    showError('Place a bet first to start a round.');
+    return;
+  }
 
-        if (res.sessionBalance != null) {
-          if (state.profile) state.profile.bank = res.sessionBalance;
-          renderProfile();
-        }
-      } catch (e) {
-        alert(e.message || 'Dice roll failed');
-      } finally {
-        rollBtn.textContent = 'Roll Dice';
-        rollBtn.disabled = false;
-      }
-    }
+  const body = {
+    tierId: currentTier.id,
+    nonce: Date.now()
+  };
+
+  const data = await postJson('/api/dice/roll', body);
+  if (!data.ok) {
+    showError(data.error || 'Roll failed.');
+    return;
+  }
+
+  showRollResult({
+    roll: data.roll,
+    win: data.win,
+    threshold: data.tier.threshold,
+    payoutCredits: data.tier.payoutCredits,
+    fair: data.fair || null
+  });
+
+  if (data.fair && lastResult) {
+    lastResult.fair = data.fair;
+  }
+
+  document
+    .getElementById('targetSelectRow')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  lastResult = null;
+}
 
     async function showFairness() {
       const fair = state.dice.fair;
@@ -528,6 +572,36 @@ async function ensureCsrf() {
       ].join('\n');
       alert(msg);
     }
+async function changeTarget() {
+  try {
+    // New commit/serverSeed so the next roll is a fresh round
+    await startRound();
+  } catch (e) {
+    alert(e.message || 'Change target failed');
+  }
+}
+
+async function rollAgain() {
+  const previousTier = state.dice.selectedTier;
+  if (!previousTier) {
+    // Fallback: just reset to select screen
+    return changeTarget();
+  }
+
+  try {
+    // New round on the server
+    await startRound();
+
+    // Re-apply the same tier automatically
+    state.dice.selectedTier = previousTier;
+    renderTiers();
+
+    // Now the selected tier is set → roll
+    await rollDice();
+  } catch (e) {
+    alert(e.message || 'Roll again failed');
+  }
+}
 
     async function payout() {
       try {
@@ -590,16 +664,21 @@ async function ensureCsrf() {
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-      const betBtn   = document.getElementById('betBtn');
-      const rollBtn  = document.getElementById('rollBtn');
-      const fairBtn  = document.getElementById('fairBtn');
-      const payoutBtn = document.getElementById('payoutBtn');
+  const betBtn         = document.getElementById('betBtn');
+  const rollBtn        = document.getElementById('rollBtn');
+  const fairBtn        = document.getElementById('fairBtn');
+  const payoutBtn      = document.getElementById('payoutBtn');
+  const changeTargetBtn = document.getElementById('changeTargetBtn');
+  const rollAgainBtn    = document.getElementById('rollAgainBtn');
 
-      if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
-      if (rollBtn) rollBtn.addEventListener('click', rollDice);
-      if (fairBtn) fairBtn.addEventListener('click', showFairness);
-      if (payoutBtn) payoutBtn.addEventListener('click', payout);
- await ensureCsrf().catch(() => {});
+  if (betBtn) betBtn.addEventListener('click', () => onBetClick(betBtn));
+  if (rollBtn) rollBtn.addEventListener('click', rollDice);
+  if (fairBtn) fairBtn.addEventListener('click', showFairness);
+  if (payoutBtn) payoutBtn.addEventListener('click', payout);
+  if (changeTargetBtn) changeTargetBtn.addEventListener('click', changeTarget);
+  if (rollAgainBtn) rollAgainBtn.addEventListener('click', rollAgain);
+
+  await ensureCsrf().catch(() => {});
   loadProfile();
 });
 
