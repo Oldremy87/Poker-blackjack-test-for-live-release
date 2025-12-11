@@ -146,6 +146,7 @@
     .tier-name {
       font-size: 0.9rem;
       font-weight: 600;
+      color:var(--pp-accent2)
     }
     .tier-desc {
       font-size: 0.8rem;
@@ -1409,6 +1410,12 @@ const IDS = Object.freeze({
   loading: 'loading',
   leaderboardList: 'leaderboardList'
 });
+async function fetchCsrf(){
+  const r = await fetch('/api/csrf', { credentials:'include' });
+  if (!r.ok) throw new Error('CSRF bootstrap failed');
+  const { csrfToken } = await r.json();
+  window.csrfToken = csrfToken; // <--- Save to window!
+}
 const dailyRewardBtn = document.getElementById(IDS.daily);
 const feedSound = document.getElementById('feedSound');
 const payoutEl       = document.getElementById(IDS.payout);
@@ -1435,7 +1442,7 @@ function postWithCsrf(input, init = {}) {
     ...init,
     method: init.method || 'POST',
     credentials: 'include',
-    headers: { 'x-csrf-token': __csrf, ...baseHeaders }
+    headers: { 'x-csrf-token': window.csrfToken, ...baseHeaders }
   });
   // 403 → refresh CSRF once
   return (async () => {
