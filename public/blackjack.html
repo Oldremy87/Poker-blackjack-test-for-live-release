@@ -1982,7 +1982,7 @@ async function onClaimPayout() {
       btn.disabled = true;
       btn.classList.add('busy');
       btn.textContent = 'Loading Wallet...';
-      const { placeBet } = await import(`/assets/walletBet.bundle.js?t=${Date.now()}`);
+      const { placeBet } = await import(`/assets/walletBet.bundle.js?v=ChristmasUpdate`);
       const { getSigner } = await import("/assets/wallet-modal.js?v=Christmasv22cachedupdate");
 
       btn.textContent = 'Authorizing...';
