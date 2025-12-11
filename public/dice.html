@@ -1490,6 +1490,48 @@ async function loadProfile() {
     console.error('loadProfile failed:', e);
   }
 }
+async function loadLeaderboard() {
+  try {
+    // 1. Fetch the "Window" leaderboard (centered on you), just like Poker
+    const res = await fetch('/api/leaderboard/window?game=dice&k=3', { credentials: 'include' });
+    const d = await res.json();
+    if (!d.ok) return;
+
+    const list = document.getElementById('leaderboardList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    // 2. Render the list items
+    d.window.forEach(row => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="who">${row.rank}. <span class="user">${row.user}${row.you ? ' (you)' : ''}</span></span>
+        <span class="pts">${row.points}</span>`;
+      if (row.you) li.classList.add('you');
+      list.appendChild(li);
+    });
+
+    // 3. Optional: Show "Next Rank" hint
+    let hint = document.getElementById('lbHint');
+    if (!hint) {
+      // Create hint element if missing
+      hint = document.createElement('div');
+      hint.id = 'lbHint';
+      hint.className = 'readout';
+      hint.style.marginTop = "6px";
+      list.parentNode.appendChild(hint);
+    }
+    hint.textContent = (d.you && d.you.deltaAhead != null)
+      ? `Only ${d.you.deltaAhead} pts to the next rank.`
+      : '';
+      
+  } catch (e) {
+    console.warn('Dice leaderboard failed', e);
+  }
+}
+
+// Expose it to window so your init() can find it
+window.loadLeaderboard = loadLeaderboard;
 function confettiBurst(count = 48, ms = 1800){
   const wrap = document.createElement('div');
   wrap.className = 'fx-confetti';
@@ -1701,31 +1743,7 @@ function waitForWidget() {
     check();
   });
 }
-    // ---------- UI helpers ----------
-    async function loadDiceLeaderboard() {
-  const box = document.getElementById('lb-dice');
-  box.innerHTML = '<div class="lb-loading">Loading…</div>';
-
-  try {
-    const res = await fetch('/api/leaderboard/dice', { credentials: 'include' });
-    const data = await res.json();
-    if (!data.ok) throw new Error();
-
-    box.innerHTML = data.players.map(p => `
-      <div class="lb-row">
-        <div class="lb-rank">#${p.rank}</div>
-        <div class="lb-user">
-          <img src="${p.avatar}" class="lb-avatar" />
-          <span>${p.id}</span>
-        </div>
-        <div class="lb-points">${p.points} pts</div>
-      </div>
-    `).join('');
-
-  } catch {
-    box.innerHTML = '<div class="lb-error">Failed to load.</div>';
-  }
-}
+   
     function renderTiers() {
       const list = document.getElementById('tierList');
       list.innerHTML = '';
@@ -1828,8 +1846,7 @@ async function showRollResult(payload) {
   }
 
   try { await loadProfile(); } catch (e) {}
-  try { await loadDiceLeaderboard(); } catch (e) {}
-
+ try { await loadLeaderboard(); } catch (e) {}
   // ============================================================
   // 🔥 FAST RE-ROLL UI SETUP 🔥
   // ============================================================
