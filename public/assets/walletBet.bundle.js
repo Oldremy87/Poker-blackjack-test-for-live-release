@@ -11,6 +11,7 @@ const KIBL_TOKEN_ID = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqq
 const PUBLIC_NODE = { scheme: "wss", host: "electrum.nexa.org", port: 20004 };
 let cachedSession = null;
 let reconnectLock = null;
+let loadingPromise = null;
 async function getSdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
@@ -40,12 +41,15 @@ async function establishConnection(rostrumProvider2) {
   return false;
 }
 async function loadWallet(pass) {
+  if (loadingPromise) {
+    return await loadingPromise;
+  }
   if (cachedSession) {
     if (reconnectLock) {
       await reconnectLock;
       return cachedSession;
     }
-    const { wallet: wallet2 } = cachedSession;
+    const { wallet } = cachedSession;
     const healthy = await isConnectionHealthy($884ce55f1db7e177$export$eaa49f0478d81b9d);
     if (healthy) {
       return cachedSession;
@@ -56,7 +60,7 @@ async function loadWallet(pass) {
         const success = await establishConnection($884ce55f1db7e177$export$eaa49f0478d81b9d);
         if (!success) throw new Error("Unable to reach network.");
         console.log("[Client] Resyncing wallet...");
-        await wallet2.initialize();
+        await wallet.initialize();
       } finally {
         reconnectLock = null;
       }
@@ -64,48 +68,54 @@ async function loadWallet(pass) {
     await reconnectLock;
     return cachedSession;
   }
-  const rawB64 = localStorage.getItem(KEY);
-  const ivB64 = localStorage.getItem(IV);
-  if (!rawB64 || !ivB64) throw new Error("No local wallet. Visit Connect.");
-  const raw = atob(rawB64);
-  const ivb = atob(ivB64);
-  const iv = new Uint8Array([...ivb].map((c) => c.charCodeAt(0)));
-  const ct = new Uint8Array([...raw].map((c) => c.charCodeAt(0)));
-  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pass));
-  const key = await crypto.subtle.importKey("raw", h, "AES-GCM", false, ["decrypt"]);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
-  const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
-  const sdk = await getSdk();
-  const WalletCtor = getWalletCtor(sdk);
-  const wallet = new WalletCtor(seed, net);
-  wallet.rostrumProvider || wallet.provider;
-  const connected = await establishConnection($884ce55f1db7e177$export$eaa49f0478d81b9d);
-  if (!connected) throw new Error("Could not connect to network.");
-  console.log("[Client] Initializing Wallet (Scanning UTXOs)...");
-  await wallet.initialize();
-  const account = wallet.accountStore.getAccount("2.0");
-  if (!account) throw new Error("Account 2.0 missing");
-  const address = account.getPrimaryAddressKey().address;
-  const nexaMinor = Number(account.balance?.confirmed || 0);
-  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
-  cachedSession = {
-    wallet,
-    account,
-    address,
-    network: net,
-    sdk,
-    seed,
-    net,
-    balances: {
-      kiblMinor,
-      kibl: kiblMinor / 100,
-      nexaMinor,
-      nexa: nexaMinor / 100,
-      tokenHex: KIBL_TOKEN_HEX,
-      tokenGroup: KIBL_GROUP_ADDR
+  loadingPromise = (async () => {
+    try {
+      const rawB64 = localStorage.getItem(KEY);
+      const ivB64 = localStorage.getItem(IV);
+      if (!rawB64 || !ivB64) throw new Error("No local wallet. Visit Connect.");
+      const raw = atob(rawB64);
+      const ivb = atob(ivB64);
+      const iv = new Uint8Array([...ivb].map((c) => c.charCodeAt(0)));
+      const ct = new Uint8Array([...raw].map((c) => c.charCodeAt(0)));
+      const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pass));
+      const key = await crypto.subtle.importKey("raw", h, "AES-GCM", false, ["decrypt"]);
+      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+      const { seed, net } = JSON.parse(new TextDecoder().decode(pt));
+      const sdk = await getSdk();
+      const WalletCtor = getWalletCtor(sdk);
+      const wallet = new WalletCtor(seed, net);
+      const connected = await establishConnection($884ce55f1db7e177$export$eaa49f0478d81b9d);
+      if (!connected) throw new Error("Could not connect to network.");
+      console.log("[Client] Initializing Wallet (Scanning UTXOs)...");
+      await wallet.initialize();
+      const account = wallet.accountStore.getAccount("2.0");
+      if (!account) throw new Error("Account 2.0 missing");
+      const address = account.getPrimaryAddressKey().address;
+      const nexaMinor = Number(account.balance?.confirmed || 0);
+      const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+      cachedSession = {
+        wallet,
+        account,
+        address,
+        network: net,
+        sdk,
+        seed,
+        net,
+        balances: {
+          kiblMinor,
+          kibl: kiblMinor / 100,
+          nexaMinor,
+          nexa: nexaMinor / 100,
+          tokenHex: KIBL_TOKEN_HEX,
+          tokenGroup: KIBL_GROUP_ADDR
+        }
+      };
+      return cachedSession;
+    } finally {
+      loadingPromise = null;
     }
-  };
-  return cachedSession;
+  })();
+  return await loadingPromise;
 }
 async function _buildAndSend({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
   if (!cachedSession && (!passphrase || passphrase.length < 8)) throw new Error("Password required.");

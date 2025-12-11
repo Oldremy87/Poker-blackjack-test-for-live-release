@@ -33,6 +33,8 @@ let cachedSession: {
 
 // Lock to prevent parallel reconnects (The Singleton Guard)
 let reconnectLock: Promise<void> | null = null;
+// NEW: Lock to prevent parallel Initial Loads (The Double-Init Fix)
+let loadingPromise: Promise<any> | null = null;
 
 async function getSdk() { return await import('nexa-wallet-sdk'); }
 function getWalletCtor(mod: any) { return mod?.Wallet ?? mod?.default?.Wallet; }
@@ -76,6 +78,13 @@ async function establishConnection(rostrumProvider: any) {
 }
 
 export async function loadWallet(pass: string) {
+  // --- FIX START: Prevent Race Conditions ---
+  // If an initialization is already running, wait for it instead of starting a new one.
+  if (loadingPromise) {
+    return await loadingPromise;
+  }
+  // --- FIX END ---
+
   if (cachedSession) {
     if (reconnectLock) { await reconnectLock; return cachedSession; }
 
@@ -103,51 +112,61 @@ export async function loadWallet(pass: string) {
   }
 
   // 2. Initial Load (Decrypt from Storage)
-  const rawB64 = localStorage.getItem(KEY);
-  const ivB64  = localStorage.getItem(IV);
-  if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
+  // We wrap this entire block in a promise so concurrent calls wait for this specific execution
+  loadingPromise = (async () => {
+    try {
+        const rawB64 = localStorage.getItem(KEY);
+        const ivB64  = localStorage.getItem(IV);
+        if (!rawB64 || !ivB64) throw new Error('No local wallet. Visit Connect.');
 
-  const raw = atob(rawB64);
-  const ivb = atob(ivB64);
-  const iv  = new Uint8Array([...ivb].map(c=>c.charCodeAt(0)));
-  const ct  = new Uint8Array([...raw].map(c=>c.charCodeAt(0)));
+        const raw = atob(rawB64);
+        const ivb = atob(ivB64);
+        const iv  = new Uint8Array([...ivb].map(c=>c.charCodeAt(0)));
+        const ct  = new Uint8Array([...raw].map(c=>c.charCodeAt(0)));
 
-  const h   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
-  const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
-  const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
-  
-  const { seed, net } = JSON.parse(new TextDecoder().decode(pt)); 
+        const h   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
+        const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
+        const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
+        
+        const { seed, net } = JSON.parse(new TextDecoder().decode(pt)); 
 
-  const sdk = await getSdk();
-  const WalletCtor = getWalletCtor(sdk);
-  
-  const wallet = new WalletCtor(seed, net);
-  const provider = wallet.rostrumProvider || wallet.provider;
-  
-  // Initial Connect
-  const connected = await establishConnection(rostrumProvider);
-  if (!connected) throw new Error('Could not connect to network.');
+        const sdk = await getSdk();
+        const WalletCtor = getWalletCtor(sdk);
+        
+        const wallet = new WalletCtor(seed, net);
+        // const provider = wallet.rostrumProvider || wallet.provider;
+        
+        // Initial Connect
+        const connected = await establishConnection(rostrumProvider);
+        if (!connected) throw new Error('Could not connect to network.');
 
-  console.log('[Client] Initializing Wallet (Scanning UTXOs)...');
-  await wallet.initialize(); 
+        console.log('[Client] Initializing Wallet (Scanning UTXOs)...');
+        await wallet.initialize(); 
 
-  const account = wallet.accountStore.getAccount('2.0');
-  if (!account) throw new Error('Account 2.0 missing');
-  const address = account.getPrimaryAddressKey().address; 
+        const account = wallet.accountStore.getAccount('2.0');
+        if (!account) throw new Error('Account 2.0 missing');
+        const address = account.getPrimaryAddressKey().address; 
 
-  const nexaMinor = Number(account.balance?.confirmed || 0);
-  const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
+        const nexaMinor = Number(account.balance?.confirmed || 0);
+        const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
 
-  // Save to Cache
-  cachedSession = { 
-    wallet, account, address, network: net, sdk, seed, net,
-    balances: {
-        kiblMinor, kibl: (kiblMinor / 100),
-        nexaMinor, nexa: (nexaMinor / 100),
-        tokenHex: KIBL_TOKEN_HEX, tokenGroup: KIBL_GROUP_ADDR,
+        // Save to Cache
+        cachedSession = { 
+            wallet, account, address, network: net, sdk, seed, net,
+            balances: {
+                kiblMinor, kibl: (kiblMinor / 100),
+                nexaMinor, nexa: (nexaMinor / 100),
+                tokenHex: KIBL_TOKEN_HEX, tokenGroup: KIBL_GROUP_ADDR,
+            }
+        };
+        return cachedSession;
+    } finally {
+        // Clear the lock so future calls (after this one finishes) can check cachedSession normally
+        loadingPromise = null;
     }
-  };
-  return cachedSession;
+  })();
+
+  return await loadingPromise;
 }
 
 async function _buildAndSend({ passphrase, kiblAmount, tokenIdHex, feeNexa }: any) {
