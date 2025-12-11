@@ -19,22 +19,14 @@ const KIBL_TOKEN_ID   = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7v
 const PRIVATE_NODE = { scheme: 'wss' as const, host: 'node.remy-dev.com', port: 443 };
 const PUBLIC_NODE  = { scheme: 'wss' as const, host: 'electrum.nexa.org', port: 20004 };
 
-// --- CACHE STATE ---
-let cachedSession: {
-  wallet: any;
-  account: any;
-  address: any;
-  network: any;
-  balances: any;
-  sdk: any;
-  seed: any; 
-  net: any;
-} | null = null;
+// --- GLOBAL STATE ---
+// We attach these to globalThis to prevent double-init if the module is loaded twice
+const GLOBALS = globalThis as any;
 
-// Lock to prevent parallel reconnects (The Singleton Guard)
-let reconnectLock: Promise<void> | null = null;
-// NEW: Lock to prevent parallel Initial Loads (The Double-Init Fix)
-let loadingPromise: Promise<any> | null = null;
+// Initialize globals if they don't exist
+GLOBALS.__WALLET_SESSION = GLOBALS.__WALLET_SESSION || null;
+GLOBALS.__WALLET_LOADING = GLOBALS.__WALLET_LOADING || null;
+GLOBALS.__WALLET_RECONNECT = GLOBALS.__WALLET_RECONNECT || null;
 
 async function getSdk() { return await import('nexa-wallet-sdk'); }
 function getWalletCtor(mod: any) { return mod?.Wallet ?? mod?.default?.Wallet; }
@@ -63,7 +55,8 @@ async function establishConnection(rostrumProvider: any) {
   } catch (e) {
     console.warn('⚠️ Private node unreachable, trying public...');
   }
-*/
+  */
+
   // 2. Try Public Node (Failover)
   try {
     await rostrumProvider.connect(PUBLIC_NODE);
@@ -78,42 +71,45 @@ async function establishConnection(rostrumProvider: any) {
 }
 
 export async function loadWallet(pass: string) {
-  // --- FIX START: Prevent Race Conditions ---
-  // If an initialization is already running, wait for it instead of starting a new one.
-  if (loadingPromise) {
-    return await loadingPromise;
+  // --- FIX START: Global Singleton Guard ---
+  // Check the global lock instead of a local variable
+  if (GLOBALS.__WALLET_LOADING) {
+    // console.log('[Client] Waiting for existing wallet load...'); // Optional debug
+    return await GLOBALS.__WALLET_LOADING;
   }
   // --- FIX END ---
 
-  if (cachedSession) {
-    if (reconnectLock) { await reconnectLock; return cachedSession; }
+  if (GLOBALS.__WALLET_SESSION) {
+    if (GLOBALS.__WALLET_RECONNECT) { 
+        await GLOBALS.__WALLET_RECONNECT; 
+        return GLOBALS.__WALLET_SESSION; 
+    }
 
-    const { wallet } = cachedSession;
+    const { wallet } = GLOBALS.__WALLET_SESSION;
     const healthy = await isConnectionHealthy(rostrumProvider);
 
     if (healthy) {
-        return cachedSession; 
+        return GLOBALS.__WALLET_SESSION; 
     }
     console.log('[Client] Connection stale. Reconnecting...');
     
-    reconnectLock = (async () => {
+    GLOBALS.__WALLET_RECONNECT = (async () => {
         try {
             const success = await establishConnection(rostrumProvider);
             if (!success) throw new Error("Unable to reach network.");
             console.log('[Client] Resyncing wallet...');
             await wallet.initialize();
         } finally {
-            reconnectLock = null;
+            GLOBALS.__WALLET_RECONNECT = null;
         }
     })();
 
-    await reconnectLock;
-    return cachedSession;
+    await GLOBALS.__WALLET_RECONNECT;
+    return GLOBALS.__WALLET_SESSION;
   }
 
   // 2. Initial Load (Decrypt from Storage)
-  // We wrap this entire block in a promise so concurrent calls wait for this specific execution
-  loadingPromise = (async () => {
+  GLOBALS.__WALLET_LOADING = (async () => {
     try {
         const rawB64 = localStorage.getItem(KEY);
         const ivB64  = localStorage.getItem(IV);
@@ -134,7 +130,6 @@ export async function loadWallet(pass: string) {
         const WalletCtor = getWalletCtor(sdk);
         
         const wallet = new WalletCtor(seed, net);
-        // const provider = wallet.rostrumProvider || wallet.provider;
         
         // Initial Connect
         const connected = await establishConnection(rostrumProvider);
@@ -150,8 +145,8 @@ export async function loadWallet(pass: string) {
         const nexaMinor = Number(account.balance?.confirmed || 0);
         const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
 
-        // Save to Cache
-        cachedSession = { 
+        // Save to GLOBAL Cache
+        GLOBALS.__WALLET_SESSION = { 
             wallet, account, address, network: net, sdk, seed, net,
             balances: {
                 kiblMinor, kibl: (kiblMinor / 100),
@@ -159,20 +154,20 @@ export async function loadWallet(pass: string) {
                 tokenHex: KIBL_TOKEN_HEX, tokenGroup: KIBL_GROUP_ADDR,
             }
         };
-        return cachedSession;
+        return GLOBALS.__WALLET_SESSION;
     } finally {
-        // Clear the lock so future calls (after this one finishes) can check cachedSession normally
-        loadingPromise = null;
+        // Clear global lock
+        GLOBALS.__WALLET_LOADING = null;
     }
   })();
 
-  return await loadingPromise;
+  return await GLOBALS.__WALLET_LOADING;
 }
 
 async function _buildAndSend({ passphrase, kiblAmount, tokenIdHex, feeNexa }: any) {
-  if (!cachedSession && (!passphrase || passphrase.length < 8)) throw new Error('Password required.');
+  // Use global session check
+  if (!GLOBALS.__WALLET_SESSION && (!passphrase || passphrase.length < 8)) throw new Error('Password required.');
   
-  // Auto-reconnects if needed
   const { wallet, account } = await loadWallet(passphrase);
   
   console.log('[Client] Building...');
@@ -183,10 +178,12 @@ async function _buildAndSend({ passphrase, kiblAmount, tokenIdHex, feeNexa }: an
     .populate()
     .sign()
     .build();
-    console.log('---------------------------------------------------');
-  console.log('[Client] 🔍 DEBUG: Signed Transaction Hex:');
-  console.log(signedTx); // <--- Copy this string to inspect inputs
+
   console.log('---------------------------------------------------');
+  console.log('[Client] 🔍 DEBUG: Signed Transaction Hex:');
+  console.log(signedTx);
+  console.log('---------------------------------------------------');
+  
   const txId = await wallet.sendTransaction(signedTx);
   console.log('[Client] Sent:', txId);
 
@@ -199,20 +196,20 @@ export async function placeBet(params: any) {
   } catch (e: any) {
     const msg = e.message || String(e);
     
-    // Check for specific RPC errors: -32602 (InvalidParams) or -32000 (Missing inputs)
     if (msg.includes('Missing inputs') || msg.includes('-32602') || msg.includes('-32000')) {
         console.warn('⚠️ [Client] State Drift detected (Missing inputs). Force-resyncing...');
-        cachedSession = null; 
+        // Clear global session to force reload
+        GLOBALS.__WALLET_SESSION = null; 
         await loadWallet(params.passphrase);
         
         console.log('🔄 [Client] Resync complete. Retrying bet...');
         return await _buildAndSend(params);
     }
     
-    // If it's a different error (e.g. wrong password), throw it normally
     throw e;
   }
 }
+
 export async function recoverSeed(pass: string) {
   const rawB64 = localStorage.getItem(KEY);
   const ivB64  = localStorage.getItem(IV);
@@ -230,11 +227,12 @@ export async function recoverSeed(pass: string) {
   try {
     const pt  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
     const { seed } = JSON.parse(new TextDecoder().decode(pt));
-    return seed; // Returns the 12-word string
+    return seed; 
   } catch (e) {
     throw new Error('Incorrect password.');
   }
 }
+
 export async function sendFunds({ passphrase, toAddress, amountNexa, amountKibl }: any) {
   const { wallet, account } = await loadWallet(passphrase);
   

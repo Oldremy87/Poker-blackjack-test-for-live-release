@@ -9,9 +9,10 @@ const KIBL_TOKEN_HEX = "656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42
 const HOUSE_ADDRESS = "nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3";
 const KIBL_TOKEN_ID = "nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt";
 const PUBLIC_NODE = { scheme: "wss", host: "electrum.nexa.org", port: 20004 };
-let cachedSession = null;
-let reconnectLock = null;
-let loadingPromise = null;
+const GLOBALS = globalThis;
+GLOBALS.__WALLET_SESSION = GLOBALS.__WALLET_SESSION || null;
+GLOBALS.__WALLET_LOADING = GLOBALS.__WALLET_LOADING || null;
+GLOBALS.__WALLET_RECONNECT = GLOBALS.__WALLET_RECONNECT || null;
 async function getSdk() {
   return await import("./chunks/index.web-Does7zZT.js");
 }
@@ -41,34 +42,34 @@ async function establishConnection(rostrumProvider2) {
   return false;
 }
 async function loadWallet(pass) {
-  if (loadingPromise) {
-    return await loadingPromise;
+  if (GLOBALS.__WALLET_LOADING) {
+    return await GLOBALS.__WALLET_LOADING;
   }
-  if (cachedSession) {
-    if (reconnectLock) {
-      await reconnectLock;
-      return cachedSession;
+  if (GLOBALS.__WALLET_SESSION) {
+    if (GLOBALS.__WALLET_RECONNECT) {
+      await GLOBALS.__WALLET_RECONNECT;
+      return GLOBALS.__WALLET_SESSION;
     }
-    const { wallet } = cachedSession;
+    const { wallet } = GLOBALS.__WALLET_SESSION;
     const healthy = await isConnectionHealthy($884ce55f1db7e177$export$eaa49f0478d81b9d);
     if (healthy) {
-      return cachedSession;
+      return GLOBALS.__WALLET_SESSION;
     }
     console.log("[Client] Connection stale. Reconnecting...");
-    reconnectLock = (async () => {
+    GLOBALS.__WALLET_RECONNECT = (async () => {
       try {
         const success = await establishConnection($884ce55f1db7e177$export$eaa49f0478d81b9d);
         if (!success) throw new Error("Unable to reach network.");
         console.log("[Client] Resyncing wallet...");
         await wallet.initialize();
       } finally {
-        reconnectLock = null;
+        GLOBALS.__WALLET_RECONNECT = null;
       }
     })();
-    await reconnectLock;
-    return cachedSession;
+    await GLOBALS.__WALLET_RECONNECT;
+    return GLOBALS.__WALLET_SESSION;
   }
-  loadingPromise = (async () => {
+  GLOBALS.__WALLET_LOADING = (async () => {
     try {
       const rawB64 = localStorage.getItem(KEY);
       const ivB64 = localStorage.getItem(IV);
@@ -93,7 +94,7 @@ async function loadWallet(pass) {
       const address = account.getPrimaryAddressKey().address;
       const nexaMinor = Number(account.balance?.confirmed || 0);
       const kiblMinor = Number(account.tokenBalances?.[KIBL_GROUP_ADDR]?.confirmed || 0);
-      cachedSession = {
+      GLOBALS.__WALLET_SESSION = {
         wallet,
         account,
         address,
@@ -110,15 +111,15 @@ async function loadWallet(pass) {
           tokenGroup: KIBL_GROUP_ADDR
         }
       };
-      return cachedSession;
+      return GLOBALS.__WALLET_SESSION;
     } finally {
-      loadingPromise = null;
+      GLOBALS.__WALLET_LOADING = null;
     }
   })();
-  return await loadingPromise;
+  return await GLOBALS.__WALLET_LOADING;
 }
 async function _buildAndSend({ passphrase, kiblAmount, tokenIdHex, feeNexa }) {
-  if (!cachedSession && (!passphrase || passphrase.length < 8)) throw new Error("Password required.");
+  if (!GLOBALS.__WALLET_SESSION && (!passphrase || passphrase.length < 8)) throw new Error("Password required.");
   const { wallet, account } = await loadWallet(passphrase);
   console.log("[Client] Building...");
   const signedTx = await wallet.newTransaction(account).onNetwork("mainnet").sendToToken(HOUSE_ADDRESS, kiblAmount.toString(), KIBL_TOKEN_ID).populate().sign().build();
@@ -137,7 +138,7 @@ async function placeBet(params) {
     const msg = e.message || String(e);
     if (msg.includes("Missing inputs") || msg.includes("-32602") || msg.includes("-32000")) {
       console.warn("⚠️ [Client] State Drift detected (Missing inputs). Force-resyncing...");
-      cachedSession = null;
+      GLOBALS.__WALLET_SESSION = null;
       await loadWallet(params.passphrase);
       console.log("🔄 [Client] Resync complete. Retrying bet...");
       return await _buildAndSend(params);
