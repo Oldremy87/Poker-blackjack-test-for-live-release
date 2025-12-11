@@ -634,18 +634,38 @@ async function saveStatsFor(uid, game, { creditMinor, isWin, isRoyal, flags }) {
 }
 
 async function awardSeasonPointsFor(uid, game, points) {
-  if (!hasDb || !points) return;
-  const { points: table } = tablesByGame[game];
+  if (!hasDb) return console.log('[Points] No DB connection');
+  if (!points) return console.log('[Points] Zero points awarded, skipping DB');
+
+  // 1. Check if game exists in config
+  const config = tablesByGame[game];
+  if (!config) return console.error(`[Points] Error: No table config found for game "${game}"`);
+  
+  const { points: table } = config;
   const p = await db();
+  
+  // 2. Check Season ID
   const sid = await getCurrentSeasonId();
-  if (!sid) return;
+  if (!sid) return console.error('[Points] Error: No active season found in DB');
+
+  console.log(`[Points] Awarding ${points} to ${uid} in table ${table} (Season: ${sid})`);
+
   await p.query('begin');
   try {
-    await p.query(`insert into ${table}(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing`, [sid, uid]);
-    await p.query(`update ${table} set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2`, [sid, uid, points]);
+    // 3. Perform Insert/Update
+    await p.query(
+        `insert into ${table}(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing`, 
+        [sid, uid]
+    );
+    const res = await p.query(
+        `update ${table} set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2 returning points_total`, 
+        [sid, uid, points]
+    );
+    console.log(`[Points] Success. New Total: ${res.rows[0]?.points_total}`);
     await p.query('commit');
   } catch (e) {
     await p.query('rollback');
+    console.error('[Points] SQL Error:', e);
   }
 }
 
