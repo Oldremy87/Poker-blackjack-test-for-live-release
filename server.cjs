@@ -270,29 +270,49 @@ function touch(rec, now) {
     ? { windowStart: now, counts: { poker: 0, blackjack: 0, dice: 0 } }
     : rec;
 }
+// REPLACE your existing app.get('/api/profile', ...) block with this:
+
 app.get('/api/profile', async (req, res) => {
   try {
     ensureBank(req);
-
-    // Avoid any caching of this endpoint
     res.set('Cache-Control', 'no-store');
 
-    const [userOk, statsOk] = await Promise.allSettled([
-      getOrCreateUser(req.uid),
-      loadStats(req.uid)
-    ]);
-    const s = statsOk.status === 'fulfilled' ? statsOk.value : null;
-   const displayId = await ensureDisplayId(req.uid);
+    // 1. Ensure User Rows Exist
+    try {
+      await getOrCreateUser(req.uid);
+    } catch (e) {
+      console.error('[Profile] Critical: getOrCreateUser failed:', e.message);
+      throw e;
+    }
+
+    // 2. Load Stats (Initialize variables to null first!)
+    let stats = null;
+    let poker = null;
+    let bj = null;
+    let dice = null; // <--- This was likely missing, causing the crash
+
+    try {
+      stats = await loadStats(req.uid);
+      
+      // Load all game stats in parallel
+      [poker, bj, dice] = await Promise.all([
+        loadStatsFor(req.uid, 'poker'),
+        loadStatsFor(req.uid, 'blackjack'),
+        loadStatsFor(req.uid, 'dice') // This works now that tables exist
+      ]);
+    } catch (e) {
+      console.error('[Profile] Stats loading failed:', e.message);
+    }
+
+    const displayId = await ensureDisplayId(req.uid);
+    
+    // 3. Calculate Balances
     const balPoker = Math.max(0, Number(req.session.wallet?.poker || 0));
     const balBJ    = Math.max(0, Number(req.session.wallet?.blackjack || 0));
     const total    = Math.min(BANK_CAP, balPoker + balBJ);
-      req.session.bank = total; // keep session total canonical
+    req.session.bank = total;
 
-    let poker=null, bj=null;
-    try {
-      await getOrCreateUser(req.uid);
-      [poker, bj] = await Promise.all([loadStatsFor(req.uid,'poker'), loadStatsFor(req.uid,'blackjack')]);
-    } catch {}
+    // 4. Send Response
     return res.json({
       ok: true,
       displayId,
@@ -311,22 +331,26 @@ app.get('/api/profile', async (req, res) => {
           }
         },
         blackjack: {
-  wins: bj?.wins || 0,
-  achievements: {
-    firstWin:  !!bj?.first_win,
-    w10:       !!bj?.w10,
-    w25:       !!bj?.w25,
-    w50:       !!bj?.w50,
-    natural:   !!bj?.bj_natural,
-    doubleWin: !!bj?.bj_double_win,
-    splitWin:  !!bj?.bj_split_win
-  }
-}
-}
-           
+          wins: bj?.wins || 0,
+          achievements: {
+            firstWin:  !!bj?.first_win,
+            natural:   !!bj?.bj_natural,
+            doubleWin: !!bj?.bj_double_win,
+            splitWin:  !!bj?.bj_split_win
+          }
+        },
+        // NEW: Safe access to dice stats
+        dice: {
+          wins: dice?.wins || 0,
+          points: 0 // We'll link season points separately if needed
+        }
+      }
     });
+
   } catch (e) {
-    return res.status(500).json({ ok: false, error: 'profile_error' });
+    // This logs the ACTUAL error to your terminal instead of hiding it
+    console.error('[Profile] CRASH:', e);
+    return res.status(500).json({ ok: false, error: e.message || 'profile_error' });
   }
 });
 
