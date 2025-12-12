@@ -633,47 +633,41 @@ async function saveStatsFor(uid, game, { creditMinor, isWin, isRoyal, flags }) {
   await p.query(`update ${stats} set ${sets.join(', ')}, last_seen_at = now() where user_id = $1`, vals);
 }
 
+// FIXED function for Blackjack and Dice
 async function awardSeasonPointsFor(uid, game, points) {
-  if (!hasDb) return console.log('[Points] No DB connection');
-  if (!points) return console.log('[Points] Zero points awarded, skipping DB');
+  if (!hasDb) return;
+  if (!points) return; // Skip if 0 points
 
-  // 1. Check if game exists in config
   const config = tablesByGame[game];
-  if (!config) return console.error(`[Points] Error: No table config found for game "${game}"`);
+  if (!config) return console.error(`[Points] Error: No config for game "${game}"`);
   
   const { points: table } = config;
   const p = await db();
   
-  // 2. Check Season ID
   const sid = await getCurrentSeasonId();
-  if (!sid) return console.error('[Points] Error: No active season found in DB');
+  if (!sid) return console.error('[Points] Error: No active season');
 
-  console.log(`[Points] Awarding ${points} to ${uid} in table ${table} (Season: ${sid})`);
+  console.log(`[Points] Awarding ${points} pts to ${uid} in ${table}`);
 
   await p.query('begin');
   try {
-    // 3. Perform Insert/Update
+    // 1. Ensure row exists
     await p.query(
         `insert into ${table}(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing`, 
         [sid, uid]
     );
-    const res = await p.query(
-        `update ${table} set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2 returning points_total`, 
+
+    // 2. Update points (FIXED ORDER: sid, uid, points)
+    await p.query(
+        `update ${table} set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2`, 
         [sid, uid, points]
     );
-    console.log(`[Points] Success. New Total: ${res.rows[0]?.points_total}`);
+    
     await p.query('commit');
   } catch (e) {
     await p.query('rollback');
-    console.error('[Points] SQL Error:', e);
+    console.error('[Points] SQL Error:', e.message);
   }
-}
-
-async function loadStats(uid){
-  if (!hasDb) return null;
-  const p = await db();
-  const { rows } = await p.query('select * from user_stats where user_id=$1', [uid]);
-  return rows[0] || null;
 }
 
 async function saveAfterDraw(uid, { creditMinor, isWin, isRoyal, flags }){
