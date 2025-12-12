@@ -1680,40 +1680,7 @@ async function animateReels(finalNumber) {
 // OR just rely on the animation function once data arrives.
 
 // ... inside showRollResult(payload) ...
-async function showRollResult(payload) {
-    const { roll, win, credit } = payload || {};
-    
-    // 1. ANIMATE THE VISUALS
-    // Pass the roll (e.g., 7940) to the animation
-    await animateReels(roll);
 
-    // 2. UPDATE TEXT / STATUS AFTER ANIMATION
-    // (Existing logic follows here)
-    const resultRow = document.getElementById('resultRow');
-    const status    = document.getElementById('resultStatus');
-    // ... rest of your existing UI update code ...
-    
-    if (win) {
-        // Trigger confetti/sounds ONLY after animation finishes
-        flashPayout();
-        confettiBurst();
-    }
-}
-// Expose it to window so your init() can find it
-window.loadLeaderboard = loadLeaderboard;
-function confettiBurst(count = 48, ms = 1800){
-  const wrap = document.createElement('div');
-  wrap.className = 'fx-confetti';
-  document.body.appendChild(wrap);
-  for (let i=0;i<count;i++){
-    const s = document.createElement('i');
-    s.style.setProperty('--x', `${Math.random()*100}%`);
-    s.style.setProperty('--rot', `${Math.random()*360}deg`);
-    s.style.setProperty('--dur', `${1000 + Math.random()*700}ms`);
-    wrap.appendChild(s);
-  }
-  setTimeout(()=> wrap.remove(), ms + 300);
-}
  function show(el){ el && (el.style.display = 'block'); }
   function hide(el){ el && (el.style.display = 'none'); }
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1952,7 +1919,7 @@ async function showRollResult(payload) {
   const ptsEl     = document.getElementById('pointsEarned');
   const fairBtn   = document.getElementById('fairBtn');
   const changeTargetBtn = document.getElementById('changeTargetBtn');
-
+await animateReels(roll);
   if (resultRow) resultRow.hidden = false;
   if (tierEl) tierEl.textContent = tier?.label || tier?.name || '—';
 
