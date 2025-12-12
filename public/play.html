@@ -883,7 +883,6 @@ const API = Object.freeze({
 const addressInput   = document.getElementById(IDS.address);
 const loading        = document.getElementById(IDS.loading);
 const payoutLoading  = loading;
-const dailyRewardBtn = document.getElementById(IDS.daily);
 const dealBtn        = document.getElementById(IDS.deal);
 const drawBtn        = document.getElementById(IDS.draw);
 const payoutEl       = document.getElementById(IDS.payout);
@@ -1444,109 +1443,13 @@ async function draw() {
     alert('Draw failed.');
   }
 }
-async function onDailyReward() {
-try {
-    const res = await postWithCsrf(API.daily, { method: 'POST', credentials: 'include' });
-    const data = await res.json();
-
-    if (!data.ok){
-      if (data.error === 'Daily reward already claimed.') {
-          const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
-          alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
-      } else {
-          alert('Daily Reward Failed: ' + (data.error || 'Unknown error'));
-      }
-      return;
-    }
-
-    // SUCCESS: It was sent directly to the wallet
-    const creditUnits = Math.floor((data.credit || 0) / 100);
-    alert(`Daily Reward Sent! \n\n+${creditUnits} KIBL have been sent directly to your linked wallet.\nTxID: ${data.txId?.slice(0,10)}...`);
-
-    // Refresh the WALLET balance, not the payout total
-    const linked = await fetch('/api/wallet/status').then(r=>r.json()).catch(()=>({}));
-    if (linked?.address && window.loadWalletBalances) {
-        window.loadWalletBalances(linked.address);
-    }
-
-  } catch (e) {
-    console.error(e);
-    alert('Failed to claim daily reward, please try again.');
-  }
-}
-
-async function onClaimPayout() {
-    if (totalPayout === 0) {
-    // Double-check with the server in case the local variable is stale
-    try {
-      const r = await fetch(API.profile, { credentials: 'include' });
-      const d = await r.json();
-      if (d?.ok) {
-        const bankUnits = Math.floor((d.bank || 0) / 100);
-        totalPayout = bankUnits;
-        if (payoutEl) payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
-        if (payoutBtn) payoutBtn.disabled = (totalPayout === 0);
-      }
-    } catch {}
-    if (totalPayout === 0) { alert('No payout to claim!'); return; }
- }
-
-  // Visible hCaptcha: ensure the user solved the challenge first
-  const token = window.hcaptcha?.getResponse?.();
-  if (!token) {
-    // nudge: focus the widget and ask the user to complete it
-    document.querySelector('#payoutCaptcha iframe')?.focus();
-    alert('Please complete the hCaptcha challenge first.');
-    return;
-  }
-
-  try {
-    show(payoutLoading);
-    payoutBtn.disabled = true;
-
-    const resp = await postWithCsrf(API.payout, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerAddress,
-        'h-captcha-response': token    // <- standard field name
-      })
-    });
-
-    const data = await resp.json().catch(() => ({}));
-
-    if (!resp.ok || data.error) {
-      try { window.hcaptcha?.reset?.(); } catch {}
-      alert('Payout failed: ' + (data.error || resp.statusText));
-      return;
-    }
-
-    try { feedSound.currentTime = 0; feedSound.play(); } catch {}
-    alert(`Payout successful! Tx ID: ${data.txId}`);
-
-    totalPayout = data.remainingKIBL ?? 0;
-    payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
-    // Reset so the user can claim again in the future
-    try { window.hcaptcha?.reset?.(); } catch {}
-
-  } catch (e) {
-    console.error('Payout failed:', e);
-    try { window.hcaptcha?.reset?.(); } catch {}
-    alert(e?.message || 'Payout failed. Try again.');
-  } finally {
-    hide(payoutLoading);
-    
-  }
-}
-
 
 
   function checkAchievements() {}
     
 
   // ===== Wire up existing buttons/ids without renaming them =====
-  dailyRewardBtn?.addEventListener('click', onDailyReward);
+ 
   dealBtn?.addEventListener('click', startGame);
   drawBtn?.addEventListener('click', draw);
 

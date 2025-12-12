@@ -1217,9 +1217,7 @@ function updateBjPanels(snapshotJson) {
 
 
     const payoutEl = document.getElementById('payoutTotal');
-    const dailyBtn = document.getElementById('dailyReward');
     const loading  = document.getElementById('loading');
-
     const bjFair   = document.getElementById('bjFair');
     const bjDealer = document.getElementById('bjDealer');
     const bjPlayer = document.getElementById('bjPlayer');
@@ -1512,102 +1510,12 @@ async function split(){
   }
 }
 
-    // ——— Daily & Payout (copied minimal from poker page) ———
-    async function onDaily(){
-     try {
-        // FIX 1: Pass empty body {}, not fetch options
-        // FIX 2: Result is already JSON, don't call .json()
-        const data = await postWithCsrf(API.daily, {}); 
-
-        if (!data.ok){
-          if (data.error === 'Daily reward already claimed.') {
-              const mins = data.retryInMs ? Math.ceil(data.retryInMs/60000) : 'later';
-              alert('Daily already claimed. Try again in ~' + mins + ' minutes.');
-          } else {
-              alert('Daily Reward Failed: ' + (data.error || 'Unknown error'));
-          }
-          return;
-        }
-
-        // SUCCESS
-        const creditUnits = Math.floor((data.credit || 0) / 100);
-        alert(`Daily Reward Sent! \n\n+${creditUnits} KIBL have been sent directly to your linked wallet.\nTxID: ${data.txId?.slice(0,10)}...`);
-
-        // Refresh balance
-        if (window.loadWalletBalances) {
-            const linked = await fetch('/api/wallet/status').then(r=>r.json()).catch(()=>({}));
-            if (linked?.address) window.loadWalletBalances(linked.address);
-        }
-
-      } catch (e) {
-        console.error(e);
-        alert('Failed to claim daily reward, please try again.');
-      }
-    }
-
-async function onClaimPayout() {
-    if (totalPayout === 0) {
-        // Double-check with server
-        try {
-          const r = await fetch(API.profile, { credentials: 'include' });
-          const d = await r.json();
-          if (d?.ok) {
-            const bankUnits = Math.floor((d.bank || 0) / 100);
-            totalPayout = bankUnits;
-            if (payoutEl) payoutEl.textContent = `Total Payout: ${bankUnits} KIBL`;
-            if (payoutBtn) payoutBtn.disabled = (totalPayout === 0);
-          }
-        } catch {}
-        if (totalPayout === 0) { alert('No payout to claim!'); return; }
-    }
-
-    const token = window.hcaptcha?.getResponse?.();
-    if (!token) {
-        document.querySelector('#payoutCaptcha iframe')?.focus();
-        alert('Please complete the hCaptcha challenge first.');
-        return;
-    }
-
-    try {
-        show(payoutLoading);
-        payoutBtn.disabled = true;
-
-        // FIX: 'data' is returned directly from postWithCsrf
-        const data = await postWithCsrf(API.payout, {
-            playerAddress: addressInput?.value?.trim() || '', // Ensure address is passed if needed, or server uses linked
-            'h-captcha-response': token
-        });
-
-        // Removed: const data = await resp.json()... (Not needed)
-
-        if (!data.ok || data.error) {
-            try { window.hcaptcha?.reset?.(); } catch {}
-            alert('Payout failed: ' + (data.error || 'Unknown error'));
-            return;
-        }
-
-        try { feedSound.currentTime = 0; feedSound.play(); } catch {}
-        alert(`Payout successful! Tx ID: ${data.txId}`);
-
-        totalPayout = data.remainingKIBL ?? 0;
-        payoutEl.textContent = `Total Payout: ${totalPayout} KIBL`;
-        try { window.hcaptcha?.reset?.(); } catch {}
-
-    } catch (e) {
-        console.error('Payout failed:', e);
-        try { window.hcaptcha?.reset?.(); } catch {}
-        alert(e?.message || 'Payout failed. Try again.');
-    } finally {
-        hide(payoutLoading);
-        if (totalPayout > 0) payoutBtn.disabled = false;
-    }
-}
+   
 
     // Wire up
     btnStart.addEventListener('click', startRound);
     btnHit.addEventListener('click',   hit);
     btnStand.addEventListener('click', stand);
-    dailyBtn.addEventListener('click', onDaily);
     btnDouble.addEventListener('click', doubleDown);
     btnSplit .addEventListener('click', split);
 
