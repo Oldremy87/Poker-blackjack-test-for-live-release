@@ -1069,7 +1069,81 @@ body.compact {
     box-shadow: 0 0 18px rgba(0,255,198,.35);
   }
 }
+/* CONTAINER FOR THE 4 REELS */
+.dice-display {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0;
+  perspective: 1000px;
+}
 
+/* INDIVIDUAL REEL / TUBE */
+.reel-container {
+  width: 60px;
+  height: 80px;
+  background: #05070d;
+  border: 2px solid var(--card-border); /* Matches your card borders */
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 
+    inset 0 0 15px rgba(0,0,0,0.8),
+    0 0 10px rgba(58,245,217,0.2);
+}
+
+/* THE STRIP OF NUMBERS INSIDE THE REEL */
+.reel-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  /* Will be animated via JS */
+  transform: translateY(0); 
+  will-change: transform;
+}
+
+/* INDIVIDUAL NUMBERS ON THE STRIP */
+.reel-num {
+  height: 80px; /* Must match reel-container height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--pp-accent1);
+  text-shadow: 0 0 10px var(--pp-accent1);
+}
+
+/* "ZERO" SPECIAL BRANDING */
+/* When the number is 0, we can add a specific class or style */
+.reel-num.is-zero {
+  color: var(--accent); /* Gold for 0 */
+  text-shadow: 0 0 15px var(--accent);
+}
+
+/* BLUR FILTER FOR SPINNING EFFECT */
+.spinning .reel-strip {
+  filter: blur(2px);
+}
+
+/* GLASS HIGHLIGHT OVERLAY (The shiny reflection) */
+.reel-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg, 
+    rgba(255,255,255,0) 0%, 
+    rgba(255,255,255,0.05) 20%, 
+    rgba(255,255,255,0) 40%, 
+    rgba(255,255,255,0) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 10px;
+}
   </style>
 </head>
   
@@ -1243,32 +1317,31 @@ body.compact {
       </div>
       <p class="subtitle">Roll under the target. Higher risk, higher KIBL. All rolls are provably fair (commit–reveal).</p>
 
-      <div class="dice-main">
-        <div id="selectedTierLabel" style="font-size:0.8rem;color:var(--pp-muted);text-transform:uppercase;letter-spacing:.08em;">
-          Select your risk tier:
-        </div>
-        <div id="tierList" class="tier-list"></div>
+     <div class="dice-main">
+  <div id="selectedTierLabel" style="font-size:0.8rem;color:var(--pp-muted);text-transform:uppercase;letter-spacing:.08em;">
+    Select your risk tier:
+  </div>
+  
+  <div id="tierList" class="tier-list"></div>
 
-        <div class="result" id="resultArea">
-          <div>Roll: <span class="roll" id="rollValue">– – – –</span></div>
-          <div id="resultStatus"></div>
-        </div>
+  <div class="dice-display" id="diceReels">
+    <div class="reel-container"><div class="reel-strip" data-val="0"><div class="reel-num">-</div></div><div class="reel-overlay"></div></div>
+    <div class="reel-container"><div class="reel-strip" data-val="0"><div class="reel-num">-</div></div><div class="reel-overlay"></div></div>
+    <div class="reel-container"><div class="reel-strip" data-val="0"><div class="reel-num">-</div></div><div class="reel-overlay"></div></div>
+    <div class="reel-container"><div class="reel-strip" data-val="0"><div class="reel-num">-</div></div><div class="reel-overlay"></div></div>
+  </div>
 
-        <div class="controls">
-  <button id="betBtn">
-    <span>Place 100 KIBL Bet</span>
-  </button>
-  <button id="rollBtn" disabled>
-    <span>Roll Dice</span>
-  </button>
-  <button id="changeTargetBtn" class="btn-secondary" disabled>
-    Change Target
-  </button>
-  <button id="fairBtn" class="btn-secondary" disabled>
-    Fairness
-  </button>
-</div>
+  <div class="result">
+    <div id="resultStatus" style="text-align:center; min-height: 20px;"></div>
+  </div>
 
+  <div class="controls">
+    <button id="betBtn"><span>Place 100 KIBL Bet</span></button>
+    <button id="rollBtn" disabled><span>Roll Dice</span></button>
+    <button id="changeTargetBtn" class="btn-secondary" disabled>Change Target</button>
+    <button id="fairBtn" class="btn-secondary" disabled>Fairness</button>
+  </div>
+  </div>
         <div class="hint">
           100 KIBL is sent on-chain to the PixelPup house wallet. Winnings accrue to your in-app KIBL bank for payouts.
         </div>
@@ -1529,7 +1602,103 @@ async function loadLeaderboard() {
     console.warn('Dice leaderboard failed', e);
   }
 }
+// 1. SETUP REELS ON LOAD
+function initReels() {
+  const containers = document.querySelectorAll('.reel-container .reel-strip');
+  
+  containers.forEach(strip => {
+    // Fill the strip with numbers 0-9 repeated twice for smooth looping
+    let html = '';
+    // We create a "stack" of numbers. 
+    // Order: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9
+    for(let i=0; i<20; i++) {
+      const num = i % 10;
+      // If it's 0, add the special class for branding
+      const zeroClass = (num === 0) ? 'is-zero' : '';
+      html += `<div class="reel-num ${zeroClass}">${num}</div>`;
+    }
+    strip.innerHTML = html;
+    // Set initial position to '0' (which is index 0)
+    strip.style.transform = `translateY(0px)`;
+  });
+}
+// Call this on window load
+window.addEventListener('load', initReels);
 
+
+// 2. THE ANIMATION FUNCTION
+async function animateReels(finalNumber) {
+  // finalNumber is a string like "5311" or number 5311
+  const sNum = finalNumber.toString().padStart(4, '0'); // ensure "0054"
+  const digits = sNum.split('').map(Number);
+  
+  const strips = document.querySelectorAll('.reel-strip');
+  const REEL_HEIGHT = 80; // px, matches css .reel-num height
+  
+  const promises = [];
+
+  strips.forEach((strip, i) => {
+    // Add 'spinning' class for blur effect
+    strip.parentElement.classList.add('spinning');
+    
+    // Calculate final position
+    // We want to land on the second set of 0-9 (indexes 10-19) to allow movement
+    const targetIndex = 10 + digits[i]; 
+    const targetPos = -(targetIndex * REEL_HEIGHT);
+    
+    // Stagger duration: Left reels stop first, right reels stop last
+    const duration = 1000 + (i * 300); 
+    
+    const p = new Promise(resolve => {
+      // 1. Reset to top (instant)
+      strip.style.transition = 'none';
+      strip.style.transform = 'translateY(0px)';
+      
+      // Force reflow
+      void strip.offsetWidth;
+      
+      // 2. Animate to target
+      strip.style.transition = `transform ${duration}ms cubic-bezier(0.15, 0.9, 0.35, 1)`;
+      strip.style.transform = `translateY(${targetPos}px)`;
+      
+      setTimeout(() => {
+        strip.parentElement.classList.remove('spinning');
+        resolve();
+      }, duration);
+    });
+    promises.push(p);
+  });
+  
+  return Promise.all(promises);
+}
+
+
+// 3. INTEGRATE INTO YOUR EXISTING 'handleRollClick' or 'rollDice' FLOW
+
+// ... inside handleRollClick, BEFORE calling API ...
+// Trigger a "fake" infinite spin loop if you want, 
+// OR just rely on the animation function once data arrives.
+
+// ... inside showRollResult(payload) ...
+async function showRollResult(payload) {
+    const { roll, win, credit } = payload || {};
+    
+    // 1. ANIMATE THE VISUALS
+    // Pass the roll (e.g., 7940) to the animation
+    await animateReels(roll);
+
+    // 2. UPDATE TEXT / STATUS AFTER ANIMATION
+    // (Existing logic follows here)
+    const resultRow = document.getElementById('resultRow');
+    const status    = document.getElementById('resultStatus');
+    // ... rest of your existing UI update code ...
+    
+    if (win) {
+        // Trigger confetti/sounds ONLY after animation finishes
+        flashPayout();
+        confettiBurst();
+    }
+}
 // Expose it to window so your init() can find it
 window.loadLeaderboard = loadLeaderboard;
 function confettiBurst(count = 48, ms = 1800){
