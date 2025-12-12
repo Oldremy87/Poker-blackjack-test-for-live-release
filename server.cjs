@@ -633,10 +633,10 @@ async function saveStatsFor(uid, game, { creditMinor, isWin, isRoyal, flags }) {
   await p.query(`update ${stats} set ${sets.join(', ')}, last_seen_at = now() where user_id = $1`, vals);
 }
 
-// FIXED function for Blackjack and Dice
+// server.cjs - DEBUG VERSION
 async function awardSeasonPointsFor(uid, game, points) {
   if (!hasDb) return;
-  if (!points) return; // Skip if 0 points
+  if (!points) return; 
 
   const config = tablesByGame[game];
   if (!config) return console.error(`[Points] Error: No config for game "${game}"`);
@@ -647,29 +647,41 @@ async function awardSeasonPointsFor(uid, game, points) {
   const sid = await getCurrentSeasonId();
   if (!sid) return console.error('[Points] Error: No active season');
 
-  console.log(`[Points] Awarding ${points} pts to ${uid} in ${table}`);
+  // --- DEBUG LOGGING START ---
+  console.log('--- DEBUG: POINT AWARD START ---');
+  console.log(`1. Game: ${game}`);
+  console.log(`2. Table: ${table}`);
+  console.log(`3. SID (should be text): ${sid}`);
+  console.log(`4. UID (should be uuid): ${uid}`);
+  console.log(`5. Points (should be number): ${points}`);
+  
+  // This array MUST be [sid, uid, points]
+  const params = [sid, uid, points]; 
+  console.log('6. Sending Query Params:', params);
+  // --- DEBUG LOGGING END ---
 
   await p.query('begin');
   try {
-    // 1. Ensure row exists
+    // 1. Insert
     await p.query(
         `insert into ${table}(season_id,user_id,points_total) values($1,$2,0) on conflict do nothing`, 
         [sid, uid]
     );
 
-    // 2. Update points (FIXED ORDER: sid, uid, points)
+    // 2. Update
+    // $1=sid, $2=uid, $3=points
     await p.query(
         `update ${table} set points_total=points_total+$3, last_update=now() where season_id=$1 and user_id=$2`, 
-        [sid, uid, points]
+        params // <--- Using the variable we logged above
     );
     
+    console.log(`[Points] Success! Awarded ${points} to ${uid}`);
     await p.query('commit');
   } catch (e) {
     await p.query('rollback');
-    console.error('[Points] SQL Error:', e.message);
+    console.error('[Points] SQL Error Detailed:', e.message);
   }
 }
-
 async function saveAfterDraw(uid, { creditMinor, isWin, isRoyal, flags }){
   if (!hasDb) return;
   const p = await db();
