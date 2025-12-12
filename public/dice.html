@@ -1947,7 +1947,6 @@ async function showRollResult(payload) {
   // --- Standard UI Updates ---
   const resultRow = document.getElementById('resultRow');
   const status    = document.getElementById('statusText');
-  const rollEl    = document.getElementById('rollValue');
   const tierEl    = document.getElementById('resultTier');
   const winEl     = document.getElementById('winAmount');
   const ptsEl     = document.getElementById('pointsEarned');
@@ -1955,7 +1954,6 @@ async function showRollResult(payload) {
   const changeTargetBtn = document.getElementById('changeTargetBtn');
 
   if (resultRow) resultRow.hidden = false;
-  if (rollEl) rollEl.textContent = roll ?? '—';
   if (tierEl) tierEl.textContent = tier?.label || tier?.name || '—';
 
   const creditUnits = Math.floor((credit || 0) / 100);
@@ -2097,7 +2095,6 @@ function selectTarget(tierId) {
 
   renderTiers();
   document.getElementById('selectedTierLabel').textContent = 'Select your risk tier:';
-  document.getElementById('rollValue').textContent = '– – – –';
   document.getElementById('resultStatus').textContent = '';
 
   const rollBtn         = document.getElementById('rollBtn');
