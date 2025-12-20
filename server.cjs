@@ -171,9 +171,12 @@ app.get('/api/csrf', csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
 app.use('/api', (req, res, next) => {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-    return next();
+  if (req.path.startsWith('/admin/')) {
+    const tok = req.headers['x-admin-token'];
+    if (process.env.ADMIN_TOKEN && tok === process.env.ADMIN_TOKEN) return next();
   }
+
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   return csrfProtection(req, res, next);
 });
 
