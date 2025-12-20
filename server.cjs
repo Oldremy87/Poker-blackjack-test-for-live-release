@@ -278,8 +278,17 @@ app.use((req, _res, next) => {
 
 let _adminMergeInFlight = false;
 
+
+
+function isUuid(s) {
+  return typeof s === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+}
 function requireAdmin(req, res) {
-  const tok = req.headers['x-admin-token'];
+  const tok =
+    (req.get && (req.get('X-Admin-Token') || req.get('x-admin-token'))) ||
+    req.headers['x-admin-token'];
+
   if (!process.env.ADMIN_TOKEN || tok !== process.env.ADMIN_TOKEN) {
     res.status(403).json({ ok:false, error:'forbidden' });
     return false;
@@ -287,13 +296,6 @@ function requireAdmin(req, res) {
   return true;
 }
 
-function isUuid(s) {
-  return typeof s === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
-}
-const tok =
-  (req.get && (req.get('X-Admin-Token') || req.get('x-admin-token'))) ||
-  req.headers['x-admin-token'];
 
  //POST /api/admin/merge-wallet-dupes
 // Headers: X-Admin-Token: <ADMIN_TOKEN>
