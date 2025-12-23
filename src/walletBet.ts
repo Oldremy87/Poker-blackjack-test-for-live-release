@@ -12,7 +12,7 @@ import { rostrumProvider } from 'nexa-wallet-sdk';
 const KEY='kk_wallet_v1', IV='kk_wallet_iv_v1';
 const KIBL_GROUP_ADDR = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt';
 const KIBL_TOKEN_HEX  = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
-const HOUSE_ADDRESS   = 'nexa:nqtsq5g5pvucuzm2kh92kqtxy5s3zfutq3xgnhh5src65fc3';
+const HOUSE_ADDRESS   = 'nexa:nq4sq9ppgl78nmmzqn35fxlh8arwj7sexuvuplq5kf4g46zcr0956u8my6vfnleqkhtxfpk9kp2k4esf';
 const KIBL_TOKEN_ID   = 'nexa:tpjkhlhuazsgskkt5hyqn3d0e7l6vfvfg97cf42pprntks4x7vqqqcavzypmt';
 
 // --- NODES ---
