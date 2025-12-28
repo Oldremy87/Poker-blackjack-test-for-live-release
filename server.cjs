@@ -59,7 +59,7 @@ const KIBL_GROUP_HEX = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42
 async function seasonTick() {
   if (!hasDb) return;
 
-  const TOP_N = Number(process.env.SEASON_SNAPSHOT_TOP_N || 250);
+  const TOP_N = Number(process.env.SEASON_SNAPSHOT_TOP_N || 25);
 
   let p;
   try {
@@ -154,11 +154,7 @@ async function seasonTick() {
     console.error('[SeasonTick] failed', e);
   }
 }
-if (hasDb) {
-  // Run once shortly after boot, then every minute
-  setTimeout(() => seasonTick().catch(() => {}), 10_000);
-  setInterval(() => seasonTick().catch(() => {}), 60_000);
-}
+
 // Serve Vite build output
 app.use('/dist', express.static(path.join(__dirname, 'public', 'dist'), {
   fallthrough: false,
@@ -208,7 +204,11 @@ if (hasDb) {
   return pool;
 }
 let cachedServerWallet = null;
-
+if (hasDb) {
+  // Run once shortly after boot, then every minute
+  setTimeout(() => seasonTick().catch(() => {}), 10_000);
+  setInterval(() => seasonTick().catch(() => {}), 60_000);
+}
 // ----- MIDDLEWARE ORDER -----
 app.use(cookieParser());
 app.use(express.json({ limit: '100kb' }));
