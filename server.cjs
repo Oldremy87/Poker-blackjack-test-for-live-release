@@ -56,7 +56,109 @@ async function ensureRostrum() {
 })();
 
 const KIBL_GROUP_HEX = '656bfefce8a0885acba5c809c5afcfbfa62589417d84d54108e6bb42a6f30000';
+async function seasonTick() {
+  if (!hasDb) return;
 
+  const TOP_N = Number(process.env.SEASON_SNAPSHOT_TOP_N || 250);
+
+  let p;
+  try {
+    p = await db();
+
+    // Use a DB advisory lock so only ONE tick runs at a time across instances.
+    // Any bigint is fine; just keep it constant for this app.
+    const { rows: lockRows } = await p.query('SELECT pg_try_advisory_lock($1) AS ok', [987654321]);
+    if (!lockRows?.[0]?.ok) return; // another runner has the lock
+
+    try {
+      await p.query('BEGIN');
+
+      // Lock the season_current pointer row to avoid races with manual updates
+      await p.query('SELECT 1 FROM season_current WHERE id=1 FOR UPDATE');
+
+      // Resolve current season (prefer season_current; fallback to active)
+      const { rows: curRows } = await p.query(`
+        SELECT s.season_id, s.name, s.status, s.end_at
+        FROM season_current sc
+        JOIN seasons s ON s.season_id = sc.current_season_id
+        WHERE sc.id = 1
+      `);
+
+      let cur = curRows[0];
+
+      if (!cur) {
+        const { rows: activeRows } = await p.query(`
+          SELECT season_id, name, status, end_at
+          FROM seasons
+          WHERE status='active'
+          ORDER BY start_at DESC
+          LIMIT 1
+        `);
+        cur = activeRows[0];
+      }
+
+      if (!cur) {
+        await p.query('COMMIT');
+        return;
+      }
+
+      // Only rollover if season is active AND time is past end_at
+      const { rows: timeRows } = await p.query('SELECT now() >= $1 AS should_end', [cur.end_at]);
+      const shouldEnd = !!timeRows?.[0]?.should_end;
+
+      if (!shouldEnd || cur.status !== 'active') {
+        await p.query('COMMIT');
+        return;
+      }
+
+      // ✅ Do the rollover (snapshots + end season + activate next)
+      const { rows: rollRows } = await p.query(
+        'SELECT * FROM end_current_season_and_rollover($1)',
+        [TOP_N]
+      );
+
+      const endedSeasonId = rollRows?.[0]?.ended_season_id ?? null;
+      const startedSeasonId = rollRows?.[0]?.started_season_id ?? null;
+
+      // Optional audit event
+      try {
+        await p.query(
+          `INSERT INTO season_events(season_id, event_type, payload)
+           VALUES ($1, 'rollover', $2::jsonb)`,
+          [
+            endedSeasonId,
+            JSON.stringify({
+              endedSeasonId,
+              startedSeasonId,
+              topN: TOP_N,
+              at: new Date().toISOString()
+            })
+          ]
+        );
+      } catch (e) {
+        // don't fail rollover because of audit table
+        logger?.error?.('season_events insert', { e: String(e) });
+      }
+
+      await p.query('COMMIT');
+
+      console.log(`[Season] Rolled over: ended=${endedSeasonId} started=${startedSeasonId} topN=${TOP_N}`);
+    } catch (e) {
+      try { await p.query('ROLLBACK'); } catch {}
+      throw e;
+    } finally {
+      // Always release advisory lock
+      try { await p.query('SELECT pg_advisory_unlock($1)', [987654321]); } catch {}
+    }
+  } catch (e) {
+    console.error('[SeasonTick] failed', e);
+  }
+}
+if (hasDb) {
+  // Run once shortly after boot, then every minute
+  setTimeout(() => seasonTick().catch(() => {}), 10_000);
+  setInterval(() => seasonTick().catch(() => {}), 60_000);
+}
 // Serve Vite build output
 app.use('/dist', express.static(path.join(__dirname, 'public', 'dist'), {
   fallthrough: false,
