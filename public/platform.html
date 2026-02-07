@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PixelPup Arcade — Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- OpenGraph / Social -->
+  <meta property="og:title" content="PixelPup Arcade — Platform" />
+  <meta property="og:description" content="Provably-fair, on-chain games + a tokenized rewards layer on Nexa—built for ecosystem growth, retention, and verifiable integrity." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#0b0f19" />
+
+  <style>
+    :root{
+      --bg: #0b0f19;
+      --panel: #111827;
+      --text: #00ffc6;
+      --text-dim: #7fffe6;
+      --accent: #ffcc00;
+      --accent-2: #ff3df7;
+      --accent-3: #6ae3ff;
+      --card-border: #3af5d9;
+
+      --pp-bg: #050015;
+      --pp-card: #120826;
+      --pp-accent1: #00ffc6;
+      --pp-accent2: #ff3df7;
+      --pp-text: #fdfdfd;
+      --pp-muted: #9ca3af;
+
+      --ok: #45ff99;
+      --warn: #ffcc00;
+      --danger: #ff5577;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 800px at 50% -20%, #13203b 0%, #0b0f19 60%, #05070d 100%),
+        linear-gradient(180deg, #0b0f19 0%, #05070d 100%);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent-3); text-decoration: none; }
+    a:hover { filter: brightness(1.08); text-decoration: underline; }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin: 0 auto 16px; max-width: 1100px; width: 100%;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(58,245,217,0.10);
+    }
+    nav { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-start; }
+    .brand { display: flex; align-items: center; gap: 10px; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0,255,198,0.6); }
+    .brand-badge {
+      width: 36px; height: 36px; border-radius: 10px; border: 2px solid var(--card-border);
+      box-shadow: 0 0 14px rgba(0,255,198,0.2); display: grid; place-items: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      font-weight: 800; color: var(--accent);
+    }
+    .brand h1 { margin: 0; font-size: 1.15rem; color: var(--pp-text); }
+    .brand small { display:block; color: var(--pp-muted); margin-top: 2px; font-size: 12px; }
+
+    /* Buttons */
+    .btn {
+      appearance: none; border: 0; cursor: pointer; padding: 10px 14px; border-radius: 12px;
+      color: #000; background: var(--accent); text-decoration: none;
+      box-shadow: 0 3px 0 #b59000, 0 0 12px rgba(255,204,0,0.35);
+      font-weight: 800; letter-spacing: .2px; display: inline-flex; align-items: center; gap: 8px;
+      transition: transform .06s ease, filter .12s ease, box-shadow .12s ease;
+      font-size: 12px;
+      user-select: none;
+    }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.05); text-decoration:none; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn-primary{
+      border-radius: 999px;
+      border: none;
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: 900;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, var(--pp-accent1), var(--pp-accent2));
+      color: #020617;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      transition: transform 80ms ease, box-shadow 80ms ease, opacity 80ms ease;
+      text-decoration: none;
+    }
+    .btn-ghost{
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      color: var(--text);
+      border: 1px solid rgba(58,245,217,0.35);
+      box-shadow: 0 0 12px rgba(0,255,198,0.18) inset, 0 0 12px rgba(0,255,198,0.12);
+      text-decoration: none;
+    }
+    .btn-telegram{
+      background: var(--accent-3);
+      box-shadow: 0 3px 0 #2aa7bf, 0 0 14px rgba(106,227,255,0.35);
+      color: #021018;
+      text-decoration: none;
+    }
+
+    .btn-toggle{
+      background: rgba(0,0,0,0.35);
+      color: var(--pp-text);
+      border: 1px solid rgba(58,245,217,0.25);
+      box-shadow: 0 0 12px rgba(0,255,198,0.10);
+    }
+    .btn-toggle.active{
+      border-color: rgba(255,61,247,0.55);
+      box-shadow: 0 0 18px rgba(255,61,247,0.18), 0 0 18px rgba(0,255,198,0.12);
+      background: rgba(255,61,247,0.08);
+    }
+
+    /* Layout */
+    .wrap { max-width: 1100px; margin: 0 auto; width: 100%; }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+      border: 1px solid rgba(58,245,217,0.30);
+      border-radius: 16px;
+      padding: 18px;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 0 24px rgba(0,255,198,0.06) inset, 0 0 24px rgba(0,255,198,0.08);
+      margin-bottom: 14px;
+    }
+
+    .hero {
+      padding: 22px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background:
+        radial-gradient(circle at top left, rgba(0,255,198,0.12), transparent 55%),
+        radial-gradient(circle at top right, rgba(255,61,247,0.12), transparent 55%);
+    }
+    .kicker {
+      display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--pp-muted);
+      margin-bottom: 8px;
+    }
+    .hero h2 { margin: 6px 0 8px; font-size: 2.1rem; line-height: 1.18; color: var(--pp-text); }
+    .hero p { margin: 0; color: var(--text-dim); line-height: 1.55; }
+    .cta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .col-6 { grid-column: span 6; }
+    .col-4 { grid-column: span 4; }
+    .col-12 { grid-column: span 12; }
+
+    @media (max-width: 900px){
+      body { padding: 12px; }
+      header { flex-direction: column; align-items: stretch; gap: 10px; }
+      nav { justify-content: center; }
+      .col-6, .col-4 { grid-column: span 12; }
+      .hero h2 { font-size: 1.65rem; }
+    }
+.hero-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(5,0,21,0.65),
+      rgba(5,0,21,0.85)
+    ),
+    url("9c70baa3-1239-4000-982c-1603afbcfc03.png");
+  background-size: cover;
+  background-position: center;
+  padding: 28px;
+}
+
+.hero-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow:
+    inset 0 0 80px rgba(0,0,0,0.65),
+    inset 0 -40px 60px rgba(0,0,0,0.75);
+  pointer-events: none;
+}
+
+.hero-banner > * {
+  position: relative;
+  z-index: 1;
+}
+
+    .card {
+      border-radius: 16px;
+      padding: 16px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+    .card h3 { margin: 0 0 6px; color: var(--accent-2); font-size: 1rem; letter-spacing: 0.2px; }
+    .muted { color: var(--pp-muted); }
+    .bullets { margin: 10px 0 0; padding-left: 18px; color: var(--text-dim); }
+    .bullets li { margin: 6px 0; }
+    .bullets strong { color: var(--pp-text); }
+
+    .pill-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .pill {
+      font-size: 12px;
+      color: var(--pp-text);
+      border: 1px solid rgba(58,245,217,0.30);
+      background: rgba(0,0,0,0.35);
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+      margin: 14px 0;
+    }
+
+    .callout {
+      border: 1px solid rgba(255,204,0,0.32);
+      box-shadow: 0 0 24px rgba(255,204,0,0.08) inset, 0 0 22px rgba(0,255,198,0.06);
+      background: rgba(0,0,0,0.28);
+    }
+
+    .section-title {
+      margin: 0 0 8px;
+      color: var(--pp-text);
+      font-size: 1.25rem;
+      letter-spacing: .2px;
+    }
+
+    .section-sub {
+      margin: 0 0 12px;
+      color: var(--pp-muted);
+    }
+
+    .anchor-links {
+      display:flex; flex-wrap:wrap; gap: 8px;
+      margin-top: 12px;
+    }
+
+    footer{
+      text-align:center;
+      color: var(--text-dim);
+      font-size: 12px;
+      padding: 10px 0 2px;
+      opacity: .9;
+    }
+    footer a{ color: var(--accent-3); text-decoration: none; }
+    footer a:hover{ text-decoration: underline; }
+
+    /* Partner/Investor blocks */
+    .audience { display: none; }
+    .audience.active { display: block; }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <nav>
+      <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">Join Telegram</a>
+      <a class="btn btn-primary" href="index.html">Enter the Arcade</a>
+      <a class="btn btn-primary" href="play.html">♠️ Poker</a>
+      <a class="btn btn-primary" href="blackjack.html">🃏 Blackjack</a>
+      <a class="btn btn-primary" href="dice.html">🎲 Dice</a>
+      <a class="btn btn-ghost" href="verify.html">Verify Fairness</a>
+      <a class="btn btn-ghost" href="whitepaper.html">Litepaper</a>
+      <a class="btn btn-ghost" href="roadmap.html">Roadmap</a>
+      <a class="btn btn-ghost" href="docs.html">Docs</a>
+      <a class="btn btn-ghost" href="https://x.com/Oldremy" target="_blank" rel="noopener noreferrer">@Oldremy</a>
+    </nav>
+
+    <div class="brand">
+      <div class="brand-badge">KK</div>
+      <div>
+        <h1>Platform</h1>
+        <small>PixelPup Arcade on Nexa • Stay shiny ✨🐶⭐</small>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- HERO (Your tight copy + CTA set) -->
+    <section class="panel hero" id="top">
+      <div class="kicker">Platform • Nexa Ecosystem • Provably-Fair</div>
+
+      <h2>PixelPup Arcade on Nexa</h2>
+
+      <p style="margin-top:6px;">
+        Provably-fair, on-chain games + a tokenized rewards layer—built for ecosystem growth, retention, and verifiable integrity.
+      </p>
+
+      <div class="pill-row" aria-label="Microproof">
+        <span class="pill">Commit–Reveal Fairness</span>
+        <span class="pill">Wallet-Native</span>
+        <span class="pill">Leaderboards & Season Points</span>
+        <span class="pill">Payout Rails (Alpha)</span>
+      </div>
+
+      <div class="cta-row" role="group" aria-label="Primary CTAs">
+        <a class="btn btn-primary" href="index.html">Enter the Arcade</a>
+        <a class="btn btn-ghost" href="verify.html">View Fairness</a>
+        <a class="btn btn-ghost" href="whitepaper.html">Read Litepaper</a>
+        <a class="btn btn-ghost" href="#partner">Partner With Us</a>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Audience toggle -->
+      <div class="cta-row" role="group" aria-label="Audience Toggle" style="margin-top:0;">
+        <span class="muted" style="margin-right:6px;">View as:</span>
+        <button id="btnPartner" class="btn btn-toggle active" type="button">Ecosystem Partner</button>
+        <button id="btnInvestor" class="btn btn-toggle" type="button">Strategic Support</button>
+        <span class="muted" style="margin-left:auto;">
+          Compliance-first, no ROI language • see <a href="disclaimer.html">Disclaimer</a>, <a href="tos.html">Terms</a>, <a href="privacy.html">Privacy</a>
+        </span>
+      </div>
+
+      <div class="anchor-links" aria-label="Jump links">
+        <a class="btn btn-ghost" href="#what">What it is</a>
+        <a class="btn btn-ghost" href="#why">Why Nexa</a>
+        <a class="btn btn-ghost" href="#games">Games</a>
+        <a class="btn btn-ghost" href="#trust">Trust & Security</a>
+        <a class="btn btn-ghost" href="#compliance">Compliance</a>
+        <a class="btn btn-ghost" href="#seasons">Seasons</a>
+        <a class="btn btn-ghost" href="#partner">Partnership</a>
+        <a class="btn btn-ghost" href="#support">Support</a>
+      </div>
+    </section>
+
+    <!-- WHAT IT IS -->
+    <section class="panel" id="what">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">A gaming platform that feels like Web2, but verifies like Web3</h2>
+          <p class="section-sub">
+            PixelPup Arcade is a lightweight suite of fast, wallet-connected games designed to bring daily engagement to the Nexa ecosystem—while keeping outcomes auditable via provably-fair commit–reveal.
+          </p>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Arcade Loop</h3>
+          <p class="muted">Quick sessions → points → seasons → rewards.</p>
+        </div>
+
+        <div class="col-4 card">
+          <h3>On-chain Rails</h3>
+          <p class="muted">Bets and payouts integrate with a simple wallet flow.</p>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Verifiable Integrity</h3>
+          <p class="muted">Outcomes can be independently checked.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHY NEXA / WHY NOW -->
+    <section class="panel" id="why">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Built to turn “transactions” into “habits”</h2>
+          <p class="section-sub">
+            DEX launches and new DeFi products create attention spikes. PixelPup converts those spikes into repeat usage with gameplay-driven incentives—without needing a massive client or heavy infra.
+          </p>
+
+          <div class="callout panel" style="margin:12px 0 0;">
+            <strong style="color: var(--accent);">1-liner:</strong>
+            <span class="muted">We’re the “daily driver” that keeps users coming back between launches.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCT SUITE -->
+    <section class="panel" id="games">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Live games (alpha)</h2>
+          <p class="section-sub">Video Poker, Blackjack, and Dice are live today—expanding into seasonal modes, events, and partner integrations.</p>
+        </div>
+
+        <div class="col-4 card">
+          <h3>♠️ Video Poker</h3>
+          <p class="muted">Fast rounds, high replay.</p>
+          <ul class="bullets">
+            <li>Instant loop for retention</li>
+            <li>Clean verification path</li>
+            <li>Season points friendly</li>
+          </ul>
+        </div>
+
+        <div class="col-4 card">
+          <h3>🃏 Blackjack</h3>
+          <p class="muted">Strategic, social-friendly.</p>
+          <ul class="bullets">
+            <li>Good for events & community nights</li>
+            <li>Clear rules, repeatable sessions</li>
+            <li>Season points friendly</li>
+          </ul>
+        </div>
+
+        <div class="col-4 card">
+          <h3>🎲 Dice</h3>
+          <p class="muted">Risk tiers, instant feedback.</p>
+          <ul class="bullets">
+            <li>One-click repeat loop</li>
+            <li>Simple onboarding</li>
+            <li>Great for quests</li>
+          </ul>
+        </div>
+
+        <div class="col-12">
+          <div class="cta-row" role="group" aria-label="Game CTAs">
+            <a class="btn btn-primary" href="play.html">Play Poker</a>
+            <a class="btn btn-primary" href="blackjack.html">Play Blackjack</a>
+            <a class="btn btn-primary" href="dice.html">Play Dice</a>
+            <a class="btn btn-ghost" href="verify.html">Verify Fairness</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INTEGRITY & SECURITY -->
+    <section class="panel" id="trust">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Trust is the product</h2>
+          <p class="section-sub">We treat fairness, safety, and abuse resistance as core features—not marketing.</p>
+        </div>
+
+        <div class="col-6 card">
+          <h3>Provably Fair</h3>
+          <p class="muted">Commit–reveal per round, with a verification flow.</p>
+          <ul class="bullets">
+            <li><strong>Commit first:</strong> server commits before outcome</li>
+            <li><strong>Reveal later:</strong> seed material exposed for audit</li>
+            <li><strong>Verify:</strong> user-visible tool for checking outcomes</li>
+          </ul>
+        </div>
+
+        <div class="col-6 card">
+          <h3>Rate Limits + Anti-abuse</h3>
+          <p class="muted">Bot friction, throttles, and anomaly monitoring.</p>
+          <ul class="bullets">
+            <li><strong>Throttle:</strong> request/bet rate controls</li>
+            <li><strong>Friction:</strong> claim gating where needed</li>
+            <li><strong>Signals:</strong> pattern checks for abuse</li>
+          </ul>
+        </div>
+
+        <div class="col-6 card">
+          <h3>Wallet Safety UX</h3>
+          <p class="muted">Clear prompts, minimal approvals, easy recovery hygiene.</p>
+          <ul class="bullets">
+            <li><strong>Min approvals:</strong> reduce signature fatigue</li>
+            <li><strong>Clear prompts:</strong> users know what they’re doing</li>
+            <li><strong>Recovery:</strong> best-practice guidance and failsafes</li>
+          </ul>
+        </div>
+
+        <div class="col-6 card">
+          <h3>Operational Controls</h3>
+          <p class="muted">Payout protections, staged limits, transparent house rules.</p>
+          <ul class="bullets">
+            <li><strong>Payout rails:</strong> controlled, measurable, staged</li>
+            <li><strong>Limits:</strong> safety caps while alpha hardens</li>
+            <li><strong>Rules:</strong> public policies, no hidden surprises</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPLIANCE -->
+    <section class="panel" id="compliance">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Compliance-first posture (non-negotiable)</h2>
+          <p class="section-sub">
+            We build for long-term viability: clear disclosures, age gating, and conservative messaging. We do not position gameplay as an investment product, and we avoid ROI language.
+          </p>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Clear policies</h3>
+          <ul class="bullets">
+            <li><a href="tos.html">Terms</a> / <a href="privacy.html">Privacy</a> / <a href="disclaimer.html">Disclaimer</a></li>
+            <li>Transparent rules & disclosures</li>
+            <li>Conservative wording by default</li>
+          </ul>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Age gate + policy options</h3>
+          <ul class="bullets">
+            <li>18+ posture</li>
+            <li>Geo-aware policy options (where needed)</li>
+            <li>Responsible play messaging</li>
+          </ul>
+        </div>
+
+        <div class="col-4 card">
+          <h3>No “profit promises”</h3>
+          <ul class="bullets">
+            <li>Rewards framed as utility / participation</li>
+            <li>No guaranteed returns</li>
+            <li>No “investment” positioning</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEASONS -->
+    <section class="panel" id="seasons">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Seasons: limited-time narratives that drive retention</h2>
+          <p class="section-sub">
+            You’re right to end “Christmas Season.” Here are three season themes that are ecosystem-aligned and hype-friendly—without compromising credibility.
+          </p>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Option A: Nebula DeFi Season</h3>
+          <p class="muted">Best with DEX momentum.</p>
+          <ul class="bullets">
+            <li><strong>Theme:</strong> liquidity, swaps, “feed the pup” missions</li>
+            <li><strong>Rewards:</strong> points boosts for verified on-chain actions (non-custodial)</li>
+            <li><strong>Partner hooks:</strong> DEX + wallet + token communities</li>
+          </ul>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Option B: Season 0 — Genesis</h3>
+          <p class="muted">Safest + most credible.</p>
+          <ul class="bullets">
+            <li><strong>Theme:</strong> integrity and verification</li>
+            <li><strong>Goal:</strong> publish fairness dashboards + audits of mechanics</li>
+            <li><strong>Signal:</strong> “we’re serious” for partners & supporters</li>
+          </ul>
+        </div>
+
+        <div class="col-4 card">
+          <h3>Option C: Arcade Founders</h3>
+          <p class="muted">Best for community growth.</p>
+          <ul class="bullets">
+            <li><strong>Theme:</strong> early access, badges, tester perks</li>
+            <li><strong>Goal:</strong> community + creators pipeline (UGC + referral loops)</li>
+            <li><strong>Signal:</strong> “early builders welcomed”</li>
+          </ul>
+        </div>
+
+        <div class="col-12">
+          <div class="callout panel" style="margin-top:0;">
+            <strong style="color: var(--accent);">Recommendation:</strong>
+            <span class="muted">Run <strong>Season 0: Genesis</strong> now for credibility, while teasing <strong>Nebula DeFi Season</strong> as the next official campaign.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PARTNERSHIP (Audience-tuned) -->
+    <section class="panel" id="partner">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Partnership pathways</h2>
+          <p class="section-sub">Simple, modular integrations—built to showcase Nexa projects.</p>
+        </div>
+
+        <!-- Ecosystem Partner copy -->
+        <div id="audPartner" class="col-12 audience active">
+          <div class="grid">
+            <div class="col-6 card">
+              <h3>Partner offers</h3>
+              <ul class="bullets">
+                <li><strong>Co-branded Seasons:</strong> quests + leaderboard sponsorship</li>
+                <li><strong>Token Utility Hooks:</strong> optional reward multipliers + cosmetic drops</li>
+                <li><strong>Traffic & Retention:</strong> referral links, wallet-based attribution</li>
+                <li><strong>Custom Game Modes:</strong> themed tables, limited events, partner badges</li>
+              </ul>
+              <div class="cta-row">
+                <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">Partner inquiry (Telegram)</a>
+                <a class="btn btn-ghost" href="docs.html">Read Docs</a>
+                <a class="btn btn-ghost" href="roadmap.html">View Roadmap</a>
+              </div>
+            </div>
+
+            <div class="col-6 card">
+              <h3>What partners get</h3>
+              <ul class="bullets">
+                <li><strong>Visibility:</strong> featured placements during season beats</li>
+                <li><strong>Engagement:</strong> daily sessions tied to your narrative</li>
+                <li><strong>Measurable outcomes:</strong> leaderboard + quest completion signals</li>
+                <li><strong>Brand-safe posture:</strong> compliance-first messaging and disclosures</li>
+              </ul>
+              <p class="muted" style="margin-top:10px;">
+                If you’re launching a token, a dApp, or a DEX initiative, PixelPup can be the “habit layer” that keeps users active between announcements.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategic Support / Investor copy -->
+        <div id="audInvestor" class="col-12 audience">
+          <div class="grid">
+            <div class="col-6 card">
+              <h3>Strategic support</h3>
+              <p class="muted">
+                We’re seeking strategic support, not speculation. We’re open to grants, ecosystem allocations, and strategic investment conversations focused on product hardening, distribution, and long-term sustainability.
+              </p>
+              <ul class="bullets">
+                <li><strong>Security hardening + monitoring</strong></li>
+                <li><strong>Scalability + reliability upgrades</strong></li>
+                <li><strong>UX polish + onboarding improvements</strong></li>
+                <li><strong>Partner integrations + growth experiments</strong></li>
+              </ul>
+              <div class="cta-row">
+                <a class="btn btn-telegram" href="https://t.me/NexaKennelKlub" target="_blank" rel="noopener noreferrer">Request a demo / intro (Telegram)</a>
+                <a class="btn btn-ghost" href="whitepaper.html">Read Litepaper</a>
+                <a class="btn btn-ghost" href="verify.html">View Fairness</a>
+              </div>
+            </div>
+
+            <div class="col-6 card">
+              <h3>What we optimize for</h3>
+              <ul class="bullets">
+                <li><strong>Trust:</strong> verifiable outcomes and transparent policies</li>
+                <li><strong>Retention:</strong> sessions → points → seasons → rewards</li>
+                <li><strong>Distribution:</strong> ecosystem partnerships and co-marketing</li>
+                <li><strong>Longevity:</strong> conservative compliance posture</li>
+              </ul>
+              <p class="muted" style="margin-top:10px;">
+                We avoid ROI language and do not position gameplay as an investment product. The goal is durable usage and credible infrastructure for the Nexa ecosystem.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FUNDING / SUPPORT (explicit, audience-tuned headline; both can see) -->
+    <section class="panel" id="support">
+      <div class="grid">
+        <div class="col-12">
+          <h2 class="section-title">Bring Nexa users back every day</h2>
+          <p class="section-sub">
+            PixelPup Arcade is the habit layer—fast, verifiable gameplay that turns community attention into repeat engagement.
+          </p>
+        </div>
+
+        <div class="col-12">
+          <div class="cta-row" role="group" aria-label="Closing CTAs">
+            <a class="btn btn-primary" href="index.html">Enter the Arcade</a>
+            <a class="btn btn-ghost" href="roadmap.html">View Roadmap</a>
+            <a class="btn btn-ghost" href="verify.html">Verify Fairness</a>
+            <a class="btn btn-ghost" href="#top">Back to top</a>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="callout panel" style="margin-top:0;">
+            <strong style="color: var(--accent);">Note:</strong>
+            <span class="muted">This is alpha software. Features, rewards, and thresholds may change as stability, security, and compliance evolve.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      © KennelKlub / PixelPup •
+      <a href="disclaimer.html">Disclaimer</a> •
+      <a href="tos.html">Terms</a> •
+      <a href="privacy.html">Privacy</a>
+    </footer>
+
+  </div>
+
+  <script>
+    (function(){
+      const btnPartner = document.getElementById('btnPartner');
+      const btnInvestor = document.getElementById('btnInvestor');
+
+      const audPartner = document.getElementById('audPartner');
+      const audInvestor = document.getElementById('audInvestor');
+
+      function setMode(mode){
+        const isPartner = (mode === 'partner');
+
+        btnPartner.classList.toggle('active', isPartner);
+        btnInvestor.classList.toggle('active', !isPartner);
+
+        audPartner.classList.toggle('active', isPartner);
+        audInvestor.classList.toggle('active', !isPartner);
+
+        try { localStorage.setItem('kk_platform_audience', mode); } catch(e){}
+      }
+
+      btnPartner.addEventListener('click', () => setMode('partner'));
+      btnInvestor.addEventListener('click', () => setMode('investor'));
+
+      // restore
+      try {
+        const saved = localStorage.getItem('kk_platform_audience');
+        if(saved === 'investor') setMode('investor');
+        else setMode('partner');
+      } catch(e){
+        setMode('partner');
+      }
+    })();
+  </script>
+
+</body>
+</html>
