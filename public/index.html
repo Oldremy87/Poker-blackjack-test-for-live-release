@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>KennelKlub — PixelPup Arcade (Christmas Beta)</title>
+<title>KennelKlub — PixelPup Arcade (Spring Alpha Season)</title>
 <style>
     :root{
       --bg:#0b0f19; --panel:#111827; --text:#00ffc6; --text-dim:#7fffe6;
@@ -188,8 +188,12 @@
 <nav class="header-nav"><a class="btn btn-ghost" href="leaderboard.html">Leaderboard</a><a class="btn btn-ghost" href="verify.html">Verify</a><a class="btn btn-ghost" href="docs.html">Docs</a><a class="btn btn-ghost" href="roadmap.html">Roadmap</a><a class="btn btn-ghost" href="whitepaper.html">Litepaper</a><a class="btn btn-ghost" href="https://x.com/Oldremy" rel="noopener" target="_blank">@Oldremy</a></nav>
 </header>
 <section class="wrap hero">
-<h1>🎄 Christmas Season <span class="neon-pink">BETA</span> — Mid-Season Update</h1>
-<p class="readout">Instant on-chain bets + provably-fair games on Nexa. <br/><strong>Poker &amp; Blackjack are BETA • Dice is ALPHA • Wallet can send NEXA + KIBL</strong></p>
+<h1>🌱 Spring Alpha Season — <span class="neon-pink">Season M1</span> is LIVE</h1>
+<p class="readout">
+  90-day Alpha Season (Spring 2026) with <strong>30-day Ranked ladders</strong> + rotating <strong>Spotlight Weeks (x2 points)</strong>.
+  <br/>
+  <strong>Poker &amp; Blackjack are BETA • Dice is ALPHA • Wallet can send NEXA + KIBL</strong>
+</p>
 <div class="cta" style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-top: 20px;">
 <a class="btn btn-primary" href="dice.html" style="font-size: 1.1rem; padding: 14px 24px;">🎲 Play Dice (ALPHA)</a>
 <a class="btn btn-primary" href="play.html" style="font-size: 1.1rem; padding: 14px 24px;">♠️ Play Poker (BETA)</a>
@@ -207,6 +211,29 @@
   </a>
 </div>
 </section>
+<section class="wrap" style="margin: 0 auto 22px;">
+  <div class="feature-card" style="border-color: rgba(255,61,247,0.35);">
+    <h2 style="margin:0 0 8px;">🏁 New Season Structure (Live)</h2>
+
+    <p class="readout" style="margin:0 0 10px;">
+      <strong>Alpha Season (90 days): Spring 2026</strong><br/>
+      Inside the Alpha Season we run <strong>monthly ranked ladders</strong>, plus rotating <strong>weekly spotlights</strong> and occasional <strong>1-hour Power Hours</strong>.
+    </p>
+
+    <ul class="readout" style="margin: 0 0 10px 18px; color: var(--text-dim);">
+      <li><strong>Monthly Ranked (30 days):</strong> Season M1 is active now. Season M2 is already scheduled next.</li>
+      <li><strong>Spotlight Weeks (Weekly):</strong> a featured game gets <strong>x2 points</strong> for that week.</li>
+      <li><strong>Power Hours (1 hour):</strong> live mini-tournaments hosted on X (biweekly target).</li>
+    </ul>
+
+    <p class="readout" style="margin:0; opacity:.9;">
+      <strong>Algorithms research note:</strong> this season’s leaderboard + fairness mechanics are being formalized and measured
+      as part of an algorithms-focused writeup (deterministic ranking, tie-handling, verification cost).
+      <span style="opacity:.75;">Educational documentation — not an endorsement.</span>
+    </p>
+  </div>
+</section>
+
 <main class="wrap">
 <h2 style="border-bottom: 1px solid rgba(58,245,217,0.3); padding-bottom: 10px; margin-bottom: 20px;">What's New in Beta</h2>
 <div class="grid">
@@ -251,7 +278,8 @@
           <a href="roadmap.html" style="text-decoration:underline;">Check the Roadmap</a>.
         </p>
 </article>
-</div><section class="panel" id="devlog"><h2>🧑‍🔧 Mid-Christmas Dev Log — Speed, Wallet, Dice</h2><p class="readout">What shipped in this mid-season push (and why it matters for long-term legitimacy + value):</p><ul><li><strong>Wallet v2:</strong> send NEXA + KIBL directly inside the app (move winnings, gift friends, use across other dApps).</li><li><strong>Instant gameplay:</strong> refactored signing + broadcasting so bets feel near-instant (no repeated handshakes).</li><li><strong>Resilient infra:</strong> private high-performance Rostrum + client failover to public node when needed.</li><li><strong>Security trade-offs made explicit:</strong> hot wallet in-session for speed; hard re-auth for seed/private key actions.</li><li><strong>Game status update:</strong> Poker &amp; Blackjack are now <strong>BETA</strong>. Dice launches as <strong>ALPHA</strong> (simple, fast, provably fair).</li><li><strong>Quality-of-life:</strong> cleaner onboarding, fewer rate-limit issues, smoother “play again” loops, and continued UX polish.</li></ul><div style="margin-top:10px"><h3>Next up</h3><p class="readout">I’m focusing on wallet-linked seasons (real rewards tied to addresses), clearer fairness verification, and cleaner shared UI wiring across all games so every page feels like one arcade.</p></div></section>
+</div>
+
 </main>
 <footer>
 <p>
@@ -297,9 +325,5 @@
   // Initialize for "Index" mode (no arg)
   document.addEventListener('DOMContentLoaded', () => initOnboarding());
 </script>
-<footer class="readout" style="text-align:center; opacity:.9; padding:14px 0 6px;">
-    © 2025 KIBL / PixelPup • Stay shiny 🐶✨ •
-    <a href="tos.html">Terms</a> • <a href="privacy.html">Privacy</a> • <a href="disclaimer.html">Disclaimer</a>
-</footer>
 </body>
 </html>
